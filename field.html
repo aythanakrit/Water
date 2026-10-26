@@ -49,8 +49,8 @@
   .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
   .kpi b { display: block; font-size: 1.15rem; color: var(--accent); font-variant-numeric: tabular-nums; }
   .kpi span { font-size: .75rem; color: var(--muted); }
-  .scan { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: end; }
-  @media (max-width: 600px) { .scan { grid-template-columns: 1fr 1fr; } .scan .do { grid-column: 1 / -1; } }
+  .scan { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
+  @media (max-width: 700px) { .scan { grid-template-columns: 1fr 1fr 1fr; } .scan .do, .scan button.b { grid-column: 1 / -1; } }
   .doin { display: flex; gap: 6px; }
   .doin input { font-size: 1.05rem; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 12px; font-size: .88rem; margin-top: 8px; }
@@ -154,12 +154,13 @@
           <span class="doin"><input id="newDO" inputmode="numeric" autocomplete="off" placeholder="0372610040130">
             <button class="g" id="scanBtn" type="button">📷 สแกน</button></span></label>
         <label>Truck No.<input id="newTruck" inputmode="numeric" autocomplete="off"></label>
+        <label>เวลาผสม<input id="newBatch" type="time"></label>
         <label>Volume (m³)<input id="newVol" type="number" inputmode="decimal" step="0.5"></label>
         <button class="b" id="addTruck" type="button">บันทึกรถ</button>
       </div>
       <input id="scanFile" type="file" accept="image/*" capture="environment" hidden>
       <div id="addWarn"></div>
-      <p class="note" style="margin:8px 0 0">เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้) · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
+      <p class="note" style="margin:8px 0 0">เวลาผสมกรอกตามใบ D/O · เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้ทั้งคู่) · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
     </section>
 
     <section class="edit" id="editBox" hidden></section>
@@ -422,7 +423,8 @@
   }
   $("newDO").addEventListener("input", addWarn);
   $("newDO").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newTruck").focus(); } });
-  $("newTruck").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("addTruck").click(); } });
+  $("newTruck").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newBatch").focus(); } });
+  $("newBatch").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("addTruck").click(); } });
   $("addTruck").addEventListener("click", async () => {
     const d = FieldReport.cleanDO($("newDO").value);
     if (!d) { $("addWarn").innerHTML = `<div class="warn">ใส่เลข D/O ก่อนบันทึก</div>`; $("newDO").focus(); return; }
@@ -441,9 +443,9 @@
     const t = FieldReport.newTruck(job.trucks[job.trucks.length - 1]);
     t.id = FieldSync.newId("t"); t.created = t.updated = Date.now();
     t.do = d; t.truck = $("newTruck").value.trim(); t.volume = $("newVol").value || t.volume;
-    t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM();
+    t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM(); t.batching = $("newBatch").value;
     job.trucks.push(t); touch();
-    $("newDO").value = ""; $("newTruck").value = ""; $("addWarn").innerHTML = "";
+    $("newDO").value = ""; $("newTruck").value = ""; $("newBatch").value = ""; $("addWarn").innerHTML = "";
     renderJob(); $("newDO").focus();
   });
 
