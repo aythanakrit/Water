@@ -61,3 +61,27 @@ test("durability limit and min cement govern", () => {
   assert.equal(r2.design.cement, 400);
   near(r2.wc, 193 / 400, 1e-9);
 });
+
+test("fly ash and slag split the binder and keep 1 m³", () => {
+  const r = M.design({ ...base, flyAsh: { pct: 20, sg: 2.2 }, slag: { pct: 10, sg: 2.9 } });
+  const binder = 193 / r.wc;
+  near(r.binder, binder, 1e-9);
+  near(r.design.flyAsh, binder * 0.2, 1e-9);
+  near(r.design.slag, binder * 0.1, 1e-9);
+  near(r.design.cement, binder * 0.7, 1e-9);
+  const v = r.volumes;
+  near(v.water + v.cement + v.flyAsh + v.slag + v.coarse + v.fine + v.air, 1, 1e-9);
+  // lighter SCMs take more volume → less sand than the plain mix
+  assert.ok(r.design.fine < M.design(base).design.fine);
+});
+
+test("admixture dose = cc per kg binder, its water is deducted", () => {
+  const r0 = M.design(base);
+  const r = M.design({ ...base, admixtures: [{ name: "SP", dose: 3, sg: 1.2, solids: 40 }] });
+  const a = r.admixtures[0];
+  near(a.cc, 3 * r.binder, 1e-9); // binder 100 kg × 3 = 300 cc
+  near(a.kg, a.cc * 1.2 / 1000, 1e-9);
+  near(a.water, a.kg * 0.6, 1e-9);
+  near(r.batch.water, r0.batch.water - a.water, 1e-9);
+  near(r.design.fine, r0.design.fine, 1e-9);
+});

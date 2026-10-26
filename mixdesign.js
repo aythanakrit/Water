@@ -113,10 +113,13 @@
    * nmas          nominal max aggregate size (mm)
    * exposure      "none" | "mild" | "moderate" | "severe"  (none = non-air-entrained)
    * wcMax         durability w/c limit (optional)
-   * cementMin     minimum cement content kg/m³ (optional)
+   * cementMin     minimum cementitious (binder) content kg/m³ (optional)
    * waterReduction  % water reduction from admixture (optional, 0 = none)
    * sgCement, fm, druw (coarse dry-rodded unit mass, kg/m³)
    * coarse/fine: { sg (bulk OD), absorption %, moisture % }
+   * flyAsh, slag: { pct (% of binder mass), sg } (optional)
+   * admixtures: [{ name, dose (cc per kg binder), sg, solids % }] (optional)
+   *   e.g. binder 350 kg × dose 3 = 1,050 cc
    */
   function design(p) {
     const warnings = [];
@@ -136,20 +139,32 @@
     }
     const air = ae ? AIR[p.exposure][i] : AIR.entrapped[i];
 
-    // 3) w/c — strength vs durability
+    // 3) w/cm — strength vs durability
+    // With SCMs, Table 6.3.4(a) is applied to w/(c+p) by mass (ACI 211.1 §6.3.4)
     const wcs = wcFromStrength(req.fcr, ae);
     warnings.push(...wcs.warn);
     let wc = wcs.wc;
     let wcGoverns = "กำลัง (Table 6.3.4a)";
-    if (p.wcMax && p.wcMax < wc) { wc = p.wcMax; wcGoverns = "ความคงทน (w/c max)"; }
+    if (p.wcMax && p.wcMax < wc) { wc = p.wcMax; wcGoverns = "ความคงทน (w/cm max)"; }
 
-    // 4) Cement
-    let cement = water / wc;
-    if (p.cementMin && cement < p.cementMin) {
-      cement = p.cementMin;
-      wc = water / cement;
-      wcGoverns = "ปริมาณปูนขั้นต่ำ";
+    // 4) Binder split into cement + SCMs
+    let binder = water / wc;
+    if (p.cementMin && binder < p.cementMin) {
+      binder = p.cementMin;
+      wc = water / binder;
+      wcGoverns = "ปริมาณวัสดุประสานขั้นต่ำ";
     }
+    const faPct = (p.flyAsh && p.flyAsh.pct) || 0;
+    const slagPct = (p.slag && p.slag.pct) || 0;
+    if (faPct < 0 || slagPct < 0 || faPct + slagPct >= 100) throw new Error("สัดส่วน fly ash + slag ต้องอยู่ระหว่าง 0–100%");
+    const flyAsh = binder * faPct / 100;
+    const slag = binder * slagPct / 100;
+    const cement = binder - flyAsh - slag;
+    if (faPct > 0 || slagPct > 0) {
+      warnings.push("ใช้ w/cm จากตาราง ACI ของปูนปอร์ตแลนด์ล้วน — fly ash/slag ทำให้กำลัง 28 วันพัฒนาช้ากว่า ต้องยืนยันความสัมพันธ์ w/cm–กำลังด้วย trial batch");
+    }
+    if (faPct > 35) warnings.push(`Fly ash ${faPct}% ค่อนข้างสูง — ตรวจกำลังช่วงอายุต้นและข้อกำหนดของโครงการ`);
+    if (slagPct > 70) warnings.push(`Slag ${slagPct}% ค่อนข้างสูง — ตรวจกำลังช่วงอายุต้นและข้อกำหนดของโครงการ`);
 
     // 5) Coarse aggregate (OD)
     if (p.fm < 2.3 || p.fm > 3.1) warnings.push(`FM ทราย = ${p.fm} อยู่นอกช่วงที่แนะนำ 2.3–3.1 (ACI 211.1)`);
@@ -160,10 +175,12 @@
     const vol = {
       water: water / 1000,
       cement: cement / (p.sgCement * 1000),
+      flyAsh: flyAsh ? flyAsh / (p.flyAsh.sg * 1000) : 0,
+      slag: slag ? slag / (p.slag.sg * 1000) : 0,
       coarse: coarseOD / (p.coarse.sg * 1000),
       air: air / 100,
     };
-    vol.fine = 1 - vol.water - vol.cement - vol.coarse - vol.air;
+    vol.fine = 1 - vol.water - vol.cement - vol.flyAsh - vol.slag - vol.coarse - vol.air;
     if (vol.fine <= 0) throw new Error("ปริมาตรทรายติดลบ — ตรวจสอบข้อมูลวัสดุ");
     const fineOD = vol.fine * p.fine.sg * 1000;
 
@@ -172,19 +189,29 @@
     const wetFine = fineOD * (1 + p.fine.moisture / 100);
     const freeCoarse = coarseOD * (p.coarse.moisture - p.coarse.absorption) / 100;
     const freeFine = fineOD * (p.fine.moisture - p.fine.absorption) / 100;
-    const batchWater = water - freeCoarse - freeFine;
 
-    const design = { cement, water, coarse: coarseOD, fine: fineOD };
-    const batch = { cement, water: batchWater, coarse: wetCoarse, fine: wetFine };
-    const sum = (o) => o.cement + o.water + o.coarse + o.fine;
+    // 8) Admixtures — dose in cc per kg binder; water in the admixture counts as mixing water
+    const admixtures = (p.admixtures || []).filter((a) => a && a.dose > 0).map((a) => {
+      const cc = a.dose * binder;
+      const kg = cc * a.sg / 1000;
+      return { name: a.name, dose: a.dose, cc, litre: cc / 1000, kg, water: kg * (1 - (a.solids || 0) / 100) };
+    });
+    const admixWater = admixtures.reduce((t, a) => t + a.water, 0);
+    const admixKg = admixtures.reduce((t, a) => t + a.kg, 0);
+    const batchWater = water - freeCoarse - freeFine - admixWater;
+
+    const design = { cement, flyAsh, slag, water, coarse: coarseOD, fine: fineOD };
+    const batch = { cement, flyAsh, slag, water: batchWater, coarse: wetCoarse, fine: wetFine };
+    const sum = (o, extra = 0) => o.cement + o.flyAsh + o.slag + o.water + o.coarse + o.fine + extra;
 
     return {
       fcr: req.fcr, fcrMethod: req.method, sdUsed: req.sdUsed,
       waterTable, water, air, airEntrained: ae,
       wcStrength: wcs.wc, wc, wcGoverns,
       bb0, volumes: vol,
-      design, designDensity: sum(design),
-      batch, batchDensity: sum(batch),
+      binder, design, designDensity: sum(design),
+      batch, batchDensity: sum(batch, admixKg),
+      admixtures, admixWater,
       freeWater: { coarse: freeCoarse, fine: freeFine },
       warnings,
     };
