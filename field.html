@@ -55,6 +55,8 @@
   .doin input { font-size: 1.05rem; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 12px; font-size: .88rem; margin-top: 8px; }
   .warn ul { margin: 0; padding-left: 18px; }
+  .sync { font-size: .85rem; color: var(--muted); margin: -8px 0 12px; }
+  .sync.off { color: var(--warn); } .sync.bad { color: var(--bad); font-weight: 600; }
   .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
   table.list tbody tr.dup td { color: var(--bad); font-weight: 600; }
   .scroll { overflow-x: auto; }
@@ -106,6 +108,7 @@
         นำเข้าไฟล์สำรอง<input id="restore" type="file" accept=".json,application/json" hidden></label>
       <span class="saved" id="listMsg"></span>
     </div>
+    <p class="sync" id="syncList"></p>
     <div class="jobs" id="jobs"></div>
   </div>
 
@@ -117,6 +120,8 @@
     </div>
     <h1 id="jobTitle">งานใหม่</h1>
     <p class="sub" id="jobSub"></p>
+    <p class="sync" id="syncJob"></p>
+    <div id="syncErr"></div>
 
     <section>
       <details id="hdrBox">
@@ -182,6 +187,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="fieldreport.js"></script>
+<script src="fieldsync.js"></script>
+<script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -208,7 +215,100 @@
     if ($("savedMsg")) $("savedMsg").textContent = m;
   }
   let job = null, editIdx = -1;
-  const touch = () => { job.updated = Date.now(); persist(); };
+  db.jobs.forEach(FieldSync.upgradeJob);
+  db.dirty = db.dirty || [];
+  db.deleted = db.deleted || [];
+  const touch = () => { job.updated = Date.now(); delete job.syncError; persist(); markDirty(job.id); };
+
+  // ---------- central storage (Google Sheets), optional ----------
+  const SYNC = window.FIELD_SYNC && window.FIELD_SYNC.url ? window.FIELD_SYNC : null;
+  let syncState = SYNC ? "idle" : "local", lastSync = null, syncTimer = null;
+  async function api(action, body = {}) {
+    const res = await fetch(SYNC.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ ...body, action, key: SYNC.key }) });
+    const out = await res.json();
+    if (out.error === "unauthorized") throw new Error("unauthorized");
+    return out;
+  }
+  function markDirty(id) {
+    if (!SYNC) return;
+    if (!db.dirty.includes(id)) db.dirty.push(id);
+    persist(); clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 800);
+  }
+  function showSync() {
+    const n = db.dirty.length + db.deleted.length;
+    const [cls, txt] = !SYNC ? ["", "💾 เก็บข้อมูลในเครื่องนี้เท่านั้น"]
+      : syncState === "busy" ? ["", "⏳ กำลังส่งข้อมูลขึ้น Google Sheets…"]
+      : syncState === "offline" ? ["off", `📴 ออฟไลน์ — มี ${n} รายการรอส่ง จะส่งให้เองเมื่อมีสัญญาณ`]
+      : syncState === "auth" ? ["bad", "⛔ เชื่อม Google Sheets ไม่ได้ (รหัส key ไม่ตรง) — แจ้งผู้ดูแล"]
+      : n ? ["off", `⏳ รอส่ง ${n} รายการ`] : ["", `☁️ ซิงค์กับ Google Sheets แล้ว${lastSync ? " " + lastSync : ""}`];
+    ["syncList", "syncJob"].forEach((id) => { const el = $(id); if (el) { el.className = "sync " + cls; el.textContent = txt; } });
+    if ($("syncErr")) $("syncErr").innerHTML = job && job.syncError ? `<div class="err">⛔ ส่งขึ้น Google Sheets ไม่ได้: ${esc(job.syncError)}</div>` : "";
+  }
+  // Replace a local job with the merged copy, keeping edits made while the request was in flight
+  function applyServer(serverJob) {
+    const i = db.jobs.findIndex((j) => j.id === serverJob.id);
+    const merged = FieldSync.mergeJobs(i >= 0 ? db.jobs[i] : null, serverJob);
+    if (i >= 0) { merged.syncError = db.jobs[i].syncError; db.jobs[i] = merged; } else db.jobs.push(merged);
+    if (job && job.id === merged.id) job = merged;
+    return merged;
+  }
+  function refreshOpenJob() {
+    if (!job) return showList();
+    const typing = document.activeElement && (document.activeElement.closest("#editBox") || document.activeElement.closest("#hdr") || document.activeElement.id === "newDO" || document.activeElement.id === "newTruck");
+    if (typing) { renderList(); showSync(); } else renderJob();
+  }
+  async function syncNow() {
+    if (!SYNC || syncState === "busy") return;
+    syncState = "busy"; showSync();
+    try {
+      for (const id of [...db.deleted]) { await api("delete", { id }); db.deleted = db.deleted.filter((x) => x !== id); }
+      for (const id of [...db.dirty]) {
+        const local = db.jobs.find((j) => j.id === id);
+        if (!local) { db.dirty = db.dirty.filter((x) => x !== id); continue; }
+        const sentAt = local.updated;
+        const { syncError, ...payload } = local;
+        const r = await api("save", { job: payload });
+        if (r.ok) {
+          applyServer(r.job);
+          const now = db.jobs.find((j) => j.id === id);
+          delete now.syncError;
+          if (now.updated === sentAt) db.dirty = db.dirty.filter((x) => x !== id);
+        } else if (r.error === "duplicate") {
+          local.syncError = `D/O ${r.conflict.do} ซ้ำกับ${r.conflict.sameJob ? "ลำดับที่ " + r.conflict.no + " ในงานนี้" : ` งาน "${r.conflict.project || "(ไม่มีชื่อ)"}" ลำดับที่ ${r.conflict.no}`} — แก้หรือลบรถคันนั้นก่อน`;
+          db.dirty = db.dirty.filter((x) => x !== id); // wait for the next edit
+        } else if (r.error === "deleted") {
+          db.jobs = db.jobs.filter((j) => j.id !== id); db.dirty = db.dirty.filter((x) => x !== id);
+          if (job && job.id === id) job = null;
+        }
+      }
+      syncState = "idle"; lastSync = FieldReport.nowHHMM();
+    } catch (e) {
+      syncState = e.message === "unauthorized" ? "auth" : "offline";
+    }
+    persist(); showSync();
+    if (job) refreshOpenJob(); else if (!$("vList").hidden) showList();
+  }
+  // Pull jobs saved from other devices
+  async function pull() {
+    if (!SYNC || syncState === "busy") return;
+    try {
+      if (job) { const r = await api("get", { id: job.id }); if (r.ok && r.job) { applyServer(r.job); persist(); refreshOpenJob(); } return; }
+      const r = await api("list");
+      if (!r.ok) return;
+      const onServer = new Set(r.jobs.map((j) => j.id));
+      r.jobs.forEach(applyServer);
+      // jobs removed on another device (never ones still waiting to be sent)
+      db.jobs = db.jobs.filter((j) => onServer.has(j.id) || db.dirty.includes(j.id));
+      if (syncState === "offline") syncState = "idle";
+      lastSync = FieldReport.nowHHMM(); persist(); showSync();
+      if (!job && !$("vList").hidden) showList();
+    } catch (e) { syncState = e.message === "unauthorized" ? "auth" : "offline"; showSync(); }
+  }
+  if (SYNC) {
+    window.addEventListener("online", syncNow);
+    setInterval(() => { if (db.dirty.length || db.deleted.length) syncNow(); else pull(); }, 20000);
+  }
 
   // ---------- downloads (artifact viewer or plain browser) ----------
   let downloads = null;
@@ -230,12 +330,14 @@
   function showList() {
     job = null; editIdx = -1;
     $("vJob").hidden = true; $("vList").hidden = false;
+    showSync();
     const jobs = [...db.jobs].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = FieldReport.summary(j);
       return `<section class="job">
         <div><b>${esc(j.header.project || "(ยังไม่ใส่ชื่อโครงการ)")}</b>
           <span class="chip ${j.status}">${j.status === "done" ? "จบงานแล้ว" : "กำลังบันทึก"}</span>
+          ${j.syncError ? `<span class="chip" style="background:var(--bad);color:var(--card)">ส่งไม่ได้</span>` : ""}
           <div class="meta">${esc([j.header.structure, j.header.structureNo].filter(Boolean).join(" · "))} ${esc(thaiDate(j.header.date))}
             · ${s.trucks} เที่ยว · รับ ${fmt(s.received)}${s.ordered ? ` / ${fmt(s.ordered)}` : ""} คิว</div></div>
         <div class="row"><button class="b" data-open="${j.id}" type="button">${j.status === "done" ? "เปิดดู" : "บันทึกต่อ"}</button>
@@ -249,12 +351,15 @@
     if (o) openJob(o);
     if (d) {
       if (delArmed !== d) { delArmed = d; e.target.textContent = "กดอีกครั้งเพื่อลบ"; setTimeout(() => { if (delArmed === d) { delArmed = null; showList(); } }, 4000); return; }
-      db.jobs = db.jobs.filter((j) => j.id !== d); delArmed = null; persist(); showList();
+      db.jobs = db.jobs.filter((j) => j.id !== d); delArmed = null;
+      db.dirty = db.dirty.filter((x) => x !== d);
+      if (SYNC) { db.deleted.push(d); syncNow(); }
+      persist(); showList();
     }
   });
   $("newJob").addEventListener("click", () => {
-    const j = FieldReport.newJob("j" + Date.now().toString(36), today());
-    db.jobs.push(j); persist(); openJob(j.id, true);
+    const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
+    db.jobs.push(j); persist(); markDirty(j.id); openJob(j.id, true);
   });
 
   // ---------- one job ----------
@@ -267,6 +372,7 @@
     $("savedMsg").textContent = ""; $("pdfMsg").textContent = "";
     renderJob();
     window.scrollTo(0, 0);
+    pull();
   }
   function renderJob() {
     const h = job.header, s = FieldReport.summary(job), done = job.status === "done";
@@ -280,10 +386,10 @@
     $("addBox").hidden = done;
     $("finish").textContent = done ? "เปิดงานแก้ไขต่อ" : "จบงาน";
     if (!$("newVol").value) $("newVol").value = job.trucks.length ? job.trucks[job.trucks.length - 1].volume : 7;
-    renderList(); renderEdit();
+    renderList(); renderEdit(); showSync();
   }
   document.querySelectorAll("[data-h]").forEach((el) => el.addEventListener("input", () => {
-    job.header[el.dataset.h] = el.value; touch();
+    job.header[el.dataset.h] = el.value; job.headerUpdated = Date.now(); touch();
     const keep = document.activeElement; renderJob(); keep && keep.focus();
   }));
   $("toList").addEventListener("click", showList);
@@ -317,11 +423,23 @@
   $("newDO").addEventListener("input", addWarn);
   $("newDO").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newTruck").focus(); } });
   $("newTruck").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("addTruck").click(); } });
-  $("addTruck").addEventListener("click", () => {
+  $("addTruck").addEventListener("click", async () => {
     const d = FieldReport.cleanDO($("newDO").value);
     if (!d) { $("addWarn").innerHTML = `<div class="warn">ใส่เลข D/O ก่อนบันทึก</div>`; $("newDO").focus(); return; }
     if (addWarn()) { $("newDO").focus(); $("newDO").select(); return; }
+    // Ask the central sheet too (other devices); if offline, the sheet checks again when the job is sent
+    if (SYNC && navigator.onLine) {
+      $("addTruck").disabled = true;
+      try {
+        const r = await Promise.race([api("checkDO", { do: d, jobId: job.id }), new Promise((_, no) => setTimeout(() => no(new Error("timeout")), 5000))]);
+        if (r.ok && r.hit) {
+          $("addWarn").innerHTML = `<div class="err">⛔ D/O นี้บันทึกไปแล้ว — งาน "${esc(r.hit.project || "(ไม่มีชื่อ)")}" ลำดับที่ ${esc(r.hit.no)} (จากเครื่องอื่น) — บันทึกซ้ำไม่ได้</div>`;
+          $("newDO").focus(); $("newDO").select(); return;
+        }
+      } catch {} finally { $("addTruck").disabled = false; }
+    }
     const t = FieldReport.newTruck(job.trucks[job.trucks.length - 1]);
+    t.id = FieldSync.newId("t"); t.created = t.updated = Date.now();
     t.do = d; t.truck = $("newTruck").value.trim(); t.volume = $("newVol").value || t.volume;
     t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM();
     job.trucks.push(t); touch();
@@ -396,7 +514,7 @@
   $("editBox").addEventListener("input", (e) => {
     const k = e.target.dataset.t; if (!k || k === "do") return;
     const t = job.trucks[editIdx];
-    t[k] = e.target.value;
+    t[k] = e.target.value; t.updated = Date.now();
     touch(); renderList();
     if (k === "volume") { const pos = e.target.selectionStart; renderJob(); const el = $("editBox").querySelector(`[data-t="${k}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} } }
   });
@@ -411,16 +529,16 @@
       $("doErr").innerHTML = `<div class="err">⛔ ${hit ? esc(FieldReport.dupMessage(hit)) + " — แก้เป็นเลขนี้ไม่ได้" : "D/O ว่างไม่ได้"}</div>`;
       return;
     }
-    t.do = d; const p = FieldReport.plantFromDO(d); t.plant = p.name || t.plant;
+    t.do = d; t.updated = Date.now(); const p = FieldReport.plantFromDO(d); t.plant = p.name || t.plant;
     touch(); renderJob();
   });
   $("editBox").addEventListener("click", (e) => {
     const t = job.trucks[editIdx];
-    if (e.target.dataset.now) { t[e.target.dataset.now] = FieldReport.nowHHMM(); touch(); renderList(); renderEdit(); }
+    if (e.target.dataset.now) { t[e.target.dataset.now] = FieldReport.nowHHMM(); t.updated = Date.now(); touch(); renderList(); renderEdit(); }
     if (e.target.hasAttribute("data-close")) { editIdx = -1; renderList(); renderEdit(); }
     if (e.target.hasAttribute("data-rm")) {
       if (!rmArmed) { rmArmed = true; e.target.textContent = "กดอีกครั้งเพื่อลบ"; setTimeout(() => { rmArmed = false; renderEdit(); }, 4000); return; }
-      rmArmed = false; job.trucks.splice(editIdx, 1); editIdx = -1; touch(); renderJob();
+      rmArmed = false; job.removed.push({ id: t.id, updated: Date.now() }); job.trucks.splice(editIdx, 1); editIdx = -1; touch(); renderJob();
     }
   });
 
@@ -432,7 +550,7 @@
   }
   $("finish").addEventListener("click", () => {
     if (job.status !== "done" && blockedByDuplicates()) return;
-    job.status = job.status === "done" ? "open" : "done"; touch(); renderJob();
+    job.status = job.status === "done" ? "open" : "done"; job.statusUpdated = Date.now(); touch(); renderJob();
     if (job.status === "done") $("pdfMsg").textContent = "จบงานแล้ว — กด Export PDF เพื่อบันทึกใบรายงาน";
   });
 
@@ -517,14 +635,17 @@
       data.jobs.forEach((j) => {
         if (!j || !j.id || !j.header || !Array.isArray(j.trucks)) return;
         const i = db.jobs.findIndex((x) => x.id === j.id);
-        if (i < 0) { db.jobs.push(j); added++; } else if ((j.updated || 0) > (db.jobs[i].updated || 0)) { db.jobs[i] = j; added++; }
+        FieldSync.upgradeJob(j);
+        if (i < 0) { db.jobs.push(j); added++; } else { db.jobs[i] = FieldSync.mergeJobs(db.jobs[i], j); added++; }
+        if (SYNC && !db.dirty.includes(j.id)) db.dirty.push(j.id);
       });
-      persist(); showList(); $("listMsg").textContent = `นำเข้า ${added} งาน`;
+      persist(); showList(); $("listMsg").textContent = `นำเข้า ${added} งาน`; syncNow();
     } catch { $("listMsg").textContent = "ไฟล์ไม่ถูกต้อง — ใช้ไฟล์จาก \"ส่งออกไฟล์สำรอง\""; }
   });
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
   showList();
+  if (SYNC) syncNow().then(pull);
   const open = db.jobs.filter((j) => j.status === "open");
   if (open.length === 1) $("listMsg").textContent = `มีงานที่ยังบันทึกไม่จบ: ${open[0].header.project || "(ไม่มีชื่อ)"}`;
 </script>
