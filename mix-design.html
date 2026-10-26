@@ -138,21 +138,13 @@
 </main>
 
 <script src="mixdesign.js"></script>
+<script src="admixtures.js"></script>
 <script>
   const KSC = 0.0980665;
   const $ = (id) => document.getElementById(id);
   const num = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
   const f = (x, d = 0) => x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-  // From manufacturers' PDS: density (kg/L) range and recommended dose, converted to cc per kg binder.
-  // Entries without sg/dose are waiting for their PDS; the user types the density.
-  const ADMIX = [
-    { brand: "Sika", name: "Sika Plastomix-704", type: "ASTM C494 Type A/D", sg: [1.060, 1.100], dose: [3, 8] },
-    { brand: "Sika", name: "Sikament NN TH", type: "ASTM C494 Type F", sg: [1.225, 1.255], dose: [6, 30] },
-    { brand: "Sika", name: "Sikament G-5", type: "ASTM C494 Type G", sg: [1.180, 1.200], dose: [8, 25] },
-    { brand: "Sika", name: "Sika ViscoCrete-10 TH", type: "PCE ลดน้ำอย่างมาก", sg: [1.050, 1.070], pct: [0.6, 3.0], pce: true },
-    { brand: "GCP Applied Technologies", name: "GCP DARACEM S21C", type: "ASTM C494 Type F · ห้ามใช้ร่วมกับ PCE", noPce: true },
-  ];
   const mid = (a) => (a[0] + a[1]) / 2;
   // ViscoCrete is dosed in % by mass of cement: cc/kg = % × 10 ÷ density
   const doseRange = (a, sg) => a.dose || (a.pct && a.pct.map((x) => x * 10 / sg));

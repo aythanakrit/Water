@@ -4,6 +4,8 @@
 
 - `index.html` หน้าหลัก ถ้าจะเพิ่มโปรแกรมใหม่ ให้เพิ่มรายการใน `TOOLS`
 - `mix-design.html` + `mixdesign.js` โปรแกรม Mix Design ตาม ACI 211.1
+- `evaluate.html` + `evaluate.js` ประเมินสูตรจากใบงาน (วางตารางวัตถุดิบจากระบบ → w/cm, dose, yield, หน่วยน้ำหนัก, กำลังโดยประมาณ)
+- `admixtures.js` รายการสารผสมเพิ่มที่ใช้ร่วมกันทุกโปรแกรม
 
 วิธีใช้: เปิด `index.html` ใน browser (ต้องวางทุกไฟล์ไว้ในโฟลเดอร์เดียวกัน)
 
@@ -33,6 +35,7 @@
 
 GCP Applied Technologies: DARACEM S21C (ASTM C494 Type F, naphthalene — ห้ามใช้ร่วมกับ PCE)
 อยู่ในรายการแล้ว แต่ยังรอ PDS สำหรับ ถ.พ. และอัตราการใช้ · DARACEM 465 และ WRDA P120 ยังไม่ใส่
+Concera SA 8689 (Type F, รหัส ADM0502) อยู่ในรายการ ยังรอ PDS
 
 PDS ของ Sika ไม่ระบุเนื้อสาร (solid content) จึงตั้งค่าเริ่มต้นเป็น 100% (ไม่หักน้ำในสารผสม)
 
