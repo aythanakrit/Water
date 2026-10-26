@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Production">
+<title>ปริมาตรคอนกรีต</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
+    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
+            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
+            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding-block: 20px 48px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
+  .back:hover, .back:focus-visible { text-decoration: underline; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; margin-bottom: 16px; }
+  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+          border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
+  input { text-align: right; font-variant-numeric: tabular-nums; }
+  input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  label { display: flex; flex-direction: column; gap: 2px; font-size: .8rem; color: var(--muted); min-width: 0; }
+  .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .item .top { display: flex; gap: 8px; align-items: end; margin-bottom: 8px; }
+  .item .top label:first-child { flex: 1; }
+  .dims { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .res { margin-top: 8px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .res b { color: var(--accent); }
+  .why { margin: 6px 0 0; padding-left: 1.2em; font-size: .85rem; color: var(--muted); }
+  button.b { font: inherit; border-radius: 6px; padding: 6px 14px; cursor: pointer; background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button.del { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .big td { font-weight: 700; font-size: 1.1rem; color: var(--accent); border-bottom: none; }
+  .note { font-size: .82rem; color: var(--muted); margin-top: 12px; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: .9rem; margin: 12px 0 0; }
+  #reasons h3 { font-size: .95rem; margin: 12px 0 2px; }
+  #reasons ul { margin: 0; padding-left: 1.2em; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+  <h1>ปริมาตรคอนกรีต</h1>
+  <p class="sub">กรอกขนาดชิ้นงานเป็นเมตร (m) ได้ปริมาตรสุทธิ ปริมาตรที่เผื่อพร้อมเหตุผล ยอดสั่ง และจำนวนเที่ยวรถโม่</p>
+
+  <section>
+    <h2>ชิ้นงาน</h2>
+    <div id="items"></div>
+    <button class="b" id="add" type="button">+ เพิ่มชิ้นงาน</button>
+  </section>
+
+  <section>
+    <h2>การสั่ง</h2>
+    <div class="opts">
+      <label>ความจุรถโม่ (m³/เที่ยว)<input id="cap" type="number" step="0.5" min="0" value="5"></label>
+      <label>ปัดยอดสั่งขึ้นทีละ (m³)<input id="step" type="number" step="0.5" min="0" value="0.5"></label>
+      <label>ไล่ท่อปั๊ม / ค้างในท่อ (m³)<input id="pump" type="number" step="0.1" min="0" value="0"></label>
+    </div>
+    <table style="margin-top:12px"><tbody id="sum"></tbody></table>
+    <div id="msg"></div>
+  </section>
+
+  <section id="reasons"><h2>เหตุผลที่ต้องเผื่อ</h2><div id="why"></div></section>
+
+  <p class="note">% เผื่อเริ่มต้นเป็นค่าที่ใช้กันในทางปฏิบัติ ไม่มีมาตรฐาน (ว.ส.ท., ACI, ASTM C94) กำหนดตายตัว ควรปรับตามข้อมูลจริงของหน้างานและบริษัท · ค่าไล่ท่อปั๊มขึ้นกับความยาวและขนาดท่อ ให้ใช้ค่าจากทีมปั๊ม · เสาเข็มเจาะขึ้นกับชั้นดินมาก ควรใช้ข้อมูลเข็มต้นที่เทไปแล้วปรับ % · ปริมาตรสุทธิไม่ได้หักปริมาตรเหล็กเสริม (โดยทั่วไป ~1–2%) จึงเป็นค่าที่ปลอดภัยฝั่งไม่ขาด</p>
+</main>
+
+<script src="volume.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const T = Volume.TYPES;
+  const f = (x, d = 2) => isFinite(x) ? x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–";
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const KEY = "volume-items";
+  const DIM_KEYS = ["a", "b", "h"];
+
+  let items;
+  try { items = JSON.parse(localStorage.getItem(KEY)); } catch (e) { items = null; }
+  if (!Array.isArray(items) || !items.length) items = [{ type: "slab", a: 10, b: 10, h: 0.1, n: 1, waste: T.slab.waste }];
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { /* storage blocked */ } };
+
+  function renderItems() {
+    $("items").innerHTML = items.map((it, i) => {
+      const t = T[it.type];
+      const unit = t.shape === "direct" ? "m³" : "m";
+      const dims = t.dims.map((d, j) =>
+        `<label>${esc(d)} (${unit})<input type="number" step="0.01" min="0" data-i="${i}" data-k="${DIM_KEYS[j]}" value="${it[DIM_KEYS[j]] ?? ""}"></label>`).join("");
+      const count = t.shape === "direct" ? "" :
+        `<label>จำนวน (ชิ้น)<input type="number" step="1" min="0" data-i="${i}" data-k="n" value="${it.n ?? 1}"></label>`;
+      return `<div class="item">
+        <div class="top">
+          <label>ชนิดงาน<select data-i="${i}" data-k="type">${Object.entries(T).map(([k, v]) =>
+            `<option value="${k}"${k === it.type ? " selected" : ""}>${esc(v.name)}</option>`).join("")}</select></label>
+          <button class="del" type="button" data-del="${i}" aria-label="ลบชิ้นงานที่ ${i + 1}">✕</button>
+        </div>
+        <div class="dims">${dims}${count}
+          <label>เผื่อ (%)<input type="number" step="0.5" min="0" data-i="${i}" data-k="waste" value="${it.waste}"></label>
+        </div>
+        <div class="res" id="res${i}"></div>
+        <ul class="why">${t.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+      </div>`;
+    }).join("");
+  }
+
+  function run() {
+    const r = Volume.order(items.map((it) => ({ ...it, waste: Number(it.waste) || 0 })), {
+      cap: Number($("cap").value), step: Number($("step").value), pump: Number($("pump").value) || 0,
+    });
+    r.rows.forEach((row, i) => {
+      $("res" + i).innerHTML = `สุทธิ ${f(row.net)} m³ + เผื่อ ${f(row.waste, 1)}% = ${f(row.extra)} m³ → <b>${f(row.total)} m³</b>`;
+    });
+    const cap = Number($("cap").value);
+    $("sum").innerHTML = `
+      <tr><td>ปริมาตรสุทธิตามแบบ</td><td>${f(r.net)} m³</td></tr>
+      <tr><td>เผื่อสูญเสียรวม</td><td>${f(r.extra)} m³</td></tr>
+      ${r.pump ? `<tr><td>ไล่ท่อปั๊ม / ค้างในท่อ</td><td>${f(r.pump)} m³</td></tr>` : ""}
+      <tr><td>ปริมาตรที่ต้องใช้ (เผื่อรวม ${f(r.wastePct, 1)}%)</td><td>${f(r.need)} m³</td></tr>
+      <tr class="big"><td>ยอดสั่ง</td><td>${f(r.ordered)} m³</td></tr>
+      <tr><td>จำนวนเที่ยว</td><td>${r.trips} เที่ยว${r.trips > 1 && r.last < cap - 1e-9 ? ` (เต็ม ${r.trips - 1} เที่ยว + เที่ยวสุดท้าย ${f(r.last)} m³)` : ""}</td></tr>`;
+    $("msg").innerHTML = r.trips > 1 && r.last < cap * 0.5
+      ? `<p class="warn">เที่ยวสุดท้ายเหลือ ${f(r.last)} m³ ต่ำกว่าครึ่งคัน อาจเข้าเงื่อนไขค่า short load และรอนาน แนะนำให้หน้างานวัดจริงก่อนสั่งเที่ยวสุดท้าย หรือเฉลี่ยปริมาตรต่อเที่ยวใหม่</p>` : "";
+    const used = [...new Set(items.map((it) => it.type))];
+    $("why").innerHTML = used.map((k) =>
+      `<h3>${esc(T[k].name)} (ค่าเริ่มต้น ${T[k].waste}%)</h3><ul>${T[k].reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`).join("") +
+      `<h3>ทำไมไม่ควรเผื่อน้อยหรือมากเกินไป</h3><ul>
+        <li>เผื่อน้อย: เที่ยวสุดท้ายขาด ต้องสั่งเพิ่มเที่ยวเล็ก รอนาน เสี่ยงเกิด cold joint ซึ่งมีผลต่อคุณภาพโครงสร้าง</li>
+        <li>เผื่อมาก: คอนกรีตเหลือตีกลับ เป็นต้นทุนที่เสียไปเปล่า ๆ</li>
+        <li>ปริมาตรที่ผลิตจริงต่อเที่ยวขึ้นกับ yield ของสูตร ถ้า yield ต่ำกว่า 1.00 จะดูเหมือนคิวขาด ตรวจได้ด้วย unit weight (ASTM C138)</li>
+      </ul>`;
+    save();
+  }
+
+  $("items").addEventListener("input", (e) => {
+    const { i, k } = e.target.dataset;
+    if (i === undefined) return;
+    if (k === "type") {
+      items[i] = { type: e.target.value, n: 1, waste: T[e.target.value].waste };
+      renderItems();
+    } else {
+      items[i][k] = e.target.value === "" ? 0 : Number(e.target.value);
+    }
+    run();
+  });
+  $("items").addEventListener("click", (e) => {
+    const i = e.target.dataset.del;
+    if (i === undefined) return;
+    items.splice(Number(i), 1);
+    if (!items.length) items.push({ type: "slab", n: 1, waste: T.slab.waste });
+    renderItems(); run();
+  });
+  $("add").addEventListener("click", () => {
+    items.push({ type: "slab", n: 1, waste: T.slab.waste });
+    renderItems(); run();
+  });
+  ["cap", "step", "pump"].forEach((id) => $(id).addEventListener("input", run));
+  renderItems(); run();
+</script>
+</body>
+</html>
