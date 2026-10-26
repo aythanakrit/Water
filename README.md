@@ -6,6 +6,7 @@
 - `mix-design.html` + `mixdesign.js` โปรแกรม Mix Design ตาม ACI 211.1
 - `dose.html` Mix Rev. Design (ปรับสูตรหน้างาน): เปลี่ยนปูน คงสัดส่วนน้ำยาต่อ binder แล้วคูณ cap เครื่องที่โหลด
 - `convert.html` คำนวณผลกดลูกปูน kN ↔ ksc (ทรงกระบอก Ø15 ซม. / ลูกบาศก์ 15 ซม.)
+- `core.html` + `coretest.js` ผลกด Core: L:D, ความหนาแน่น, กำลังอัด, % เทียบ Mix, Target 100%/85%
 - `fieldtools.js` สูตรคำนวณของสองหน้าข้างบน (ตามชีต Excel เดิม)
 - `admixtures.js` รายการสารผสมเพิ่มที่ใช้ร่วมกันทุกโปรแกรม
 

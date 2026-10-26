@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ผลกด Core</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
+    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00; --ok: #1d7a3e; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
+            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; --ok: #5cc98a; --bad: #ff8a80; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
+            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; --ok: #5cc98a; --bad: #ff8a80; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding-block: 20px 48px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
+  .back:hover, .back:focus-visible { text-decoration: underline; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+          border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+  tfoot td { font-weight: 600; }
+  .u { color: var(--muted); font-size: .85rem; width: 3.5em; text-align: left; }
+  .out { font-weight: 600; color: var(--accent); }
+  .note { font-size: .82rem; color: var(--muted); margin-top: 12px; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: .9rem; margin: 0 0 16px; }
+  .top { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 14px; max-width: 640px; }
+  .top label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: 3px; }
+  .top input { text-align: left; }
+  .scroll { overflow-x: auto; }
+  #sheet { min-width: max-content; }
+  #sheet th, #sheet td { white-space: nowrap; }
+  #sheet td.c, #sheet th.c { min-width: 6.5em; }
+  #sheet td.c input { width: 6.5em; padding: 4px 6px; }
+  #sheet th.c input { width: 6.5em; padding: 4px 6px; text-align: center; font-weight: 600; }
+  #sheet .unit { color: var(--muted); font-size: .82rem; }
+  #sheet tbody tr.calc td.c { color: var(--accent); }
+  #sheet tr.sep td { border-top: 2px solid var(--line); }
+  .pass { color: var(--ok) !important; font-weight: 600; }
+  .fail { color: var(--bad) !important; font-weight: 600; }
+  .del { background: transparent; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 0 4px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button.b { font: inherit; border-radius: 6px; padding: 6px 14px; cursor: pointer; background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sum { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 16px; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--card); }
+  .kpi b { display: block; font-size: 1.15rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: .78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+  <h1>ผลกด Core</h1>
+  <p class="sub">กรอกขนาด น้ำหนัก และแรงกดของแต่ละตัวอย่าง · ksc = kN × 101.97 ÷ พื้นที่ (ซม²) · MPa = ksc × 0.0981</p>
+
+  <div class="top">
+    <label>Project Name<input id="project" placeholder="ชื่อโครงการ"></label>
+    <label>Mix (ksc, Cy)<input id="spec" type="number" step="5" value="380" style="text-align:right"></label>
+  </div>
+
+  <section>
+    <div class="scroll">
+      <table id="sheet"></table>
+    </div>
+    <div class="row">
+      <button class="b" id="add" type="button">+ เพิ่มตัวอย่าง</button>
+      <button class="b" id="clear" type="button">ล้างข้อมูลทั้งหมด</button>
+      <span class="note" id="clearMsg" style="margin:0;align-self:center"></span>
+    </div>
+    <div class="sum" id="sum"></div>
+  </section>
+  <p class="note">ช่องสีน้ำเงินคำนวณอัตโนมัติ · เขียว = ถึง 85% ของ Mix, แดง = ต่ำกว่า 85% ·
+    ข้อมูลที่กรอกจะจำไว้ในเครื่องนี้เท่านั้น · ผลประเมินคุณภาพคอนกรีตต้องให้วิศวกรผู้รับผิดชอบพิจารณา</p>
+</main>
+
+<script src="coretest.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const f = (x, d = 2) => x == null || !isFinite(x) ? "" : x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const KEY = "core-test-v1";
+
+  // Sample data from the sheet (Mix 380 ksc Cy)
+  const SAMPLE = {
+    project: "", spec: 380,
+    samples: [
+      { name: "No.16", d: 69.1, l: 139.4, w: 1.218, load: 144.31 },
+      { name: "No.19", d: 69.1, l: 137.7, w: 1.12, load: 151.84 },
+      { name: "No.20", d: 69.1, l: 137.5, w: 1.196, load: 121.41 },
+      { name: "No.1", d: 93.2, l: 185, w: 2.663, load: 31.01 },
+      { name: "No.2", d: 67.2, l: 129.4, w: 0.964, load: 12.18 },
+      { name: "No.3", d: 67.9, l: 140.5, w: 1.071, load: 9.71 },
+    ],
+  };
+  let state;
+  try { state = JSON.parse(localStorage.getItem(KEY)) || SAMPLE; } catch { state = SAMPLE; }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+
+  const INPUTS = [
+    ["d", "Average Diameter", "mm"], ["l", "Average Length", "mm"], ["w", "Weight", "Kg"],
+  ];
+
+  function render() {
+    $("project").value = state.project;
+    $("spec").value = state.spec;
+    const n = state.samples;
+    const head = `<thead><tr><th>Description</th><th>Unit</th>${n.map((s, i) =>
+      `<th class="c"><input data-i="${i}" data-k="name" value="${esc(s.name)}" aria-label="ชื่อตัวอย่าง"><button class="del" data-del="${i}" type="button" aria-label="ลบ ${esc(s.name)}">✕</button></th>`).join("")}</tr></thead>`;
+    const inRow = (k, label, unit, cls = "") => `<tr class="${cls}"><td>${label}</td><td class="unit">${unit}</td>${n.map((s, i) =>
+      `<td class="c"><input type="number" step="any" data-i="${i}" data-k="${k}" value="${s[k] ?? ""}"></td>`).join("")}</tr>`;
+    const outRow = (id, label, unit, cls = "") => `<tr class="calc ${cls}"><td>${label}</td><td class="unit">${unit}</td>${n.map((_, i) =>
+      `<td class="c" id="${id}${i}"></td>`).join("")}</tr>`;
+    $("sheet").innerHTML = head + "<tbody>" +
+      INPUTS.map(([k, l, u]) => inRow(k, l, u)).join("") +
+      outRow("ld", "L:D Ratio", "-") + outRow("area", "Cross-sectional Area", "mm²") + outRow("den", "Density", "kg/m³") +
+      inRow("load", "Ultimate Load", "kN", "sep") +
+      outRow("mpa", "Compressive Strength", "MPa") + outRow("ksc", "", "ksc") + outRow("pct", "Compressive %", "%") +
+      outRow("t100", "Target 100%", "kN", "sep") + outRow("t85", "Target 85%", "kN") + "</tbody>";
+    calc();
+  }
+
+  function calc() {
+    const spec = Number(state.spec) || 0;
+    const r = CoreTest.evaluate(state.samples.map((s) => ({ d: +s.d, l: +s.l, w: +s.w, load: +s.load })), spec);
+    r.results.forEach((x, i) => {
+      const s = state.samples[i], tested = x && +s.load > 0;
+      $("ld" + i).textContent = x && +s.l > 0 ? f(x.ld) : "";
+      $("area" + i).textContent = x ? f(x.area) : "";
+      $("den" + i).textContent = x && +s.l > 0 && +s.w > 0 ? f(x.density, 0) : "";
+      $("mpa" + i).textContent = tested ? f(x.mpa) : "";
+      $("ksc" + i).textContent = tested ? f(x.ksc) : "";
+      const p = $("pct" + i);
+      p.textContent = tested && spec ? f(x.pct * 100, 1) + "%" : "";
+      p.className = "c" + (tested && spec ? (x.pct >= 0.85 ? " pass" : " fail") : "");
+      $("t100" + i).textContent = x && spec ? f(x.target100) : "";
+      $("t85" + i).textContent = x && spec ? f(x.target85) : "";
+    });
+    $("sum").innerHTML = [
+      [f(r.spec100, 0), "100% (ksc)"], [f(r.spec85, 2), "85% (ksc)"],
+      [f(r.minTarget100), "Target 100% ต่ำสุด (kN)"], [f(r.minTarget85), "Target 85% ต่ำสุด (kN)"],
+      [f(r.avgKsc), "เฉลี่ยที่กดแล้ว (ksc)"], [f(r.minKsc), "ต่ำสุดที่กดแล้ว (ksc)"],
+    ].map(([v, l]) => `<div class="kpi"><b>${v || "–"}</b><span>${l}</span></div>`).join("");
+  }
+
+  $("sheet").addEventListener("input", (e) => {
+    const { i, k } = e.target.dataset; if (i == null) return;
+    state.samples[i][k] = k === "name" ? e.target.value : e.target.value;
+    save(); if (k !== "name") calc();
+  });
+  $("sheet").addEventListener("click", (e) => {
+    if (e.target.dataset.del == null) return;
+    state.samples.splice(Number(e.target.dataset.del), 1); save(); render();
+  });
+  $("project").addEventListener("input", (e) => { state.project = e.target.value; save(); });
+  $("spec").addEventListener("input", (e) => { state.spec = e.target.value; save(); calc(); });
+  $("add").addEventListener("click", () => {
+    state.samples.push({ name: "M" + (state.samples.length + 1), d: "", l: "", w: "", load: "" }); save(); render();
+    const inputs = $("sheet").querySelectorAll(`input[data-i="${state.samples.length - 1}"][data-k="d"]`); inputs[0] && inputs[0].focus();
+  });
+  let armed = false;
+  $("clear").addEventListener("click", () => {
+    if (!armed) { armed = true; $("clearMsg").textContent = "กดอีกครั้งเพื่อยืนยันการล้าง"; setTimeout(() => { armed = false; $("clearMsg").textContent = ""; }, 4000); return; }
+    armed = false; $("clearMsg").textContent = "ล้างแล้ว";
+    state = { project: "", spec: state.spec, samples: [1, 2, 3].map((k) => ({ name: "M" + k, d: "", l: "", w: "", load: "" })) };
+    save(); render();
+  });
+
+  render();
+</script>
+</body>
+</html>
