@@ -14,10 +14,7 @@
 
 1. เข้า Google Drive ด้วยบัญชีของบริษัท แล้วสร้าง **Google Sheets ใหม่** ตั้งชื่อว่า `ใบรายงานสนาม`
 2. ในชีต ไปที่เมนู **ส่วนขยาย (Extensions) → Apps Script**
-3. ในหน้า Apps Script
-   - ลบโค้ดเดิมในไฟล์ `Code.gs` ออกทั้งหมด แล้ววางเนื้อหาจากไฟล์ `apps-script/Code.gs` ใน repo
-   - กดปุ่ม **+** ข้างคำว่า Files แล้วเลือก **Script** ตั้งชื่อว่า `fieldsync` แล้ววางเนื้อหาจากไฟล์ `fieldsync.js` ใน repo
-   - กด 💾 บันทึก
+3. ในหน้า Apps Script ลบโค้ดเดิมในไฟล์ `Code.gs` ออกทั้งหมด แล้ววางเนื้อหาทั้งไฟล์จาก `apps-script/paste-into-apps-script.gs` จากนั้นกด 💾 บันทึก
 4. ตั้งรหัสกันคนนอก: ไปที่ **⚙️ Project Settings → Script properties → Add script property**
    - Property: `KEY`
    - Value: ข้อความยาวที่เดายาก เช่น `mconcrete-pq-7f3k9q2x`
