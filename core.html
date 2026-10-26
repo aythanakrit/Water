@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ผลกด Core</title>
+<title>ตรวจสอบผลกดลูกปูน Coring</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
   :root {
@@ -63,12 +63,23 @@
   .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--card); }
   .kpi b { display: block; font-size: 1.15rem; color: var(--accent); font-variant-numeric: tabular-nums; }
   .kpi span { font-size: .78rem; color: var(--muted); }
+  .groups { margin-top: 16px; display: grid; gap: 8px; }
+  .grp { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--card); }
+  .grp.ok { border-left-color: var(--ok); }
+  .grp.ng { border-left-color: var(--bad); }
+  .grp b { font-size: 1rem; }
+  .grp ul { margin: 6px 0 0; padding-left: 18px; font-size: .9rem; }
+  .chip { display: inline-block; border-radius: 999px; padding: 0 10px; font-size: .8rem; font-weight: 600; margin-left: 6px; color: var(--card); }
+  .chip.ok { background: var(--ok); }
+  .chip.ng { background: var(--bad); }
+  .flag { color: var(--warn); }
+  .warn ul { margin: 0; padding-left: 18px; }
 </style>
 </head>
 <body>
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
-  <h1>ผลกด Core</h1>
+  <h1>ตรวจสอบผลกดลูกปูน Coring</h1>
   <p class="sub">กรอกขนาด น้ำหนัก และแรงกดของแต่ละตัวอย่าง · ksc = kN × 101.97 ÷ พื้นที่ (ซม²) · MPa = ksc × 0.0981</p>
 
   <div class="top">
@@ -86,8 +97,12 @@
       <span class="note" id="clearMsg" style="margin:0;align-self:center"></span>
     </div>
     <div class="sum" id="sum"></div>
+    <div class="groups" id="groups"></div>
+    <div class="warn" id="flags" style="margin-top:12px" hidden></div>
   </section>
-  <p class="note">ช่องสีน้ำเงินคำนวณอัตโนมัติ · เขียว = ถึง 85% ของ Mix, แดง = ต่ำกว่า 85% ·
+  <p class="note">ช่องสีน้ำเงินคำนวณอัตโนมัติ · % และการตัดสินใช้กำลังหลังปรับ L:D · เขียว = ถึง 85% ของ Mix, แดง = ต่ำกว่า 85% ·
+    ตัดสินกลุ่มตาม ACI 318 §26.12.6: เฉลี่ย ≥ 85% และไม่มีแท่งใดต่ำกว่า 75% (ปกติกลุ่มละ 3 แท่ง) ·
+    ตัวคูณ L:D ตาม ASTM C42 (1.75 = 0.98, 1.50 = 0.96, 1.25 = 0.93, 1.00 = 0.87) ควรตรวจกับฉบับที่บริษัทใช้ ·
     ข้อมูลที่กรอกจะจำไว้ในเครื่องนี้เท่านั้น · ผลประเมินคุณภาพคอนกรีตต้องให้วิศวกรผู้รับผิดชอบพิจารณา</p>
 </main>
 
@@ -96,18 +111,18 @@
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const f = (x, d = 2) => x == null || !isFinite(x) ? "" : x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const KEY = "core-test-v1";
+  const KEY = "core-test-v2";
 
   // Sample data from the sheet (Mix 380 ksc Cy)
   const SAMPLE = {
     project: "", spec: 380,
     samples: [
-      { name: "No.16", d: 69.1, l: 139.4, w: 1.218, load: 144.31 },
-      { name: "No.19", d: 69.1, l: 137.7, w: 1.12, load: 151.84 },
-      { name: "No.20", d: 69.1, l: 137.5, w: 1.196, load: 121.41 },
-      { name: "No.1", d: 93.2, l: 185, w: 2.663, load: 31.01 },
-      { name: "No.2", d: 67.2, l: 129.4, w: 0.964, load: 12.18 },
-      { name: "No.3", d: 67.9, l: 140.5, w: 1.071, load: 9.71 },
+      { name: "No.16", group: "1", d: 69.1, l: 139.4, w: 1.218, load: 144.31 },
+      { name: "No.19", group: "1", d: 69.1, l: 137.7, w: 1.12, load: 151.84 },
+      { name: "No.20", group: "1", d: 69.1, l: 137.5, w: 1.196, load: 121.41 },
+      { name: "No.1", group: "2", d: 93.2, l: 185, w: 2.663, load: 31.01 },
+      { name: "No.2", group: "2", d: 67.2, l: 129.4, w: 0.964, load: 12.18 },
+      { name: "No.3", group: "2", d: 67.9, l: 140.5, w: 1.071, load: 9.71 },
     ],
   };
   let state;
@@ -115,7 +130,7 @@
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
 
   const INPUTS = [
-    ["d", "Average Diameter", "mm"], ["l", "Average Length", "mm"], ["w", "Weight", "Kg"],
+    ["group", "กลุ่ม (ชุดตัดสิน)", "-"], ["d", "Average Diameter", "mm"], ["l", "Average Length", "mm"], ["w", "Weight", "Kg"],
   ];
 
   function render() {
@@ -125,21 +140,22 @@
     const head = `<thead><tr><th>Description</th><th>Unit</th>${n.map((s, i) =>
       `<th class="c"><input data-i="${i}" data-k="name" value="${esc(s.name)}" aria-label="ชื่อตัวอย่าง"><button class="del" data-del="${i}" type="button" aria-label="ลบ ${esc(s.name)}">✕</button></th>`).join("")}</tr></thead>`;
     const inRow = (k, label, unit, cls = "") => `<tr class="${cls}"><td>${label}</td><td class="unit">${unit}</td>${n.map((s, i) =>
-      `<td class="c"><input type="number" step="any" data-i="${i}" data-k="${k}" value="${s[k] ?? ""}"></td>`).join("")}</tr>`;
+      `<td class="c"><input ${k === "group" ? "" : 'type="number" step="any"'} data-i="${i}" data-k="${k}" value="${esc(s[k] ?? "")}"></td>`).join("")}</tr>`;
     const outRow = (id, label, unit, cls = "") => `<tr class="calc ${cls}"><td>${label}</td><td class="unit">${unit}</td>${n.map((_, i) =>
       `<td class="c" id="${id}${i}"></td>`).join("")}</tr>`;
     $("sheet").innerHTML = head + "<tbody>" +
       INPUTS.map(([k, l, u]) => inRow(k, l, u)).join("") +
       outRow("ld", "L:D Ratio", "-") + outRow("area", "Cross-sectional Area", "mm²") + outRow("den", "Density", "kg/m³") +
       inRow("load", "Ultimate Load", "kN", "sep") +
-      outRow("mpa", "Compressive Strength", "MPa") + outRow("ksc", "", "ksc") + outRow("pct", "Compressive %", "%") +
+      outRow("mpa", "Compressive Strength", "MPa") + outRow("ksc", "", "ksc") +
+      outRow("fac", "L:D Correction (ASTM C42)", "×") + outRow("cor", "Corrected Strength", "ksc") + outRow("pct", "Compressive %", "%") +
       outRow("t100", "Target 100%", "kN", "sep") + outRow("t85", "Target 85%", "kN") + "</tbody>";
     calc();
   }
 
   function calc() {
     const spec = Number(state.spec) || 0;
-    const r = CoreTest.evaluate(state.samples.map((s) => ({ d: +s.d, l: +s.l, w: +s.w, load: +s.load })), spec);
+    const r = CoreTest.evaluate(state.samples.map((s) => ({ name: s.name, group: s.group, d: +s.d, l: +s.l, w: +s.w, load: +s.load })), spec);
     r.results.forEach((x, i) => {
       const s = state.samples[i], tested = x && +s.load > 0;
       $("ld" + i).textContent = x && +s.l > 0 ? f(x.ld) : "";
@@ -147,23 +163,41 @@
       $("den" + i).textContent = x && +s.l > 0 && +s.w > 0 ? f(x.density, 0) : "";
       $("mpa" + i).textContent = tested ? f(x.mpa) : "";
       $("ksc" + i).textContent = tested ? f(x.ksc) : "";
-      const p = $("pct" + i);
-      p.textContent = tested && spec ? f(x.pct * 100, 1) + "%" : "";
-      p.className = "c" + (tested && spec ? (x.pct >= 0.85 ? " pass" : " fail") : "");
+      $("fac" + i).textContent = x && +s.l > 0 ? (x.factor ? f(x.factor, 3) : "L:D < 1") : "";
+      $("cor" + i).textContent = tested && x.corrected != null ? f(x.corrected) : "";
+      const p = $("pct" + i), has = tested && spec && x.pct != null;
+      p.textContent = has ? f(x.pct * 100, 1) + "%" : "";
+      p.className = "c" + (has ? (x.pct >= 0.85 ? " pass" : " fail") : "");
       $("t100" + i).textContent = x && spec ? f(x.target100) : "";
       $("t85" + i).textContent = x && spec ? f(x.target85) : "";
     });
     $("sum").innerHTML = [
       [f(r.spec100, 0), "100% (ksc)"], [f(r.spec85, 2), "85% (ksc)"],
-      [f(r.minTarget100), "Target 100% ต่ำสุด (kN)"], [f(r.minTarget85), "Target 85% ต่ำสุด (kN)"],
-      [f(r.avgKsc), "เฉลี่ยที่กดแล้ว (ksc)"], [f(r.minKsc), "ต่ำสุดที่กดแล้ว (ksc)"],
+      [f(r.spec75, 2), "75% (ksc)"],
     ].map(([v, l]) => `<div class="kpi"><b>${v || "–"}</b><span>${l}</span></div>`).join("");
+
+    const okCls = (b) => b ? "ok" : "ng";
+    $("groups").innerHTML = spec ? r.groups.map((g) => `
+      <div class="grp ${okCls(g.ok)}">
+        <b>กลุ่ม ${esc(g.name)}</b> (${g.items.map((x) => esc(x.name)).join(", ")})
+        <span class="chip ${okCls(g.ok)}">${g.ok ? "ผ่าน" : "ไม่ผ่าน"}</span>
+        <ul>
+          <li>เฉลี่ย ${f(g.avg)} ksc = ${f(g.avg / spec * 100, 1)}% ${g.avgOk ? "≥" : "<"} 85% → ${g.avgOk ? "ผ่าน" : "ไม่ผ่าน"}</li>
+          <li>ต่ำสุด ${f(g.min)} ksc = ${f(g.min / spec * 100, 1)}% ${g.minOk ? "≥" : "<"} 75% → ${g.minOk ? "ผ่าน" : "ไม่ผ่าน"}</li>
+          ${g.n !== 3 ? `<li class="flag">กลุ่มนี้มี ${g.n} แท่ง (ACI 318 ใช้ชุดละ 3 แท่ง)</li>` : ""}
+        </ul>
+      </div>`).join("") : "";
+
+    const flags = [];
+    r.results.forEach((x, i) => x && x.flags.forEach((m) => flags.push(`${state.samples[i].name}: ${m}`)));
+    $("flags").hidden = !flags.length;
+    $("flags").innerHTML = flags.length ? `<ul>${flags.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : "";
   }
 
   $("sheet").addEventListener("input", (e) => {
     const { i, k } = e.target.dataset; if (i == null) return;
-    state.samples[i][k] = k === "name" ? e.target.value : e.target.value;
-    save(); if (k !== "name") calc();
+    state.samples[i][k] = e.target.value;
+    save(); calc();
   });
   $("sheet").addEventListener("click", (e) => {
     if (e.target.dataset.del == null) return;
@@ -172,14 +206,15 @@
   $("project").addEventListener("input", (e) => { state.project = e.target.value; save(); });
   $("spec").addEventListener("input", (e) => { state.spec = e.target.value; save(); calc(); });
   $("add").addEventListener("click", () => {
-    state.samples.push({ name: "M" + (state.samples.length + 1), d: "", l: "", w: "", load: "" }); save(); render();
+    const last = state.samples[state.samples.length - 1];
+    state.samples.push({ name: "M" + (state.samples.length + 1), group: last ? last.group : "1", d: "", l: "", w: "", load: "" }); save(); render();
     const inputs = $("sheet").querySelectorAll(`input[data-i="${state.samples.length - 1}"][data-k="d"]`); inputs[0] && inputs[0].focus();
   });
   let armed = false;
   $("clear").addEventListener("click", () => {
     if (!armed) { armed = true; $("clearMsg").textContent = "กดอีกครั้งเพื่อยืนยันการล้าง"; setTimeout(() => { armed = false; $("clearMsg").textContent = ""; }, 4000); return; }
     armed = false; $("clearMsg").textContent = "ล้างแล้ว";
-    state = { project: "", spec: state.spec, samples: [1, 2, 3].map((k) => ({ name: "M" + k, d: "", l: "", w: "", load: "" })) };
+    state = { project: "", spec: state.spec, samples: [1, 2, 3].map((k) => ({ name: "M" + k, group: "1", d: "", l: "", w: "", load: "" })) };
     save(); render();
   });
 
