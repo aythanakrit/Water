@@ -2,7 +2,7 @@
  * Field tools from the plant's Excel sheet:
  * - compression test unit conversion (kN ↔ ksc) for 15 cm cylinder and cube
  * - site cement adjustment keeping admixture dose per kg binder, scaled to mixer load
- * Formulas follow the sheet (π taken as 3.14, g = 9.81).
+ * Strength uses the same constants as the core page: π and 1 kN = 101.97 kgf.
  */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
@@ -10,13 +10,13 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const G = 9.81;
+  const KGF_PER_KN = 101.97;
   // Loaded area (cm²): cylinder Ø15 cm, cube 15 × 15 cm
-  const AREA = { cylinder: 3.14 * 7.5 ** 2, cube: 225 };
+  const AREA = { cylinder: Math.PI * 7.5 ** 2, cube: 225 };
 
-  // ksc = (kN × 1,000) ÷ (area × 9.81)
-  const knToKsc = (kn, shape) => (kn * 1000) / (AREA[shape] * G);
-  const kscToKn = (ksc, shape) => (ksc * AREA[shape] * G) / 1000;
+  // ksc = kN × 101.97 ÷ area (cm²)
+  const knToKsc = (kn, shape) => (kn * KGF_PER_KN) / AREA[shape];
+  const kscToKn = (ksc, shape) => (ksc * AREA[shape]) / KGF_PER_KN;
 
   /**
    * old: { cement, flyAsh, admix: { key: cc } }  original mix per m³

@@ -3,7 +3,7 @@
  * area from average diameter, density from weight and dimensions,
  * strength ksc = kN × 101.97 ÷ area (cm²), MPa = ksc × 0.0981,
  * and the load each specimen needs to reach 100% / 85% of the specified ksc.
- * Added: L:D correction (ASTM C42) and group acceptance (ACI 318 §26.12.6):
+ * Added: L:D correction (ASTM C42) and group acceptance (ACI 318 (core acceptance; clause number varies by edition)):
  * average ≥ 85% and no single core < 75% of the specified strength.
  */
 (function (root, factory) {
@@ -63,7 +63,7 @@
 
   const complete = (s) => [s.d, s.l, s.w, s.load].every((x) => x > 0);
 
-  // ACI 318 §26.12.6: group of cores is acceptable when avg ≥ 0.85 f'c and each ≥ 0.75 f'c
+  // ACI 318 (core acceptance; clause number varies by edition): group of cores is acceptable when avg ≥ 0.85 f'c and each ≥ 0.75 f'c
   function acceptGroup(values, spec) {
     const avg = values.reduce((t, v) => t + v, 0) / values.length;
     const min = Math.min(...values);

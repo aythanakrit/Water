@@ -4,12 +4,13 @@ const T = require("../fieldtools.js");
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} ≠ ${b} (±${tol})`);
 
-test("kN ↔ ksc matches the Excel sheet", () => {
-  near(T.knToKsc(1126.25, "cylinder"), 1126250 / (3.14 * 56.25 * 9.81), 1e-9); // ≈ 650 ksc
-  near(T.knToKsc(1126.25, "cylinder"), 650, 0.01);
-  near(T.kscToKn(650, "cylinder"), 1126.25, 0.01);
-  near(T.knToKsc(525, "cube"), 525000 / (225 * 9.81), 1e-9);
-  near(T.kscToKn(237, "cube"), 237 * 225 * 9.81 / 1000, 1e-9);
+test("kN ↔ ksc uses π and 101.97, same as the core page", () => {
+  const C = require("../coretest.js");
+  near(T.knToKsc(1126.25, "cylinder"), 1126.25 * 101.97 / (Math.PI * 56.25), 1e-9);
+  near(T.knToKsc(1126.25, "cylinder"), C.specimen({ d: 150, l: 300, w: 12.5, load: 1126.25 }, 380).ksc, 1e-4);
+  near(T.kscToKn(T.knToKsc(1126.25, "cylinder"), "cylinder"), 1126.25, 1e-9);
+  near(T.knToKsc(525, "cube"), 525 * 101.97 / 225, 1e-9);
+  near(T.kscToKn(237, "cube"), 237 * 225 / 101.97, 1e-9);
 });
 
 test("site cement adjustment keeps dose per binder (Excel example)", () => {
