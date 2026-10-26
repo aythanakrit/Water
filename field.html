@@ -159,6 +159,11 @@
         <button class="b" id="addTruck" type="button">บันทึกรถ</button>
       </div>
       <input id="scanFile" type="file" accept="image/*" capture="environment" hidden>
+      <div id="scanView" hidden style="margin-top:10px">
+        <div class="warn">หาบาร์โค้ดเองไม่เจอ — <b>แตะที่บาร์โค้ด</b>ในรูปด้านล่าง</div>
+        <canvas id="scanCanvas" style="width:100%;margin-top:8px;border-radius:6px;cursor:crosshair;touch-action:manipulation"></canvas>
+        <div class="row" style="margin-top:6px"><button class="g" id="scanCancel" type="button">ยกเลิก</button><span class="note" id="scanMsg"></span></div>
+      </div>
       <div id="addWarn"></div>
       <p class="note" style="margin:8px 0 0">เวลาผสมกรอกตามใบ D/O · เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้ทั้งคู่) · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
     </section>
@@ -449,35 +454,88 @@
     renderJob(); $("newDO").focus();
   });
 
-  // Barcode from a photo (works where the live camera is not available)
-  let reader = null;
+  // Barcode from a photo (works where the live camera is not available).
+  // A dot-matrix Code 128 on a whole-ticket photo is too small to read directly, so the
+  // photo is also tried in enlarged crops; if that fails the user taps the barcode.
+  let scanImg = null, zx = null;
+  function zxReader() {
+    if (zx || !window.ZXing) return zx;
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.QR_CODE]);
+    const r = new ZXing.MultiFormatReader(); r.setHints(hints);
+    return (zx = { r, hints });
+  }
+  function tryRegion(img, x, y, w, h, scale) {
+    const z = zxReader(); if (!z) return null;
+    x = Math.max(0, Math.min(x, img.width - w)); y = Math.max(0, Math.min(y, img.height - h));
+    const c = document.createElement("canvas");
+    c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+    c.getContext("2d").drawImage(img, x, y, w, h, 0, 0, c.width, c.height);
+    for (const Bin of [ZXing.HybridBinarizer, ZXing.GlobalHistogramBinarizer]) {
+      try { return z.r.decode(new ZXing.BinaryBitmap(new Bin(new ZXing.HTMLCanvasElementLuminanceSource(c))), z.hints).getText(); } catch {}
+    }
+    return null;
+  }
+  const tick = () => new Promise((r) => setTimeout(r));
+  async function autoBarcode(img) {
+    if ("BarcodeDetector" in window) {
+      try { const c = await new BarcodeDetector().detect(img); if (c.length) return c[0].rawValue; } catch {}
+    }
+    const W = img.width, H = img.height;
+    let t = tryRegion(img, 0, 0, W, H, Math.min(1, 1600 / W));
+    for (const [wf, hf] of [[0.6, 0.12], [0.6, 0.08]]) {
+      for (let y = 0; !t && y + hf * H <= H + 1; y += hf * H / 2)
+        for (let x = 0; !t && x + wf * W <= W + 1; x += wf * W / 3) { t = tryRegion(img, x, y, wf * W, hf * H, 2); await tick(); }
+      if (t) break;
+    }
+    return t;
+  }
+  async function barcodeAt(img, cx, cy) {
+    const W = img.width, H = img.height;
+    for (const [wf, hf] of [[0.45, 0.06], [0.45, 0.1], [0.4, 0.08], [0.5, 0.08], [0.6, 0.1]])
+      for (const scale of [1.5, 3, 2])
+        for (const dx of [0, -0.03, 0.03]) {
+          const t = tryRegion(img, cx - wf * W / 2 + dx * W, cy - hf * H / 2, wf * W, hf * H, scale);
+          if (t) return t;
+        }
+    return null;
+  }
+  function useBarcode(text) {
+    const digits = text.replace(/\D/g, "");
+    $("newDO").value = digits.length >= 10 ? digits : text.trim();
+    $("scanView").hidden = true; scanImg = null;
+    addWarn(); $("newTruck").focus();
+  }
   $("scanBtn").addEventListener("click", () => $("scanFile").click());
   $("scanFile").addEventListener("change", async (e) => {
     const file = e.target.files[0]; e.target.value = "";
     if (!file) return;
+    $("scanView").hidden = true;
     $("addWarn").innerHTML = `<div class="warn">กำลังอ่านบาร์โค้ด…</div>`;
-    const url = URL.createObjectURL(file);
     try {
-      let text = null;
-      if ("BarcodeDetector" in window) {
-        try {
-          const bmp = await createImageBitmap(file);
-          const codes = await new BarcodeDetector().detect(bmp);
-          if (codes.length) text = codes[0].rawValue;
-        } catch {}
-      }
-      if (!text && window.ZXing) {
-        reader = reader || new ZXing.BrowserMultiFormatReader();
-        text = (await reader.decodeFromImageUrl(url)).getText();
-      }
-      if (!text) throw new Error("not found");
-      const digits = text.replace(/\D/g, "");
-      $("newDO").value = digits.length >= 10 ? digits : text.trim();
-      addWarn(); $("newTruck").focus();
+      const img = await createImageBitmap(file);
+      const text = await autoBarcode(img);
+      $("addWarn").innerHTML = "";
+      if (text) return useBarcode(text);
+      scanImg = img;
+      const c = $("scanCanvas"); c.width = img.width; c.height = img.height; c.getContext("2d").drawImage(img, 0, 0);
+      $("scanMsg").textContent = ""; $("scanView").hidden = false;
+      c.scrollIntoView({ behavior: "smooth", block: "center" });
     } catch {
-      $("addWarn").innerHTML = `<div class="warn">อ่านบาร์โค้ดไม่ได้ — ถ่ายใหม่ให้บาร์โค้ดชัดและเต็มกรอบ หรือพิมพ์เลข D/O เอง</div>`;
-    } finally { URL.revokeObjectURL(url); }
+      $("addWarn").innerHTML = `<div class="warn">เปิดรูปไม่ได้ — ลองถ่ายใหม่ หรือพิมพ์เลข D/O เอง</div>`;
+    }
   });
+  $("scanCanvas").addEventListener("click", async (e) => {
+    if (!scanImg) return;
+    const c = $("scanCanvas"), r = c.getBoundingClientRect();
+    const x = (e.clientX - r.left) * scanImg.width / r.width, y = (e.clientY - r.top) * scanImg.height / r.height;
+    $("scanMsg").textContent = "กำลังอ่าน…"; await tick();
+    const text = await barcodeAt(scanImg, x, y);
+    if (text) useBarcode(text);
+    else $("scanMsg").textContent = "ยังอ่านไม่ได้ — แตะกลางบาร์โค้ดอีกครั้ง หรือถ่ายใหม่ให้ใกล้และตรงขึ้น";
+  });
+  $("scanCancel").addEventListener("click", () => { $("scanView").hidden = true; scanImg = null; });
 
   // ---------- edit one truck ----------
   const F_TEXT = [["truck", "Truck No. (หมายเลขรถ)", "numeric"], ["do", "D/O No.", "numeric"], ["volume", "Volume (m³)", "decimal"], ["plant", "หน่วยผลิต", ""]];
