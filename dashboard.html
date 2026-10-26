@@ -33,14 +33,6 @@
   button[aria-pressed="true"] { background: var(--accent); color: var(--card); border-color: var(--accent); }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .status { font-size: .85rem; color: var(--muted); margin-top: 8px; }
-  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-  @media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, 1fr); } .kpis > :last-child { grid-column: span 2; } }
-  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-  .kpi b { display: block; font-size: 1.45rem; font-variant-numeric: tabular-nums; }
-  .kpi span { font-size: .8rem; color: var(--muted); }
-  .kpi small { display: block; font-size: .78rem; color: var(--muted); margin-top: 2px; }
-  .grid2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
-  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
   .scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
@@ -51,10 +43,6 @@
   .pill.bad { background: var(--bad); color: var(--card); }
   .pill.warn { background: var(--warn-bg); color: var(--warn); }
   .pill.ok { color: var(--ok); }
-  svg text { fill: var(--muted); font: 11px system-ui, sans-serif; }
-  svg .bar { fill: var(--accent); }
-  svg .bar:hover, svg .bar:focus { opacity: .8; outline: none; }
-  svg .gl { stroke: var(--grid); }
   .tip { position: fixed; pointer-events: none; background: var(--text); color: var(--card); font-size: .82rem; padding: 4px 8px; border-radius: 6px; }
   .note { font-size: .82rem; color: var(--muted); }
   .empty { color: var(--muted); padding: 20px 0; text-align: center; }
@@ -64,6 +52,7 @@
   .win { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; margin: 2px 4px 2px 0; font-size: .82rem; white-space: nowrap; }
   td.wins { white-space: normal; text-align: left; min-width: 18em; }
   .issue { color: var(--bad); }
+  @media (max-width: 600px) { td.wins, td.wrap { min-width: 9em; } .win { white-space: normal; } th, td { padding: 6px 5px; } }
   h3 { font-size: .92rem; margin: 16px 0 6px; }
 </style>
 </head>
@@ -71,7 +60,7 @@
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
   <h1>Dashboard การส่งคอนกรีต</h1>
-  <p class="sub">สรุปจากใบรายงานสนาม · เฉพาะรถที่มีเลข D/O · เกณฑ์เวลาเดียวกับใบรายงานสนาม</p>
+  <p class="sub">ดูทีละโครงการจากใบรายงานสนาม · เฉพาะรถที่มีเลข D/O · เกณฑ์เวลาเดียวกับใบรายงานสนาม</p>
 
   <section>
     <div class="filters">
@@ -83,7 +72,6 @@
       </div>
       <label>ตั้งแต่<input type="date" id="from"></label>
       <label>ถึง<input type="date" id="to"></label>
-      <label>หน่วยผลิต<select id="plant"><option value="">ทุกแพลนท์</option></select></label>
       <button class="b" type="button" id="load">แสดงผล</button>
       <button type="button" id="csv">ดาวน์โหลด CSV</button>
     </div>
@@ -92,40 +80,11 @@
 
   <section id="projBox">
     <div class="filters" style="margin-bottom:10px">
-      <label style="flex:1;min-width:220px">ดูรายโครงการ<select id="project"></select></label>
+      <label style="flex:1;min-width:220px">โครงการ<select id="project"></select></label>
     </div>
     <div id="proj"></div>
   </section>
 
-  <h2 style="margin:18px 0 10px">ภาพรวมทุกโครงการ</h2>
-  <div class="kpis" id="kpis" style="margin-bottom:14px"></div>
-
-  <div class="grid2">
-    <section>
-      <h2>ปริมาณส่งรายวัน (คิว)</h2>
-      <div id="chart"></div>
-    </section>
-    <section>
-      <h2>เวลาเฉลี่ยและเที่ยวที่เกินเกณฑ์</h2>
-      <div class="scroll"><table id="timeTable"></table></div>
-      <p class="note" id="timeNote"></p>
-    </section>
-  </div>
-
-  <section>
-    <h2>แยกตามหน่วยผลิต</h2>
-    <div class="scroll"><table id="plantTable"></table></div>
-  </section>
-
-  <section>
-    <h2>แยกตามโครงการ</h2>
-    <div class="scroll"><table id="projectTable"></table></div>
-  </section>
-
-  <section>
-    <h2>เที่ยวที่ต้องติดตาม</h2>
-    <div class="scroll"><table id="flagTable"></table></div>
-  </section>
   <div class="tip" id="tip" hidden></div>
 </main>
 
@@ -153,8 +112,7 @@
   document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => { setRange(b.dataset.range); load(); }));
   ["from", "to"].forEach((id) => $(id).addEventListener("change", () => document.querySelectorAll("[data-range]").forEach((b) => b.setAttribute("aria-pressed", "false"))));
   $("load").addEventListener("click", load);
-  $("plant").addEventListener("change", render);
-  $("project").addEventListener("change", renderProject);
+  $("project").addEventListener("change", render);
 
   async function load() {
     const from = $("from").value, to = $("to").value;
@@ -177,55 +135,16 @@
       jobs = [];
       $("status").textContent = "โหลดข้อมูลไม่ได้: " + (e.message || "ตรวจอินเทอร์เน็ต");
     }
-    const plants = [...new Set(Dashboard.trips(jobs, { from, to }).map((r) => r.plant))].sort();
     const projects = Dashboard.groupBy(Dashboard.trips(jobs, { from, to }), "project").map((g) => g.key);
     const curP = $("project").value;
     $("project").innerHTML = projects.length ? projects.map((p) => `<option${p === curP ? " selected" : ""}>${esc(p)}</option>`).join("") : `<option value="">ไม่มีโครงการในช่วงนี้</option>`;
-    const cur = $("plant").value;
-    $("plant").innerHTML = `<option value="">ทุกแพลนท์</option>` + plants.map((p) => `<option${p === cur ? " selected" : ""}>${esc(p)}</option>`).join("");
+
     render();
   }
 
   function render() {
+    rows = Dashboard.trips(jobs, { from: $("from").value, to: $("to").value }).filter((r) => r.project === $("project").value);
     renderProject();
-    const from = $("from").value, to = $("to").value;
-    rows = Dashboard.trips(jobs, { from, to, plant: $("plant").value });
-    const s = Dashboard.stats(rows);
-    const pct = (n) => (s.trips ? Math.round(n / s.trips * 100) : 0);
-    $("kpis").innerHTML = [
-      [fmt(s.volume), "ปริมาณส่ง (คิว)", `${s.jobs} งาน`],
-      [s.trips.toLocaleString("th-TH"), "เที่ยว", s.trips ? `เฉลี่ย ${fmt(s.volume / s.trips)} คิว/เที่ยว` : ""],
-      [s.avgAge == null ? "–" : fmt(s.avgAge, 0) + " น.", "ผลิตถึงเทเสร็จ (เฉลี่ย)", `เกิน ${L.age} นาที ${s.overAge} เที่ยว`],
-      [s.avgWait == null ? "–" : fmt(s.avgWait, 0) + " น.", "รถรอเท (เฉลี่ย)", `เกิน ${L.wait} นาที ${s.overWait} เที่ยว`],
-      [`${pct(s.flagged)}%`, "เที่ยวที่ผิดเกณฑ์", `${s.flagged} จาก ${s.trips} เที่ยว`],
-    ].map(([v, l, sub]) => `<div class="kpi"><span>${l}</span><b>${v}</b><small>${esc(sub)}</small></div>`).join("");
-
-    drawChart(Dashboard.daily(rows, from, to));
-
-    const timeRow = (label, avg, over, lim, level = "warn") => `<tr><td>${label}</td><td>${avg == null ? "–" : fmt(avg, 0)}</td><td>${lim == null ? "" : "≤ " + lim}</td>
-      <td>${over ? `<span class="pill ${level}">${over}</span>` : `<span class="pill ok">0</span>`}</td><td>${s.trips ? pct(over) + "%" : "–"}</td></tr>`;
-    $("timeTable").innerHTML = `<thead><tr><th>ช่วงเวลา</th><th>เฉลี่ย (นาที)</th><th>เกณฑ์</th><th>เกิน (เที่ยว)</th><th>%</th></tr></thead><tbody>
-      ${timeRow("ผลิต → รถถึง (เดินทาง)", s.avgTravel, s.overTravel, L.travel)}
-      ${timeRow("รถถึง → เริ่มเท (รอ)", s.avgWait, s.overWait, L.wait)}
-      ${timeRow("เริ่มเท → เทเสร็จ", s.avgPour, s.overPour, L.pour)}
-      ${timeRow("ผลิต → เทเสร็จ (อายุคอนกรีต)", s.avgAge, s.overAge, L.age, "bad")}
-      <tr><td>เวลาผิดลำดับ (ตรวจข้อมูล)</td><td>–</td><td></td><td>${s.orderErrors ? `<span class="pill bad">${s.orderErrors}</span>` : `<span class="pill ok">0</span>`}</td><td>${s.trips ? pct(s.orderErrors) + "%" : "–"}</td></tr></tbody>`;
-    $("timeNote").textContent = `เฉลี่ยจากเที่ยวที่กรอกเวลาครบสำหรับช่วงนั้น · Slump เฉลี่ย ${s.avgSlump == null ? "–" : fmt(s.avgSlump) + " cm"} · อุณหภูมิคอนกรีตสูงสุด ${s.maxConTemp == null ? "–" : fmt(s.maxConTemp) + " °C"}`;
-
-    const groupTable = (groups, first, extra) => groups.length ? `<thead><tr><th class="l">${first}</th>${extra ? "<th class='l'>ลูกค้า</th>" : ""}<th>คิว</th><th>เที่ยว</th>
-      <th>เดินทางเฉลี่ย</th><th>รอเทเฉลี่ย</th><th>ผลิต→เทเสร็จเฉลี่ย</th><th>ผิดเกณฑ์</th></tr></thead><tbody>${groups.map((g) => `<tr>
-      <td class="l">${esc(g.key)}</td>${extra ? `<td class="l">${esc(extra(g.key))}</td>` : ""}<td>${fmt(g.volume)}</td><td>${g.trips}</td>
-      <td>${fmt(g.avgTravel, 0)}</td><td>${fmt(g.avgWait, 0)}</td><td>${fmt(g.avgAge, 0)}</td>
-      <td>${g.flagged ? `<span class="pill warn">${g.flagged}</span>` : "0"}</td></tr>`).join("")}</tbody>` : `<tbody><tr><td class="empty">ไม่มีข้อมูลในช่วงนี้</td></tr></tbody>`;
-    $("plantTable").innerHTML = groupTable(Dashboard.groupBy(rows, "plant"), "หน่วยผลิต");
-    const cust = {}; rows.forEach((r) => { cust[r.project] = r.customer; });
-    $("projectTable").innerHTML = groupTable(Dashboard.groupBy(rows, "project"), "โครงการ", (k) => cust[k] || "");
-
-    const flagged = rows.filter((r) => r.late).sort((a, b) => (b.bad - a.bad) || a.date.localeCompare(b.date));
-    $("flagTable").innerHTML = flagged.length ? `<thead><tr><th class="l">วันที่</th><th class="l">โครงการ</th><th class="l">หน่วยผลิต</th><th class="l">รถ</th><th class="l">D/O</th><th class="l">เรื่อง</th></tr></thead><tbody>
-      ${flagged.map((r) => `<tr><td class="l">${thDate(r.date)}</td><td class="l">${esc(r.project)}</td><td class="l">${esc(r.plant)}</td><td class="l">${esc(r.truck)}</td><td class="l">${esc(r.do)}</td>
-      <td class="wrap">${r.alerts.map((a) => `<span class="pill ${a.level}">${esc(a.text)}</span>`).join(" ")}</td></tr>`).join("")}</tbody>`
-      : `<tbody><tr><td class="empty">ไม่มีเที่ยวที่ผิดเกณฑ์ในช่วงนี้</td></tr></tbody>`;
   }
 
   function renderProject() {
@@ -233,8 +152,8 @@
     if (!name) { el.innerHTML = `<div class="empty">ไม่มีโครงการในช่วงวันที่นี้</div>`; return; }
     const v = Dashboard.projectView(jobs, name, { from: $("from").value, to: $("to").value });
     const dm = (d) => (d ? thDate(d).slice(0, -3) + " " : "");
-    const plantsT = v.plants.map((p) => `<tr><td class="l">${esc(dm(p.date))}${esc(p.plant)}</td><td>${fmt(p.volume)}</td><td>${p.trips}</td>
-      <td>${p.first ? `${p.first} – ${p.last}` : "–"}</td><td><b>${p.rate == null ? "–" : fmt(p.rate)}</b></td></tr>`).join("");
+    const plantsT = v.plants.map((p) => `<tr><td class="l">${esc(dm(p.date))}${esc(p.plant)}</td><td>${fmt(p.volume)}</td><td><b>${p.rate == null ? "–" : fmt(p.rate)}</b></td><td>${p.trips}</td>
+      <td>${p.first ? `${p.first} – ${p.last}` : "–"}</td></tr>`).join("");
     const hourT = v.hourly.map((h) => `<tr><td class="l">${esc(dm(h.date))}${esc(h.label)}</td>${v.plantNames.map((p) => `<td>${h.byPlant[p] ? fmt(h.byPlant[p]) : ""}</td>`).join("")}<td><b>${fmt(h.total)}</b></td></tr>`).join("");
     const win = (w) => `<span class="win" title="D/O ${esc(w.do)} · ${esc(w.plant)}">${v.multiDay ? esc(dm(w.date)) : ""}${esc(w.batching || "?")} → ${esc(w.arrival || "?")}${w.end ? " → " + esc(w.end) : ""}</span>`;
     const trucksT = v.trucks.map((t) => `<tr><td class="l">${esc(t.truck)}</td><td>${t.trips}</td><td>${fmt(t.volume)}</td><td class="wins">${t.windows.map(win).join("")}</td></tr>`).join("");
@@ -242,7 +161,7 @@
     el.innerHTML = `
       <div class="proj-head"><b>${esc(v.project)}</b><span>${fmt(v.volume)} คิว · ${v.trips} เที่ยว · รถโม่ ${v.trucks.length} คัน · ${v.jobs} งาน</span></div>
       <h3>1. แต่ละแพลนท์ผลิต</h3>
-      <div class="scroll"><table><thead><tr><th class="l">หน่วยผลิต</th><th>คิว</th><th>เที่ยว</th><th>ช่วงเวลาผลิต</th><th>คิว/ชั่วโมง</th></tr></thead><tbody>${plantsT}</tbody></table></div>
+      <div class="scroll"><table><thead><tr><th class="l">หน่วยผลิต</th><th>คิว</th><th>คิว/ชม.</th><th>เที่ยว</th><th>ช่วงเวลาผลิต</th></tr></thead><tbody>${plantsT}</tbody></table></div>
       <p class="note">คิว/ชั่วโมง = ปริมาณ ÷ ช่วงเวลาผลิตของแพลนท์นั้น (นับจากเวลาผลิตคันแรกถึงคันสุดท้าย บวกระยะห่างเฉลี่ยอีก 1 ช่วง) · ต้องมีอย่างน้อย 2 เที่ยวที่กรอกเวลาผลิต</p>
       <div class="scroll"><table><thead><tr><th class="l">ชั่วโมง (เวลาผลิต)</th>${v.plantNames.map((p) => `<th>${esc(p)}</th>`).join("")}<th>รวม</th></tr></thead><tbody>${hourT || `<tr><td class="empty">ยังไม่มีเวลาผลิต</td></tr>`}</tbody></table></div>
       <h3>2. รถโม่ ${v.trucks.length} คัน</h3>
@@ -252,46 +171,12 @@
         <tbody>${issuesT || `<tr><td class="empty" colspan="5">ไม่มีหมายเหตุหรือปัญหา</td></tr>`}</tbody></table></div>`;
   }
 
-  // Daily volume: one series, bars from a zero baseline, value on hover
-  function drawChart(days) {
-    const el = $("chart");
-    if (!days.length || days.every((d) => !d.volume)) { el.innerHTML = `<div class="empty">ไม่มีข้อมูลในช่วงนี้</div>`; return; }
-    const W = Math.max(el.clientWidth, 300), H = 220, pl = 40, pr = 8, pt = 12, pb = 26;
-    const max = Math.max(...days.map((d) => d.volume));
-    const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000].find((s) => max / s <= 5) || 2000;
-    const top = Math.ceil(max / step) * step;
-    const y = (v) => pt + (H - pt - pb) * (1 - v / top);
-    const bw = (W - pl - pr) / days.length, gap = Math.min(2, bw * 0.2);
-    const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
-    const every = Math.ceil(days.length / Math.floor((W - pl - pr) / 46));
-    const r = Math.min(4, (bw - gap) / 2);
-    const bar = (d, i) => {
-      if (!d.volume) return "";
-      const x = pl + i * bw + gap / 2, w = bw - gap, yy = y(d.volume), h = y(0) - yy, rr = Math.min(r, h);
-      return `<path class="bar" tabindex="0" data-tip="${thDate(d.date)} · ${fmt(d.volume)} คิว" d="M${x},${y(0)} V${yy + rr} Q${x},${yy} ${x + rr},${yy} H${x + w - rr} Q${x + w},${yy} ${x + w},${yy + rr} V${y(0)} Z"></path>`;
-    };
-    el.innerHTML = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="ปริมาณส่งรายวัน">
-      ${ticks.map((t) => `<line class="gl" x1="${pl}" x2="${W - pr}" y1="${y(t)}" y2="${y(t)}"></line><text x="${pl - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`).join("")}
-      ${days.map(bar).join("")}
-      ${days.map((d, i) => i % every ? "" : `<text x="${pl + i * bw + bw / 2}" y="${H - 8}" text-anchor="middle">${thDate(d.date).slice(0, -3)}</text>`).join("")}
-    </svg>`;
-    const tip = $("tip");
-    el.querySelectorAll(".bar").forEach((b) => {
-      const show = (x, yy) => { tip.textContent = b.dataset.tip; tip.hidden = false; tip.style.left = x + 12 + "px"; tip.style.top = yy - 30 + "px"; };
-      b.addEventListener("mousemove", (e) => show(e.clientX, e.clientY));
-      b.addEventListener("focus", () => { const r = b.getBoundingClientRect(); show(r.left, r.top); });
-      b.addEventListener("mouseleave", () => { tip.hidden = true; });
-      b.addEventListener("blur", () => { tip.hidden = true; });
-    });
-  }
-  window.addEventListener("resize", () => rows.length && drawChart(Dashboard.daily(rows, $("from").value, $("to").value)));
-
   // CSV of the trips shown (artifact viewer uses its download prompt)
   let downloads = null;
   if (window.claude && claude.use) claude.use("downloads").then((d) => { downloads = d; }).catch(() => {});
   $("csv").addEventListener("click", async () => {
     if (!rows.length) { $("status").textContent = "ไม่มีข้อมูลให้ดาวน์โหลด"; return; }
-    const name = `ส่งคอนกรีต_${$("from").value}_${$("to").value}.csv`;
+    const name = `ส่งคอนกรีต_${$("project").value}_${$("from").value}_${$("to").value}.csv`.replace(/[\\/:*?"<>|]+/g, "-");
     const blob = new Blob([Dashboard.toCSV(rows)], { type: "text/csv" });
     if (downloads) { try { await downloads.save({ filename: name, data: blob }); } catch {} return; }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
