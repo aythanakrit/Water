@@ -31,7 +31,8 @@
   input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
                   border-radius: 6px; padding: 6px 8px; width: 100%; }
   .admix { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 6px; font-size: .8rem; color: var(--muted); }
-  .admix input { min-width: 0; }
+  .admix input, .admix select { min-width: 0; }
+  .admix .hint { grid-column: 1 / -1; margin: -2px 0 4px; font-size: .78rem; }
   fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0 0; padding: 10px 12px; }
   legend { font-size: .85rem; font-weight: 600; padding: 0 4px; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -94,13 +95,16 @@
       </fieldset>
       <fieldset><legend>สารผสมเพิ่ม (dose = cc ต่อ binder 1 kg)</legend>
         <div class="admix">
-          <span>ชื่อ</span><span>Dose</span><span>ถ.พ.</span><span>เนื้อสาร %</span>
-          <input id="a1Name" value="สารผสม 1" placeholder="รอระบุยี่ห้อ"><input id="a1Dose" type="number" step="0.1" value="3">
-          <input id="a1Sg" type="number" step="0.01" value="1.20"><input id="a1Sol" type="number" step="1" value="40">
-          <input id="a2Name" value="สารผสม 2" placeholder="รอระบุยี่ห้อ"><input id="a2Dose" type="number" step="0.1" value="0">
-          <input id="a2Sg" type="number" step="0.01" value="1.15"><input id="a2Sol" type="number" step="1" value="30">
+          <span>ผลิตภัณฑ์</span><span>Dose</span><span>ถ.พ.</span><span>เนื้อสาร %</span>
+          <select id="a1Name"></select><input id="a1Dose" type="number" step="0.1" value="5">
+          <input id="a1Sg" type="number" step="0.001"><input id="a1Sol" type="number" step="1" value="100">
+          <span class="hint" id="a1Hint"></span>
+          <select id="a2Name"></select><input id="a2Dose" type="number" step="0.1" value="0">
+          <input id="a2Sg" type="number" step="0.001"><input id="a2Sol" type="number" step="1" value="100">
+          <span class="hint" id="a2Hint"></span>
         </div>
-        <p class="note" style="margin:8px 0 0">เช่น binder 100 kg × dose 3 = 300 cc · น้ำในสารผสม (100 − เนื้อสาร %) จะถูกหักออกจากน้ำที่ชั่ง</p>
+        <p class="note" style="margin:8px 0 0">เช่น binder 100 kg × dose 3 = 300 cc · ถ.พ. ใช้ค่ากลางจากเอกสาร PDS ของ Sika ·
+          เอกสาร PDS ไม่ระบุเนื้อสาร (solid content) จึงตั้งไว้ 100% คือไม่หักน้ำในสารผสม ถ้าทราบค่าจริงให้แก้</p>
       </fieldset>
 
       <fieldset><legend>หิน (coarse aggregate)</legend>
@@ -140,6 +144,45 @@
   const num = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
   const f = (x, d = 0) => x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
 
+  // Sika Thailand PDS: density (kg/L) range and recommended dose, converted to cc per kg binder
+  const ADMIX = [
+    { name: "Sika Plastomix-704", type: "ASTM C494 Type A/D", sg: [1.060, 1.100], dose: [3, 8] },
+    { name: "Sikament NN TH", type: "ASTM C494 Type F", sg: [1.225, 1.255], dose: [6, 30] },
+    { name: "Sikament G-5", type: "ASTM C494 Type G", sg: [1.180, 1.200], dose: [8, 25] },
+    { name: "Sika ViscoCrete-10 TH", type: "PCE ลดน้ำอย่างมาก", sg: [1.050, 1.070], pct: [0.6, 3.0] },
+  ];
+  const mid = (a) => (a[0] + a[1]) / 2;
+  // ViscoCrete is dosed in % by mass of cement: cc/kg = % × 10 ÷ density
+  const doseRange = (a, sg) => a.dose || a.pct.map((x) => x * 10 / sg);
+  const admixOpts = `<option value="">— ไม่ใช้ —</option>` +
+    ADMIX.map((a, i) => `<option value="${i}">${a.name}</option>`).join("") + `<option value="other">อื่นๆ</option>`;
+  [["a1", "0"], ["a2", ""]].forEach(([k, v]) => {
+    $(k + "Name").innerHTML = admixOpts;
+    $(k + "Name").value = v;
+    $(k + "Name").addEventListener("change", () => {
+      const a = ADMIX[$(k + "Name").value];
+      if (a) $(k + "Sg").value = mid(a.sg).toFixed(3);
+      run();
+    });
+    const a = ADMIX[v];
+    if (a) $(k + "Sg").value = mid(a.sg).toFixed(3);
+  });
+
+  function admixInfo(k) {
+    const sel = $(k + "Name").value;
+    if (sel === "") return null;
+    const a = ADMIX[sel];
+    const sg = num(k + "Sg") || 1;
+    const info = { name: a ? a.name : "สารผสมอื่นๆ", dose: num(k + "Dose") || 0, sg, solids: num(k + "Sol") ?? 100 };
+    if (a) {
+      const r = doseRange(a, sg);
+      info.hint = `${a.type} · แนะนำ ${f(r[0], 1)}–${f(r[1], 1)} cc/kg${a.pct ? ` (${a.pct[0]}–${a.pct[1]}% โดยน้ำหนักซีเมนต์)` : ""} · ถ.พ. ${a.sg[0].toFixed(3)}–${a.sg[1].toFixed(3)}`;
+      if (info.dose > 0 && (info.dose < r[0] - 1e-9 || info.dose > r[1] + 1e-9))
+        info.warn = `${a.name} dose ${info.dose} cc/kg อยู่นอกช่วงที่ผู้ผลิตแนะนำ (${f(r[0], 1)}–${f(r[1], 1)} cc/kg)`;
+    }
+    return info;
+  }
+
   $("nmas").innerHTML = MixDesign.SIZES.map((s) => `<option value="${s}"${s === 25 ? " selected" : ""}>${s}</option>`).join("");
 
   let last = null;
@@ -153,11 +196,12 @@
       coarse: { sg: num("cSg"), absorption: 0, moisture: 0 },
       fine: { sg: num("fSg"), absorption: 0, moisture: num("fMc") || 0 },
       flyAsh: { pct: num("faPct") || 0, sg: num("faSg") },
-      admixtures: [1, 2].map((k) => ({ name: $(`a${k}Name`).value, dose: num(`a${k}Dose`) || 0,
-        sg: num(`a${k}Sg`) || 1, solids: num(`a${k}Sol`) || 0 })),
+      admixtures: ["a1", "a2"].map(admixInfo).filter(Boolean),
     };
+    ["a1", "a2"].forEach((k) => { const i = admixInfo(k); $(k + "Hint").textContent = (i && i.hint) || ""; });
     try {
       const r = MixDesign.design(p);
+      p.admixtures.forEach((a) => a.warn && r.warnings.push(a.warn));
       last = r;
       const ksc = conv !== 1 ? ` <span>(${f(r.fcr / KSC)} ksc)</span>` : "";
       $("out").innerHTML = `
@@ -190,7 +234,7 @@
           <li>หิน = b/b₀ × หน่วยน้ำหนัก = ${f(r.bb0, 3)} × ${p.druw} = ${f(r.design.coarse, 1)} kg/m³</li>
           <li>ทราย = ปริมาตรที่เหลือ ${f(r.volumes.fine, 4)} m³ × ${p.fine.sg} × 1000 = ${f(r.design.fine, 1)} kg/m³</li>
           <li>ปรับความชื้น: น้ำผิวจากทราย ${f(r.freeWater.fine, 1)} kg หักออกจากน้ำ</li>
-          ${r.admixtures.map((a) => `<li>${a.name} = binder × dose = ${f(r.binder, 1)} × ${a.dose} = ${f(a.cc)} cc · น้ำในสาร ${f(a.water, 2)} kg</li>`).join("")}
+          ${r.admixtures.map((a) => `<li>${a.name} = binder × dose = ${f(r.binder, 1)} × ${a.dose} = ${f(a.cc)} cc${a.water > 0 ? ` · น้ำในสาร ${f(a.water, 2)} kg` : ""}</li>`).join("")}
         </ol>
         ${r.warnings.length ? `<div class="warn"><ul>${r.warnings.map((w) => `<li>${w}</li>`).join("")}</ul></div>` : ""}`;
     } catch (e) {
