@@ -71,26 +71,24 @@
   .note { font-size: .82rem; color: var(--muted); }
   .saved { font-size: .8rem; color: var(--muted); }
   .confirm { color: var(--bad); font-size: .85rem; }
-  /* Printed page (A4 landscape) used only for the PDF */
+  /* Printed page: replica of the FM-PQ-10 Excel sheet "1-15" (A4 landscape, columns B–U) */
   #print { position: fixed; left: -10000px; top: 0; }
-  .pg { width: 1123px; height: 794px; padding: 28px 30px; background: #fff; color: #000; font: 11px/1.3 "Sarabun", sans-serif; display: flex; flex-direction: column; }
-  .pg .hd { display: grid; grid-template-columns: 90px 1fr 150px; gap: 12px; align-items: center; }
-  .pg .hd img { width: 84px; }
-  .pg .hd .co { font-size: 16px; font-weight: 700; }
-  .pg .hd .pn { text-align: right; font-size: 10px; }
-  .pg .info { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 2px 14px; margin: 10px 0 8px; font-size: 11px; }
-  .pg .info b { font-weight: 600; }
+  .pg { width: 1123px; height: 794px; padding: 34px 30px; background: #fff; color: #000; font: 12px/1.15 "Sarabun", sans-serif; }
   .pg table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .pg th, .pg td { border: 1px solid #000; padding: 2px 3px; text-align: center; overflow: hidden; white-space: nowrap; }
-  .pg th { font-weight: 600; font-size: 9px; line-height: 1.15; background: #f0f0f0; white-space: normal; word-break: break-word; }
-  .pg td { height: 24px; font-size: 10.5px; }
-  .pg td.l { text-align: left; }
-  .pg td.p { white-space: normal; font-size: 9px; line-height: 1.1; }
-  .pg .tot td { font-weight: 700; }
-  .pg .sig { display: flex; justify-content: space-around; margin-top: auto; padding-top: 18px; font-size: 11px; }
-  .pg .sig div { text-align: center; width: 260px; }
-  .pg .sig .ln { border-bottom: 1px dotted #000; height: 26px; margin-bottom: 4px; }
-  .pg .fm { text-align: right; font-size: 9.5px; margin-top: 6px; }
+  .pg td { padding: 0 2px; height: 21px; white-space: nowrap; overflow: visible; vertical-align: middle; }
+  .pg .c { text-align: center; } .pg .r { text-align: right; } .pg .bb { border-bottom: 1px solid #000; }
+  .pg .fl { border-left: 1.5px solid #000; } .pg .fr { border-right: 1.5px solid #000; }
+  .pg .ft { border-top: 1.5px solid #000; } .pg .fb { border-bottom: 1.5px solid #000; }
+  .pg .g { border: 1px solid #000; text-align: center; height: 17px; }
+  .pg .h { border-left: 1px solid #000; border-right: 1px solid #000; text-align: center; height: 15px; font-size: 9.5px; overflow: hidden; }
+  .pg .h1 { border-top: 1px solid #000; } .pg .h3 { border-bottom: 1px solid #000; }
+  .pg .d { border: 1px solid #000; text-align: center; height: 23px; font-size: 10.5px; overflow: hidden; padding: 0 1px; }
+  .pg .d.p { white-space: normal; font-size: 9.5px; line-height: 1.05; }
+  .pg .d.l { text-align: left; }
+  .pg .b { font-weight: 700; }
+  .pg tr.i td { font-size: 10.5px; }
+  .pg .logo img { height: 60px; display: block; }
+  .pg .fm { font-family: "Angsana New", "Sarabun", serif; font-weight: 700; text-align: right; }
 </style>
 </head>
 <body>
@@ -439,40 +437,44 @@
   });
 
   // ---------- PDF (A4 landscape, 15 trucks per page, layout of sheet "1-15") ----------
-  function pageHTML(p, i, n) {
-    const h = job.header;
+  // Column widths of B..U in the Excel sheet
+  const XW = [5.6, 11.1, 15.6, 7.2, 1.4, 3.4, 12.8, 8.1, 8.6, 9.2, 10.2, 8.9, 10.0, 7.8, 8.0, 6.9, 12.8, 25.0, 11.1, 14.0];
+  const XSUM = XW.reduce((a, b) => a + b, 0);
+  function pageHTML(p) {
+    const h = job.header, e = esc;
+    const col = XW.map((w) => `<col style="width:${(w / XSUM * 100).toFixed(3)}%">`).join("");
+    const td = (cls, txt = "", span = 1) => `<td class="${cls}"${span > 1 ? ` colspan="${span}"` : ""}>${txt}</td>`;
+    // three-line column headers (rows 12–14)
+    const HD = [["No.", "ลำดับ", ""], ["Truck No.", "หมายเลขรถ", ""], ["D/O No.", "ใบส่งสินค้า", ""], ["Volume", "ปริมาณ", "m3"],
+      ["Plant", "หน่วยผลิต", "", 3], ["Batching", "Time", "เวลาผสม"], ["Truck", "at Site", "เวลารถถึง"], ["Start", "Pouring", "เวลาเริ่มเท"],
+      ["End", "Pouring", "เวลาเทเสร็จ"], ["Air Temp.", "อากาศ", "oC"], ["Con Temp.", "คอนกรีต", "oC"], ["Slump", "ค่ายุบตัว", "cm."],
+      ["Sample", "Type", "ประเภท"], ["Volume", "จำนวน", "ก้อน"], ["Label No.", "หมายเลขฉลาก", ""], ["Remark", "หมายเหตุ", ""]];
+    const hrow = (k) => HD.map((c) => td(`h${k === 0 ? " h1" : k === 2 ? " h3" : ""}${k === 0 && c[0] === "No." ? " fl" : ""}`, e(c[k]), c[3] || 1)).join("");
     const rows = Array.from({ length: FieldReport.ROWS_PER_PAGE }, (_, r) => {
-      const t = p.rows[r]; if (!t) return `<tr>${"<td></td>".repeat(17)}</tr>`;
-      const v = (k) => esc(t[k] || "-");
-      return `<tr><td>${p.start + r + 1}</td><td>${v("truck")}</td><td>${v("do")}</td><td>${v("volume")}</td><td class="p">${v("plant")}</td>
-        <td>${v("batching")}</td><td>${v("arrival")}</td><td>${v("start")}</td><td>${v("end")}</td><td>${v("airTemp")}</td><td>${v("conTemp")}</td>
-        <td>${v("slump")}</td><td>${v("sampleType")}</td><td>${v("sampleQty")}</td><td>${v("label")}</td><td class="l">${v("remark")}</td><td>${v("operator")}</td></tr>`;
+      const t = p.rows[r], v = (k) => (t ? e(t[k] || "-") : "");
+      return `<tr>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
+        ${td("d", v("batching"))}${td("d", v("arrival"))}${td("d", v("start"))}${td("d", v("end"))}${td("d", v("airTemp"))}${td("d", v("conTemp"))}
+        ${td("d", v("slump"))}${td("d", v("sampleType"))}${td("d", v("sampleQty"))}${td("d", v("label"))}${td("d l", v("remark"))}${td("d fr", v("operator"), 2)}</tr>`;
     }).join("");
-    return `<div class="pg">
-      <div class="hd"><img src="${LOGO}" alt=""><div><div class="co">บริษัท เอ็มคอนกรีต จำกัด</div>
-        <div>หน่วยงาน : PQ</div><div>แบบฟอร์ม : ใบรายงานสนามและเก็บก้อนตัวอย่าง</div></div>
-        <div class="pn">หน้า ${i + 1} / ${n}</div></div>
-      <div class="info">
-        <div><b>Project (โครงการ) :</b> ${esc(h.project)}</div><div><b>Customer (ลูกค้า) :</b> ${esc(h.customer)}</div><div><b>Date (วันที่) :</b> ${esc(thaiDate(h.date))}</div>
-        <div><b>Structure (โครงสร้าง) :</b> ${esc(h.structure)}</div><div><b>Structure no. :</b> ${esc(h.structureNo)}</div><div><b>ชื่อช่าง :</b> ${esc(h.tech)}</div>
-        <div><b>Product Code (รหัสสินค้า) :</b> ${esc(h.productCode)}</div><div><b>Compressive Strength :</b> Cube ${esc(h.cube || "-")} ksc · Cylinder ${esc(h.cylinder || "-")} ksc</div><div><b>เบอร์ติดต่อ :</b> ${esc(h.phone)}</div>
-      </div>
-      <table>
-        <colgroup><col style="width:3.2%"><col style="width:5%"><col style="width:10%"><col style="width:4.5%"><col style="width:8%">
-          <col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:4.5%"><col style="width:4.5%">
-          <col style="width:4.5%"><col style="width:5%"><col style="width:4%"><col style="width:6.3%"><col style="width:10.5%"><col style="width:10%"></colgroup>
-        <thead>
-          <tr><th colspan="7">Product Details · รายละเอียดสินค้า</th><th colspan="5">Pouring Concrete · การเทคอนกรีต</th><th colspan="4">Specimen · การเก็บตัวอย่าง</th><th rowspan="2">พนักงาน<br>ควบคุมเครื่องจักร</th></tr>
-          <tr><th>No.<br>ลำดับ</th><th>Truck No.<br>หมายเลขรถ</th><th>D/O No.<br>ใบส่งสินค้า</th><th>Volume<br>m³</th><th>Plant<br>หน่วยผลิต</th>
-            <th>Batching<br>เวลาผสม</th><th>Truck at Site<br>เวลารถถึง</th><th>Start<br>เริ่มเท</th><th>End<br>เทเสร็จ</th>
-            <th>Air Temp.<br>°C</th><th>Con Temp.<br>°C</th><th>Slump<br>cm.</th>
-            <th>Sample<br>ประเภท</th><th>Volume<br>ก้อน</th><th>Label No.<br>หมายเลขฉลาก</th><th>Remark<br>หมายเหตุ</th></tr>
-        </thead>
-        <tbody>${rows}<tr class="tot"><td colspan="3">รวมปริมาณ</td><td>${fmt(p.total)}</td><td>m³</td><td colspan="12" style="border-left:0"></td></tr></tbody>
-      </table>
-      <div class="sig"><div><div class="ln"></div>QC (M Concrete)</div><div><div class="ln"></div>ลงชื่อผู้บันทึก</div></div>
-      <div class="fm">FM-PQ-10 Rev.01 09/07/64</div>
-    </div>`;
+    return `<div class="pg"><table><colgroup>${col}</colgroup>
+      <tr><td class="fl ft logo" colspan="3" rowspan="3"><img src="${LOGO}" alt=""></td>${td("ft", "บริษัท เอ็มคอนกรีต จำกัด", 16)}${td("ft fr")}</tr>
+      <tr>${td("", "หน่วยงาน :&nbsp;&nbsp; PQ", 16)}${td("fr")}</tr>
+      <tr>${td("", "แบบฟอร์ม : ใบรายงานสนามและเก็บก้อนตัวอย่าง", 16)}${td("fr")}</tr>
+      <tr class="i">${td("fl ft", "Project (โครงการ)", 3)}${td("ft bb c", e(h.project), 10)}${td("ft", "Customer (ลูกค้า) :", 2)}${td("ft bb c fr", e(h.customer), 5)}</tr>
+      <tr class="i">${td("fl", "Structure (โครงสร้าง)", 3)}${td("bb c", e(h.structure), 6)}${td("", "Structure no. (หมายเลขโครงสร้าง)", 3)}${td("bb c", e(h.structureNo), 4)}
+        ${td("c", "Date (วันที่) :")}${td("bb", e(thaiDate(h.date)))}${td("c", "ชื่อช่าง")}${td("bb c fr", e(h.tech))}</tr>
+      <tr class="i">${td("fl", "Product Code (รหัสสินค้า)", 3)}${td("bb c", e(h.productCode), 5)}${td("c", "Compressive Strength (กำลังอัด)", 3)}${td("", "&nbsp;Cube :")}
+        ${td("bb c", e(h.cube))}${td("c", "ksc")}${td("r", "Cylinder :", 2)}${td("bb c", e(h.cylinder))}${td("", "ksc")}${td("c", "เบอร์ติดต่อ")}${td("bb c fr", e(h.phone))}</tr>
+      <tr><td class="fl" colspan="19" style="height:10px"></td><td class="fr" style="height:10px"></td></tr>
+      <tr>${td("g fl", "Product Details", 9)}${td("g", "Pouring Concrete", 5)}${td("g", "Specimen", 4)}<td class="g fr" colspan="2" rowspan="5" style="white-space:normal">พนักงานควบคุมเครื่องจักร</td></tr>
+      <tr>${td("g fl", "รายละเอียดสินค้า", 9)}${td("g", "การเทคอนกรีต", 5)}${td("g", "การเก็บตัวอย่าง", 4)}</tr>
+      <tr>${hrow(0)}</tr><tr>${hrow(1)}</tr><tr>${hrow(2)}</tr>
+      ${rows}
+      <tr>${td("fl", "", 2)}${td("c b", "รวมปริมาณ")}${td("c b bb", fmt(p.total))}${td("", "", 2)}${td("c b", "m3")}${td("", "", 12)}${td("fr")}</tr>
+      <tr><td class="fl" colspan="19"></td><td class="fr"></td></tr>
+      <tr>${td("fl", "", 2)}${td("c", "QC (M Concrete)")}${td("bb", "", 6)}${td("", "ลงชื่อผู้บันทึก", 10)}${td("fr")}</tr>
+      <tr>${td("fl fb", "", 16)}${td("fr fb fm", "FM-PQ-10 Rev.01 09/07/64", 4)}</tr>
+    </table></div>`;
   }
   $("pdf").addEventListener("click", async () => {
     const msg = $("pdfMsg");
@@ -482,7 +484,7 @@
     try {
       const ps = FieldReport.pages(job.trucks);
       const host = $("print");
-      host.innerHTML = ps.map((p, i) => pageHTML(p, i, ps.length)).join("");
+      host.innerHTML = ps.map((p) => pageHTML(p)).join("");
       await document.fonts.ready;
       await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
       const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
