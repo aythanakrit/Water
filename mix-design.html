@@ -69,12 +69,10 @@
         <label>f'c ทรงกระบอก 28 วัน
           <span style="display:flex;gap:6px"><input id="fc" type="number" step="0.5" value="28">
           <select id="fcUnit" style="width:auto"><option value="MPa">MPa</option><option value="ksc">ksc</option></select></span></label>
-        <label>Slump (mm)
-          <select id="slump"><option>25-50</option><option selected>75-100</option><option>150-175</option></select></label>
-        <label>S.D. ของโรงงาน (หน่วยเดียวกับ f'c)
-          <input id="sd" type="number" step="0.1" placeholder="ไม่มีข้อมูล"></label>
-        <label>จำนวนผลทดสอบ
-          <input id="nTests" type="number" step="1" placeholder="≥ 15"></label>
+        <label>Slump (cm)
+          <span style="display:flex;gap:6px;align-items:center">
+            <select id="slump"><option>5</option><option selected>7.5</option><option>10</option><option>12.5</option><option>15</option><option>17.5</option></select>
+            ±<input id="slumpTol" type="number" step="0.5" value="2.5" style="width:5em"></span></label>
         <label>ขนาดโตสุดหิน NMAS (mm)
           <select id="nmas"></select></label>
         <label>สภาพแวดล้อม / กักฟองอากาศ
@@ -84,30 +82,22 @@
             <option value="moderate">AE – moderate</option>
             <option value="severe">AE – severe</option>
           </select></label>
-        <label>w/cm สูงสุด (ความคงทน)
-          <input id="wcMax" type="number" step="0.01" placeholder="ไม่กำหนด"></label>
-        <label>วัสดุประสานขั้นต่ำ (kg/m³)
-          <input id="cementMin" type="number" step="5" placeholder="ไม่กำหนด"></label>
-        <label>ลดน้ำด้วยสารผสมเพิ่ม (%)
-          <input id="waterReduction" type="number" step="1" value="0"></label>
         <label>ถ.พ. ปูนซีเมนต์
           <input id="sgCement" type="number" step="0.01" value="3.15"></label>
       </div>
 
-      <fieldset><legend>วัสดุประสานแทนที่ปูน (% โดยน้ำหนัก binder)</legend>
+      <fieldset><legend>Fly ash แทนที่ปูน (% โดยน้ำหนัก binder)</legend>
         <div class="fields">
           <label>Fly ash (%)<input id="faPct" type="number" step="5" min="0" value="20"></label>
           <label>ถ.พ. fly ash<input id="faSg" type="number" step="0.01" value="2.20"></label>
-          <label>Slag (%)<input id="slagPct" type="number" step="5" min="0" value="0"></label>
-          <label>ถ.พ. slag<input id="slagSg" type="number" step="0.01" value="2.90"></label>
         </div>
       </fieldset>
       <fieldset><legend>สารผสมเพิ่ม (dose = cc ต่อ binder 1 kg)</legend>
         <div class="admix">
           <span>ชื่อ</span><span>Dose</span><span>ถ.พ.</span><span>เนื้อสาร %</span>
-          <input id="a1Name" value="Type F (SP)"><input id="a1Dose" type="number" step="0.1" value="3">
+          <input id="a1Name" value="สารผสม 1" placeholder="รอระบุยี่ห้อ"><input id="a1Dose" type="number" step="0.1" value="3">
           <input id="a1Sg" type="number" step="0.01" value="1.20"><input id="a1Sol" type="number" step="1" value="40">
-          <input id="a2Name" value="Type D (Retarder)"><input id="a2Dose" type="number" step="0.1" value="0">
+          <input id="a2Name" value="สารผสม 2" placeholder="รอระบุยี่ห้อ"><input id="a2Dose" type="number" step="0.1" value="0">
           <input id="a2Sg" type="number" step="0.01" value="1.15"><input id="a2Sol" type="number" step="1" value="30">
         </div>
         <p class="note" style="margin:8px 0 0">เช่น binder 100 kg × dose 3 = 300 cc · น้ำในสารผสม (100 − เนื้อสาร %) จะถูกหักออกจากน้ำที่ชั่ง</p>
@@ -115,18 +105,15 @@
 
       <fieldset><legend>หิน (coarse aggregate)</legend>
         <div class="fields">
-          <label>ถ.พ. bulk (OD)<input id="cSg" type="number" step="0.01" value="2.68"></label>
-          <label>หน่วยน้ำหนักอัดแน่นแห้ง (kg/m³)<input id="druw" type="number" step="10" value="1600"></label>
-          <label>การดูดซึม (%)<input id="cAbs" type="number" step="0.1" value="0.5"></label>
-          <label>ความชื้นหน้างาน (%)<input id="cMc" type="number" step="0.1" value="1.0"></label>
+          <label>ถ.พ. (SSD)<input id="cSg" type="number" step="0.01" value="2.68"></label>
+          <label>หน่วยน้ำหนักอัดแน่น (kg/m³)<input id="druw" type="number" step="10" value="1600"></label>
         </div>
       </fieldset>
       <fieldset><legend>ทราย (fine aggregate)</legend>
         <div class="fields">
-          <label>ถ.พ. bulk (OD)<input id="fSg" type="number" step="0.01" value="2.64"></label>
+          <label>ถ.พ. (SSD)<input id="fSg" type="number" step="0.01" value="2.64"></label>
           <label>Fineness modulus<input id="fm" type="number" step="0.05" value="2.80"></label>
-          <label>การดูดซึม (%)<input id="fAbs" type="number" step="0.1" value="0.7"></label>
-          <label>ความชื้นหน้างาน (%)<input id="fMc" type="number" step="0.1" value="5.0"></label>
+          <label>ความชื้นผิว (% เกินสภาพ SSD)<input id="fMc" type="number" step="0.1" value="4.0"></label>
         </div>
       </fieldset>
     </section>
@@ -140,6 +127,7 @@
       <div id="trial"></div>
       <p class="note">⚠️ ผลนี้เป็นค่าเริ่มต้นสำหรับ trial batch เท่านั้น ต้องทดลองผสมจริง วัด slump / หน่วยน้ำหนัก / ปริมาณอากาศ / กำลังอัด
         แล้วปรับสัดส่วน และให้วิศวกรผู้รับผิดชอบตรวจสอบอนุมัติก่อนใช้ผลิตจริง<br>
+        หินถือว่าอยู่สภาพ SSD (ไม่ปรับน้ำ) · ความชื้นทรายที่กรอกคือส่วนที่เกิน SSD ทั้งหมดจะถูกหักจากน้ำ<br>
         การแปลง ksc → MPa ใช้ 1 ksc = 0.0981 MPa (ทรงกระบอก) — โปรแกรมนี้ไม่แปลงกำลังลูกบาศก์เป็นทรงกระบอก</p>
     </section>
   </div>
@@ -160,15 +148,11 @@
     const conv = $("fcUnit").value === "ksc" ? KSC : 1;
     const p = {
       fc: num("fc") * conv,
-      sd: num("sd") == null ? null : num("sd") * conv,
-      nTests: num("nTests") || 0,
-      slump: $("slump").value, nmas: Number($("nmas").value), exposure: $("exposure").value,
-      wcMax: num("wcMax"), cementMin: num("cementMin"), waterReduction: num("waterReduction") || 0,
+      slump: Number($("slump").value) * 10, nmas: Number($("nmas").value), exposure: $("exposure").value,
       sgCement: num("sgCement"), fm: num("fm"), druw: num("druw"),
-      coarse: { sg: num("cSg"), absorption: num("cAbs") || 0, moisture: num("cMc") || 0 },
-      fine: { sg: num("fSg"), absorption: num("fAbs") || 0, moisture: num("fMc") || 0 },
+      coarse: { sg: num("cSg"), absorption: 0, moisture: 0 },
+      fine: { sg: num("fSg"), absorption: 0, moisture: num("fMc") || 0 },
       flyAsh: { pct: num("faPct") || 0, sg: num("faSg") },
-      slag: { pct: num("slagPct") || 0, sg: num("slagSg") },
       admixtures: [1, 2].map((k) => ({ name: $(`a${k}Name`).value, dose: num(`a${k}Dose`) || 0,
         sg: num(`a${k}Sg`) || 1, solids: num(`a${k}Sol`) || 0 })),
     };
@@ -181,10 +165,10 @@
           <div class="kpi"><b>${f(r.fcr, 1)}</b><span>f'cr (MPa)</span>${ksc}</div>
           <div class="kpi"><b>${f(r.wc, 3)}</b><span>w/cm ใช้จริง</span></div>
           <div class="kpi"><b>${f(r.air, 1)}%</b><span>อากาศ${r.airEntrained ? " (AE)" : " (entrapped)"}</span></div>
-          <div class="kpi"><b>${f(r.bb0, 3)}</b><span>b/b₀ หิน</span></div>
+          <div class="kpi"><b>${$("slump").value} ± ${$("slumpTol").value || 0}</b><span>Slump (cm)</span></div>
         </div>
         <table>
-          <thead><tr><th>วัสดุ (ต่อ 1 m³)</th><th>ออกแบบ OD (kg)</th><th>ชั่งผสมจริง (kg)</th><th>ปริมาตร (m³)</th></tr></thead>
+          <thead><tr><th>วัสดุ (ต่อ 1 m³)</th><th>ออกแบบ SSD (kg)</th><th>ชั่งผสมจริง (kg)</th><th>ปริมาตร (m³)</th></tr></thead>
           <tbody>
             <tr><td>ปูนซีเมนต์</td><td>${f(r.design.cement)}</td><td>${f(r.batch.cement)}</td><td>${f(r.volumes.cement, 4)}</td></tr>
             ${r.design.flyAsh ? `<tr><td>Fly ash</td><td>${f(r.design.flyAsh)}</td><td>${f(r.batch.flyAsh)}</td><td>${f(r.volumes.flyAsh, 4)}</td></tr>` : ""}
@@ -199,13 +183,13 @@
         </table>
         <ol class="steps">
           <li>f'cr: ${r.fcrMethod}${r.sdUsed ? ` (s = ${f(r.sdUsed, 2)} MPa)` : ""}</li>
-          <li>น้ำจาก Table 6.3.3 = ${r.waterTable} kg/m³${r.water !== r.waterTable ? ` → หลังลดน้ำ ${f(r.water, 1)}` : ""}</li>
+          <li>น้ำจาก Table 6.3.3 ที่ slump ${$("slump").value} cm = ${f(r.waterTable, 1)} kg/m³${r.water !== r.waterTable ? ` → หลังลดน้ำ ${f(r.water, 1)}` : ""}</li>
           <li>w/cm จากกำลัง = ${f(r.wcStrength, 3)} · ควบคุมโดย: ${r.wcGoverns}</li>
           <li>Binder = น้ำ ÷ w/cm = ${f(r.water, 1)} ÷ ${f(r.wc, 3)} = ${f(r.binder, 1)} kg/m³
             → ปูน ${f(r.design.cement, 1)}${r.design.flyAsh ? ` + fly ash ${f(r.design.flyAsh, 1)}` : ""}${r.design.slag ? ` + slag ${f(r.design.slag, 1)}` : ""}</li>
           <li>หิน = b/b₀ × หน่วยน้ำหนัก = ${f(r.bb0, 3)} × ${p.druw} = ${f(r.design.coarse, 1)} kg/m³</li>
           <li>ทราย = ปริมาตรที่เหลือ ${f(r.volumes.fine, 4)} m³ × ${p.fine.sg} × 1000 = ${f(r.design.fine, 1)} kg/m³</li>
-          <li>ปรับความชื้น: น้ำอิสระจากหิน ${f(r.freeWater.coarse, 1)} kg, จากทราย ${f(r.freeWater.fine, 1)} kg</li>
+          <li>ปรับความชื้น: น้ำผิวจากทราย ${f(r.freeWater.fine, 1)} kg หักออกจากน้ำ</li>
           ${r.admixtures.map((a) => `<li>${a.name} = binder × dose = ${f(r.binder, 1)} × ${a.dose} = ${f(a.cc)} cc · น้ำในสาร ${f(a.water, 2)} kg</li>`).join("")}
         </ol>
         ${r.warnings.length ? `<div class="warn"><ul>${r.warnings.map((w) => `<li>${w}</li>`).join("")}</ul></div>` : ""}`;
@@ -222,7 +206,7 @@
     const b = last.batch;
     $("trial").innerHTML = `<table style="margin-top:10px">
       <thead><tr><th>Trial batch ${v} m³</th><th>ปริมาณ</th></tr></thead>
-      <tbody>${[["ปูนซีเมนต์", b.cement], ["Fly ash", b.flyAsh], ["Slag", b.slag], ["น้ำ", b.water], ["หิน (เปียก)", b.coarse], ["ทราย (เปียก)", b.fine]]
+      <tbody>${[["ปูนซีเมนต์", b.cement], ["Fly ash", b.flyAsh], ["Slag", b.slag], ["น้ำ", b.water], ["หิน (SSD)", b.coarse], ["ทราย (เปียก)", b.fine]]
         .filter(([, x]) => x > 0)
         .map(([n, x]) => `<tr><td>${n}</td><td>${f(x * v, 2)} kg</td></tr>`).join("")}
       ${last.admixtures.map((a) => `<tr><td>${a.name}</td><td>${f(a.cc * v, 1)} cc</td></tr>`).join("")}</tbody></table>`;

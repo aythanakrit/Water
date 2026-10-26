@@ -5,7 +5,7 @@ const M = require("../mixdesign.js");
 const near = (a, b, tol = 0.5) => assert.ok(Math.abs(a - b) <= tol, `${a} ≠ ${b} (±${tol})`);
 
 const base = {
-  fc: 22, sd: null, nTests: 0, slump: "75-100", nmas: 25, exposure: "none",
+  fc: 22, sd: null, nTests: 0, slump: 87.5, nmas: 25, exposure: "none",
   sgCement: 3.15, fm: 2.8, druw: 1600,
   coarse: { sg: 2.68, absorption: 0.5, moisture: 0.5 },
   fine: { sg: 2.64, absorption: 0.7, moisture: 0.7 },
@@ -84,4 +84,13 @@ test("admixture dose = cc per kg binder, its water is deducted", () => {
   near(a.water, a.kg * 0.6, 1e-9);
   near(r.batch.water, r0.batch.water - a.water, 1e-9);
   near(r.design.fine, r0.design.fine, 1e-9);
+});
+
+test("slump interpolation between Table 6.3.3 range midpoints", () => {
+  const i = M.SIZES.indexOf(25);
+  assert.equal(M.mixingWater(false, 87.5, i), 193);
+  near(M.mixingWater(false, 125, i), 193 + (202 - 193) * 37.5 / 75, 1e-9);
+  assert.equal(M.mixingWater(false, 175, i), 202);
+  near(M.mixingWater(false, 50, i), 179 + (193 - 179) * 12.5 / 50, 1e-9);
+  assert.throws(() => M.design({ ...base, slump: 200 }));
 });

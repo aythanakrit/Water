@@ -29,6 +29,16 @@
     },
   };
 
+  // Slump ranges of Table 6.3.3 are interpolated between their midpoints (mm).
+  // Clamped outside 37.5–162.5 mm, so 25–37.5 and 162.5–175 use the end ranges.
+  const SLUMP_MID = { "25-50": 37.5, "75-100": 87.5, "150-175": 162.5 };
+
+  function mixingWater(ae, slumpMm, i) {
+    const t = WATER[ae ? "AE" : "nonAE"];
+    const keys = Object.keys(SLUMP_MID);
+    return interp(keys.map((k) => SLUMP_MID[k]), keys.map((k) => t[k][i]), slumpMm);
+  }
+
   // Table 6.3.3 — air content (%)
   const AIR = {
     entrapped: [3, 2.5, 2, 1.5, 1, 0.5],
@@ -109,7 +119,7 @@
    * @param {object} p
    * fc            specified 28-day cylinder strength (MPa)
    * sd, nTests    plant standard deviation (MPa) and number of tests (optional)
-   * slump         "25-50" | "75-100" | "150-175"
+   * slump         target slump (mm), 25–175
    * nmas          nominal max aggregate size (mm)
    * exposure      "none" | "mild" | "moderate" | "severe"  (none = non-air-entrained)
    * wcMax         durability w/c limit (optional)
@@ -130,7 +140,8 @@
     const req = requiredStrength(p.fc, p.sd, p.nTests);
 
     // 2) Mixing water and air
-    let water = WATER[ae ? "AE" : "nonAE"][p.slump][i];
+    if (!(p.slump >= 25 && p.slump <= 175)) throw new Error("Slump ต้องอยู่ระหว่าง 2.5–17.5 cm (ช่วงของ ACI 211.1 Table 6.3.3)");
+    let water = mixingWater(ae, p.slump, i);
     const waterTable = water;
     const red = Number(p.waterReduction) || 0;
     if (red > 0) {
@@ -161,7 +172,7 @@
     const slag = binder * slagPct / 100;
     const cement = binder - flyAsh - slag;
     if (faPct > 0 || slagPct > 0) {
-      warnings.push("ใช้ w/cm จากตาราง ACI ของปูนปอร์ตแลนด์ล้วน — fly ash/slag ทำให้กำลัง 28 วันพัฒนาช้ากว่า ต้องยืนยันความสัมพันธ์ w/cm–กำลังด้วย trial batch");
+      warnings.push("ใช้ w/cm จากตาราง ACI ของปูนปอร์ตแลนด์ล้วน — วัสดุประสาน (fly ash/slag) ทำให้กำลัง 28 วันพัฒนาช้ากว่า ต้องยืนยันความสัมพันธ์ w/cm–กำลังด้วย trial batch");
     }
     if (faPct > 35) warnings.push(`Fly ash ${faPct}% ค่อนข้างสูง — ตรวจกำลังช่วงอายุต้นและข้อกำหนดของโครงการ`);
     if (slagPct > 70) warnings.push(`Slag ${slagPct}% ค่อนข้างสูง — ตรวจกำลังช่วงอายุต้นและข้อกำหนดของโครงการ`);
@@ -217,5 +228,5 @@
     };
   }
 
-  return { SIZES, requiredStrength, wcFromStrength, design, interp };
+  return { SIZES, requiredStrength, wcFromStrength, mixingWater, design, interp };
 });
