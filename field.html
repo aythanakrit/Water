@@ -239,7 +239,7 @@
   function markDirty(id) {
     if (!SYNC) return;
     if (!db.dirty.includes(id)) db.dirty.push(id);
-    persist(); clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 800);
+    persist(); clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 3000);
   }
   function showSync() {
     const n = db.dirty.length + db.deleted.length;
@@ -254,6 +254,11 @@
   // Replace a local job with the merged copy, keeping edits made while the request was in flight
   function applyServer(serverJob) {
     const i = db.jobs.findIndex((j) => j.id === serverJob.id);
+    // list entries come without trucks ("stub"); a full local copy keeps its trucks
+    if (serverJob.stub) {
+      if (i < 0 || db.jobs[i].stub) { if (i >= 0) db.jobs[i] = serverJob; else db.jobs.push(serverJob); return serverJob; }
+      serverJob = { ...serverJob, trucks: [], removed: [] };
+    }
     const merged = FieldSync.mergeJobs(i >= 0 ? db.jobs[i] : null, serverJob);
     if (i >= 0) { merged.syncError = db.jobs[i].syncError; db.jobs[i] = merged; } else db.jobs.push(merged);
     if (job && job.id === merged.id) job = merged;
@@ -339,7 +344,7 @@
     showSync();
     const jobs = [...db.jobs].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
-      const s = FieldReport.summary(j);
+      const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
       return `<section class="job">
         <div><b>${esc(j.header.project || "(ยังไม่ใส่ชื่อโครงการ)")}</b>
           <span class="chip ${j.status}">${j.status === "done" ? "จบงานแล้ว" : "กำลังบันทึก"}</span>
@@ -369,8 +374,18 @@
   });
 
   // ---------- one job ----------
-  function openJob(id, isNew) {
-    job = db.jobs.find((j) => j.id === id); if (!job) return showList();
+  async function openJob(id, isNew) {
+    let j = db.jobs.find((x) => x.id === id); if (!j) return showList();
+    // a job listed from the sheet is fetched in full before it can be edited
+    if (j.stub) {
+      $("listMsg").textContent = "กำลังโหลดงาน…";
+      try {
+        const r = await api("get", { id });
+        if (!r.ok || !r.job) throw new Error("missing");
+        j = applyServer(r.job); persist(); $("listMsg").textContent = "";
+      } catch { $("listMsg").textContent = "โหลดงานไม่ได้ — ต้องต่ออินเทอร์เน็ตเพื่อเปิดงานนี้"; return; }
+    }
+    job = j;
     editIdx = -1;
     $("vList").hidden = true; $("vJob").hidden = false;
     document.querySelectorAll("[data-h]").forEach((el) => { el.value = job.header[el.dataset.h] ?? ""; });
