@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แปลงหน่วยกดลูกปูน</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
+    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
+            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
+            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding-block: 20px 48px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
+  .back:hover, .back:focus-visible { text-decoration: underline; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+          border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+  tfoot td { font-weight: 600; }
+  .u { color: var(--muted); font-size: .85rem; width: 3.5em; text-align: left; }
+  .out { font-weight: 600; color: var(--accent); }
+  .note { font-size: .82rem; color: var(--muted); margin-top: 12px; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: .9rem; margin: 0 0 16px; }
+  .conv td:nth-child(2) { width: 9em; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+  <h1>แปลงหน่วยกดลูกปูน</h1>
+  <p class="sub">ksc = (kN × 1,000) ÷ (พื้นที่ × 9.81) · ทรงกระบอก Ø15 ซม. พื้นที่ 3.14 × 7.5² = 176.63 ซม² · ลูกบาศก์ 15 ซม. พื้นที่ 225 ซม²</p>
+
+  <div class="grid">
+    <section>
+      <h2>Cylinder (ทรงกระบอก)</h2>
+      <table class="conv"><tbody>
+        <tr><td>แรงกด</td><td><input id="cyKn" type="number" step="0.01" value="1126.25"></td><td class="u">kN</td></tr>
+        <tr><td>= กำลังอัด</td><td class="out" id="cyKsc"></td><td class="u">ksc</td></tr>
+        <tr><td>กำลังอัด</td><td><input id="cyKsc2" type="number" step="1" value="650"></td><td class="u">ksc</td></tr>
+        <tr><td>= แรงกด</td><td class="out" id="cyKn2"></td><td class="u">kN</td></tr>
+      </tbody></table>
+    </section>
+    <section>
+      <h2>Cube (ลูกบาศก์)</h2>
+      <table class="conv"><tbody>
+        <tr><td>แรงกด</td><td><input id="cuKn" type="number" step="0.01" value="525"></td><td class="u">kN</td></tr>
+        <tr><td>= กำลังอัด</td><td class="out" id="cuKsc"></td><td class="u">ksc</td></tr>
+        <tr><td>กำลังอัด</td><td><input id="cuKsc2" type="number" step="1" value="237"></td><td class="u">ksc</td></tr>
+        <tr><td>= แรงกด</td><td class="out" id="cuKn2"></td><td class="u">kN</td></tr>
+      </tbody></table>
+    </section>
+  </div>
+  <p class="note">ใช้ π = 3.14 ตามชีตเดิม (ต่างจาก π จริง 0.05%) · ใช้กับตัวอย่างขนาดมาตรฐานเท่านั้น ถ้าขนาดจริงต่างไปให้ใช้พื้นที่ที่วัดได้</p>
+</main>
+
+<script src="fieldtools.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const f = (x) => isFinite(x) ? x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "–";
+  const v = (id) => Number($(id).value);
+  function run() {
+    $("cyKsc").textContent = f(FieldTools.knToKsc(v("cyKn"), "cylinder"));
+    $("cyKn2").textContent = f(FieldTools.kscToKn(v("cyKsc2"), "cylinder"));
+    $("cuKsc").textContent = f(FieldTools.knToKsc(v("cuKn"), "cube"));
+    $("cuKn2").textContent = f(FieldTools.kscToKn(v("cuKsc2"), "cube"));
+  }
+  document.querySelectorAll("input").forEach((el) => el.addEventListener("input", run));
+  run();
+</script>
+</body>
+</html>

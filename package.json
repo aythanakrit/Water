@@ -1,5 +1,5 @@
 {
   "name": "mix-design",
   "private": true,
-  "scripts": { "test": "node --test test/mixdesign.test.js test/evaluate.test.js" }
+  "scripts": { "test": "node --test test/mixdesign.test.js test/fieldtools.test.js" }
 }
