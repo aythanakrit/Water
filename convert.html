@@ -42,13 +42,14 @@
   .note { font-size: .82rem; color: var(--muted); margin-top: 12px; }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: .9rem; margin: 0 0 16px; }
   .conv td:nth-child(2) { width: 9em; }
+  .conv tr.sep td { border-top: 2px solid var(--line); }
 </style>
 </head>
 <body>
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
   <h1>คำนวณผลกดลูกปูน</h1>
-  <p class="sub">ksc = kN × 101.97 ÷ พื้นที่ (ซม²) · ทรงกระบอก Ø15 ซม. พื้นที่ π × 7.5² = 176.71 ซม² · ลูกบาศก์ 15 ซม. พื้นที่ 225 ซม²</p>
+  <p class="sub">ksc = kN × 101.97 ÷ พื้นที่ (ซม²) · MPa = ksc × 0.0981 · ทรงกระบอก Ø15 ซม. พื้นที่ π × 7.5² = 176.71 ซม² · ลูกบาศก์ 15 ซม. พื้นที่ 225 ซม²</p>
 
   <div class="grid">
     <section>
@@ -56,8 +57,13 @@
       <table class="conv"><tbody>
         <tr><td>แรงกด</td><td><input id="cyKn" type="number" step="0.01" value="1126.25"></td><td class="u">kN</td></tr>
         <tr><td>= กำลังอัด</td><td class="out" id="cyKsc"></td><td class="u">ksc</td></tr>
-        <tr><td>กำลังอัด</td><td><input id="cyKsc2" type="number" step="1" value="650"></td><td class="u">ksc</td></tr>
+        <tr><td></td><td class="out" id="cyMpa"></td><td class="u">MPa</td></tr>
+        <tr class="sep"><td>กำลังอัด</td><td><input id="cyKsc2" type="number" step="1" value="650"></td><td class="u">ksc</td></tr>
         <tr><td>= แรงกด</td><td class="out" id="cyKn2"></td><td class="u">kN</td></tr>
+        <tr><td></td><td class="out" id="cyMpa2"></td><td class="u">MPa</td></tr>
+        <tr class="sep"><td>กำลังอัด</td><td><input id="cyMpa3" type="number" step="0.5" value="64"></td><td class="u">MPa</td></tr>
+        <tr><td>= แรงกด</td><td class="out" id="cyKn3"></td><td class="u">kN</td></tr>
+        <tr><td></td><td class="out" id="cyKsc3"></td><td class="u">ksc</td></tr>
       </tbody></table>
     </section>
     <section>
@@ -65,8 +71,13 @@
       <table class="conv"><tbody>
         <tr><td>แรงกด</td><td><input id="cuKn" type="number" step="0.01" value="525"></td><td class="u">kN</td></tr>
         <tr><td>= กำลังอัด</td><td class="out" id="cuKsc"></td><td class="u">ksc</td></tr>
-        <tr><td>กำลังอัด</td><td><input id="cuKsc2" type="number" step="1" value="237"></td><td class="u">ksc</td></tr>
+        <tr><td></td><td class="out" id="cuMpa"></td><td class="u">MPa</td></tr>
+        <tr class="sep"><td>กำลังอัด</td><td><input id="cuKsc2" type="number" step="1" value="237"></td><td class="u">ksc</td></tr>
         <tr><td>= แรงกด</td><td class="out" id="cuKn2"></td><td class="u">kN</td></tr>
+        <tr><td></td><td class="out" id="cuMpa2"></td><td class="u">MPa</td></tr>
+        <tr class="sep"><td>กำลังอัด</td><td><input id="cuMpa3" type="number" step="0.5" value="23"></td><td class="u">MPa</td></tr>
+        <tr><td>= แรงกด</td><td class="out" id="cuKn3"></td><td class="u">kN</td></tr>
+        <tr><td></td><td class="out" id="cuKsc3"></td><td class="u">ksc</td></tr>
       </tbody></table>
     </section>
   </div>
@@ -79,10 +90,17 @@
   const f = (x) => isFinite(x) ? x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "–";
   const v = (id) => Number($(id).value);
   function run() {
-    $("cyKsc").textContent = f(FieldTools.knToKsc(v("cyKn"), "cylinder"));
-    $("cyKn2").textContent = f(FieldTools.kscToKn(v("cyKsc2"), "cylinder"));
-    $("cuKsc").textContent = f(FieldTools.knToKsc(v("cuKn"), "cube"));
-    $("cuKn2").textContent = f(FieldTools.kscToKn(v("cuKsc2"), "cube"));
+    const T = FieldTools;
+    [["cy", "cylinder"], ["cu", "cube"]].forEach(([p, shape]) => {
+      const ksc = T.knToKsc(v(p + "Kn"), shape);
+      $(p + "Ksc").textContent = f(ksc);
+      $(p + "Mpa").textContent = f(T.kscToMpa(ksc));
+      $(p + "Kn2").textContent = f(T.kscToKn(v(p + "Ksc2"), shape));
+      $(p + "Mpa2").textContent = f(T.kscToMpa(v(p + "Ksc2")));
+      const ksc3 = T.mpaToKsc(v(p + "Mpa3"));
+      $(p + "Kn3").textContent = f(T.kscToKn(ksc3, shape));
+      $(p + "Ksc3").textContent = f(ksc3);
+    });
   }
   document.querySelectorAll("input").forEach((el) => el.addEventListener("input", run));
   run();

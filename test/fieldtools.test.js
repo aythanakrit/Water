@@ -24,3 +24,12 @@ test("site cement adjustment keeps dose per binder (Excel example)", () => {
   assert.equal(r.load.admix.G, 6125);
   assert.equal(r.loadBinder, 612.5);
 });
+
+test("MPa uses ksc × 0.0981, same as the core page", () => {
+  const C = require("../coretest.js");
+  const ksc = T.knToKsc(1126.25, "cylinder");
+  const core = C.specimen({ d: 150, l: 300, w: 12.5, load: 1126.25 }, 380);
+  near(T.kscToMpa(ksc), core.mpa, 1e-3);
+  near(T.mpaToKsc(T.kscToMpa(650)), 650, 1e-9);
+  near(T.kscToKn(T.mpaToKsc(64), "cylinder"), 64 / 0.0981 * Math.PI * 56.25 / 101.97, 1e-9);
+});

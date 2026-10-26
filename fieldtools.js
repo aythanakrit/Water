@@ -17,6 +17,10 @@
   // ksc = kN × 101.97 ÷ area (cm²)
   const knToKsc = (kn, shape) => (kn * KGF_PER_KN) / AREA[shape];
   const kscToKn = (ksc, shape) => (ksc * AREA[shape]) / KGF_PER_KN;
+  // MPa = ksc × 0.0981, as on the core page
+  const MPA_PER_KSC = 0.0981;
+  const kscToMpa = (ksc) => ksc * MPA_PER_KSC;
+  const mpaToKsc = (mpa) => mpa / MPA_PER_KSC;
 
   /**
    * old: { cement, flyAsh, admix: { key: cc } }  original mix per m³
@@ -39,5 +43,5 @@
     };
   }
 
-  return { AREA, knToKsc, kscToKn, adjustMix };
+  return { AREA, knToKsc, kscToKn, kscToMpa, mpaToKsc, adjustMix };
 });
