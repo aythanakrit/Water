@@ -56,3 +56,14 @@ test("old local jobs get ids and timestamps", () => {
   assert.ok(j.trucks[0].created < j.trucks[1].created);
   assert.equal(j.headerUpdated, 9);
 });
+
+test("trucks sort by arrival, also across midnight; a late-entered earlier arrival moves up", () => {
+  const t = (id, arrival, created) => ({ id, arrival, created });
+  const sorted = S.sortTrucks([t("a", "23:40", 1), t("b", "00:10", 2), t("c", "23:30", 3), t("d", "", 4), t("e", "23:55", 5)]);
+  assert.deepEqual(sorted.map((x) => x.id), ["c", "a", "e", "b", "d"]);
+  const j = base();
+  j.trucks[0].arrival = "10:30";
+  const k = base();
+  k.trucks.push({ id: "t2", do: "0042610040087", arrival: "10:10", created: 30, updated: 30 });
+  assert.deepEqual(S.mergeJobs(j, k).trucks.map((x) => x.id), ["t2", "t1"]);
+});

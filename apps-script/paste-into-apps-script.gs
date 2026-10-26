@@ -17,6 +17,30 @@
   "use strict";
 
   const cleanDO = (s) => String(s == null ? "" : s).replace(/\s+/g, "");
+  const toMin = (hhmm) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+
+  /**
+   * Trucks in order of arrival at site. Times are clock times that may cross midnight,
+   * so each arrival is taken relative to the first truck's arrival (within ±12 h).
+   * Trucks without an arrival time keep their entry order after the others.
+   */
+  function sortTrucks(trucks) {
+    const byEntry = trucks.slice().sort((a, b) => (a.created || 0) - (b.created || 0));
+    const first = byEntry.find((t) => toMin(t.arrival) != null);
+    const base = first ? toMin(first.arrival) : 0;
+    const key = (t) => {
+      const m = toMin(t.arrival);
+      if (m == null) return Infinity;
+      let d = (m - base + 1440) % 1440;
+      if (d > 720) d -= 1440;
+      return d;
+    };
+    return byEntry.sort((a, b) => key(a) - key(b) || (a.created || 0) - (b.created || 0));
+  }
+
   const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   /** Give old (local-only) jobs the ids and timestamps sync needs. */
@@ -48,9 +72,8 @@
       const cur = trucks.get(t.id);
       if (!cur || (t.updated || 0) > (cur.updated || 0)) trucks.set(t.id, t);
     });
-    const live = [...trucks.values()]
-      .filter((t) => !(removed.has(t.id) && removed.get(t.id).updated >= (t.updated || 0)))
-      .sort((x, y) => (x.created || 0) - (y.created || 0));
+    const live = sortTrucks([...trucks.values()]
+      .filter((t) => !(removed.has(t.id) && removed.get(t.id).updated >= (t.updated || 0))));
 
     return {
       id: a.id, created: Math.min(a.created || Infinity, b.created || Infinity),
@@ -79,7 +102,7 @@
     return null;
   }
 
-  return { cleanDO, newId, upgradeJob, mergeJobs, findConflict };
+  return { cleanDO, toMin, sortTrucks, newId, upgradeJob, mergeJobs, findConflict };
 });
 
 /*

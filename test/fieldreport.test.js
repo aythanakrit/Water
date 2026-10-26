@@ -67,3 +67,26 @@ test("pages reconcile: carried + page total = cumulative = next page carried", (
   const all = trucks.reduce((s, t) => s + t.volume, 0);
   assert.equal(p[p.length - 1].cumulative, all);
 });
+
+test("time alerts: concrete age 120, wait 30, travel 60, pour 30; crossing midnight", () => {
+  const msg = (t) => F.timeAlerts(t).map((x) => x.text);
+  assert.deepEqual(msg({ batching: "21:33", arrival: "22:00", start: "22:10", end: "22:30" }), []);
+  assert.deepEqual(msg({ batching: "23:47", arrival: "00:20", start: "00:30", end: "00:55" }), []); // 68 min across midnight
+  assert.deepEqual(msg({ batching: "22:00", arrival: "22:40", start: "23:40", end: "00:05" }),
+    ["คอนกรีตเกินเวลา 125 นาที (เกณฑ์ 120)", "รถรอเท 60 นาที"]);
+  assert.deepEqual(msg({ batching: "10:00", arrival: "11:15" }), ["เดินทาง 75 นาที"]);
+  assert.deepEqual(msg({ batching: "10:00", arrival: "10:30", start: "10:35", end: "11:20" }), ["ใช้เวลาเท 45 นาที"]);
+  // start and end are optional
+  assert.deepEqual(msg({ batching: "10:00", arrival: "10:30" }), []);
+  assert.deepEqual(msg({ arrival: "10:30" }), []);
+});
+
+test("time alerts: steps out of order", () => {
+  assert.equal(F.timeAlerts({ batching: "10:00", arrival: "10:40", start: "10:20" })[0].text, "ตรวจเวลา: เริ่มเทก่อนรถถึง");
+  assert.equal(F.timeAlerts({ batching: "10:00", arrival: "09:50" })[0].text, "ตรวจเวลา: รถถึงก่อนเวลาผลิต");
+});
+
+test("remark keeps what was typed and adds the alerts", () => {
+  assert.equal(F.remarkWithAlerts({ remark: "ปั๊มเสีย", batching: "10:00", arrival: "11:15" }), "ปั๊มเสีย · เดินทาง 75 นาที");
+  assert.equal(F.remarkWithAlerts({ remark: "", batching: "10:00", arrival: "10:30" }), "");
+});

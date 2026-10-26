@@ -59,6 +59,9 @@
   .sync.off { color: var(--warn); } .sync.bad { color: var(--bad); font-weight: 600; }
   .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
   table.list tbody tr.dup td { color: var(--bad); font-weight: 600; }
+  table.list tbody tr.t-warn td { background: var(--warn-bg); }
+  table.list tbody tr.t-bad td { background: var(--warn-bg); color: var(--bad); }
+  table.list td.rm { white-space: normal; min-width: 14em; font-size: .85rem; }
   .scroll { overflow-x: auto; }
   table.list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   table.list th, table.list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
@@ -145,6 +148,7 @@
 
     <section>
       <div class="sum" id="sum"></div>
+      <div id="timeSum"></div>
     </section>
 
     <section id="addBox">
@@ -404,10 +408,16 @@
       [fmt(s.ordered), "ยอดสั่ง (คิว)"], [fmt(s.received), "ยอดรับ (คิว)"], [fmt(s.produced), "ยอดผลิต (คิว)"],
       [fmt(s.inTransit), "ระหว่างทาง (คิว)"], [fmt(s.remaining), "อีก…คิวครบ"], [s.pct == null ? "–" : fmt(s.pct * 100, 0) + "%", "ผลิตแล้ว"],
     ].map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join("");
+    renderTimeSum();
     $("addBox").hidden = done;
     $("finish").textContent = done ? "เปิดงานแก้ไขต่อ" : "จบงาน";
     if (!$("newVol").value) $("newVol").value = job.trucks.length ? job.trucks[job.trucks.length - 1].volume : 7;
     renderList(); renderEdit(); showSync();
+  }
+  function renderTimeSum() {
+    const late = job.trucks.filter((t) => FieldReport.timeAlerts(t).length), L = FieldReport.LIMITS;
+    $("timeSum").innerHTML = late.length ? `<div class="warn">⚠️ ${late.length} เที่ยวมีเวลาเกินเกณฑ์หรือผิดลำดับ (แถวสีส้ม/แดง) — รายละเอียดอยู่ในหมายเหตุ ·
+      เกณฑ์: ผลิตถึงเทเสร็จ ≤ ${L.age} นาที, รอเท ≤ ${L.wait}, เดินทาง ≤ ${L.travel}, ใช้เวลาเท ≤ ${L.pour} นาที</div>` : "";
   }
   document.querySelectorAll("[data-h]").forEach((el) => el.addEventListener("input", () => {
     job.header[el.dataset.h] = el.value; job.headerUpdated = Date.now(); touch();
@@ -422,8 +432,12 @@
   function renderList() {
     const dups = dupRows();
     $("list").innerHTML = `<thead><tr>${COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
-      (job.trucks.length ? job.trucks.map((t, i) => `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}">${COLS.map(([k]) =>
-        `<td>${k === "no" ? i + 1 : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`).join("")
+      (job.trucks.length ? job.trucks.map((t, i) => {
+        const al = FieldReport.timeAlerts(t), lv = al.some((x) => x.level === "bad") ? " t-bad" : al.length ? " t-warn" : "";
+        return `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}${lv}">${COLS.map(([k]) =>
+          k === "remark" ? `<td class="rm">${esc(FieldReport.remarkWithAlerts(t))}</td>`
+          : `<td>${k === "no" ? i + 1 : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`;
+      }).join("")
         : `<tr><td colspan="${COLS.length}" class="note">ยังไม่มีรถ — สแกนหรือพิมพ์ D/O ด้านบน</td></tr>`) + "</tbody>";
   }
   $("list").addEventListener("click", (e) => {
@@ -464,7 +478,7 @@
     t.id = FieldSync.newId("t"); t.created = t.updated = Date.now();
     t.do = d; t.truck = $("newTruck").value.trim(); t.volume = $("newVol").value || t.volume;
     t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM(); t.batching = $("newBatch").value;
-    job.trucks.push(t); touch();
+    job.trucks.push(t); job.trucks = FieldSync.sortTrucks(job.trucks); touch();
     $("newDO").value = ""; $("newTruck").value = ""; $("newBatch").value = ""; $("addWarn").innerHTML = "";
     renderJob(); $("newDO").focus();
   });
@@ -573,24 +587,40 @@
     box.hidden = false;
     box.innerHTML = `
       <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <h2 style="margin:0">แก้ไขลำดับที่ ${editIdx + 1}${plant.code ? ` · รหัสแพลนท์ ${esc(plant.code)}` : ""}</h2>
+        <h2 style="margin:0">แก้ไขลำดับที่ <span id="editNo">${editIdx + 1}</span>${plant.code ? ` · รหัสแพลนท์ ${esc(plant.code)}` : ""}</h2>
         <button class="link" data-close type="button">ปิด</button></div>
       <div class="fields">${F_TEXT.map(inp).join("")}</div>
       <div id="doErr"></div>
       ${w.length ? `<div class="${hit ? "err" : "warn"}"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : ""}
       <div class="times" style="margin-top:12px">${F_TIME.map(([k, l]) => `<label>${l}<span class="tin">
         <input type="time" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
+      <div id="timeAlerts"></div>
       <div class="fields" style="margin-top:12px">${F_MORE.map(inp).join("")}</div>
+      <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะต่อท้ายหมายเหตุให้เองในรายการและใน PDF (ไม่ต้องพิมพ์เอง)</p>
       <div class="row" style="margin-top:12px;justify-content:space-between">
         <span class="note">แก้แล้วบันทึกอัตโนมัติ</span>
         <button class="g d" data-rm type="button" ${ro}>ลบรถคันนี้</button></div>`;
+    showTimeAlerts();
+  }
+  function showTimeAlerts() {
+    const el = $("timeAlerts"), t = job.trucks[editIdx]; if (!el || !t) return;
+    const al = FieldReport.timeAlerts(t);
+    el.innerHTML = al.length ? `<div class="${al.some((x) => x.level === "bad") ? "err" : "warn"}"><ul>${al.map((x) => `<li>${esc(x.text)}</li>`).join("")}</ul></div>` : "";
+  }
+  // Keep trucks in arrival order; the truck being edited stays selected
+  function resort() {
+    const id = job.trucks[editIdx] && job.trucks[editIdx].id;
+    job.trucks = FieldSync.sortTrucks(job.trucks);
+    if (id) editIdx = job.trucks.findIndex((x) => x.id === id);
+    if ($("editNo")) $("editNo").textContent = editIdx + 1;
   }
   let rmArmed = false;
   $("editBox").addEventListener("input", (e) => {
     const k = e.target.dataset.t; if (!k || k === "do") return;
     const t = job.trucks[editIdx];
     t[k] = e.target.value; t.updated = Date.now();
-    touch(); renderList();
+    if (k === "arrival") resort();
+    touch(); renderList(); showTimeAlerts(); renderTimeSum();
     if (k === "volume") { const pos = e.target.selectionStart; renderJob(); const el = $("editBox").querySelector(`[data-t="${k}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} } }
   });
   // D/O is saved when the field is left, and never to a number already used
@@ -609,7 +639,7 @@
   });
   $("editBox").addEventListener("click", (e) => {
     const t = job.trucks[editIdx];
-    if (e.target.dataset.now) { t[e.target.dataset.now] = FieldReport.nowHHMM(); t.updated = Date.now(); touch(); renderList(); renderEdit(); }
+    if (e.target.dataset.now) { t[e.target.dataset.now] = FieldReport.nowHHMM(); t.updated = Date.now(); if (e.target.dataset.now === "arrival") resort(); touch(); renderJob(); }
     if (e.target.hasAttribute("data-close")) { editIdx = -1; renderList(); renderEdit(); }
     if (e.target.hasAttribute("data-rm")) {
       if (!rmArmed) { rmArmed = true; e.target.textContent = "กดอีกครั้งเพื่อลบ"; setTimeout(() => { rmArmed = false; renderEdit(); }, 4000); return; }
@@ -647,7 +677,7 @@
       const t = p.rows[r], v = (k) => (t ? e(t[k] || "-") : "");
       return `<tr>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
         ${td("d", v("batching"))}${td("d", v("arrival"))}${td("d", v("start"))}${td("d", v("end"))}${td("d", v("airTemp"))}${td("d", v("conTemp"))}
-        ${td("d", v("slump"))}${td("d", v("sampleType"))}${td("d", v("sampleQty"))}${td("d", v("label"))}${td("d l", v("remark"))}${td("d fr", v("operator"), 2)}</tr>`;
+        ${td("d", v("slump"))}${td("d", v("sampleType"))}${td("d", v("sampleQty"))}${td("d", v("label"))}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
     }).join("");
     return `<div class="pg"><table><colgroup>${col}</colgroup>
       <tr><td class="fl ft logo" colspan="3" rowspan="3"><img src="${LOGO}" alt=""></td>${td("ft", "บริษัท เอ็มคอนกรีต จำกัด", 16)}${td("ft fr")}</tr>
