@@ -4,13 +4,16 @@ const F = require("../fieldreport.js");
 
 const job = (trucks, header = {}) => ({ header: { ordered: 210, produced: 0, ...header }, trucks });
 
-test("plant from D/O prefix (Template sheet VLOOKUP)", () => {
-  assert.equal(F.plantFromDO("0372610040130").name, "พระราม 3 - 2");
-  assert.equal(F.plantFromDO("0042610040087").name, "พระราม9 (2)");
-  assert.equal(F.plantFromDO("0142610040116").name, "เพรชพระราม-1");
-  const amb = F.plantFromDO("0002610040001");
-  assert.equal(amb.name, "");
-  assert.equal(amb.options.length, 2);
+test("plant from D/O prefix (plant code list)", () => {
+  assert.equal(F.plantFromDO("0372610040130").name, "พระราม3-2 (สาธุประดิษฐ์ 2)");
+  assert.equal(F.plantFromDO("0042610040087").name, "พระราม9/21");
+  assert.equal(F.plantFromDO("0142610040116").name, "เพรชพระราม");
+  assert.equal(F.plantFromDO("1062610040001").name, "บางพลี3");
+  assert.equal(F.PLANTS.length, 54);
+  assert.equal(new Set(F.PLANTS.map(([c]) => c)).size, 54); // no duplicate codes
+  const none = F.plantFromDO("0002610040001");
+  assert.equal(none.name, "");
+  assert.equal(none.options.length, 0);
 });
 
 test("D/O checks: length, unknown plant, duplicate", () => {

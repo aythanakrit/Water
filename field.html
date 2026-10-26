@@ -83,6 +83,7 @@
   .pg th { font-weight: 600; font-size: 9px; line-height: 1.15; background: #f0f0f0; white-space: normal; word-break: break-word; }
   .pg td { height: 24px; font-size: 10.5px; }
   .pg td.l { text-align: left; }
+  .pg td.p { white-space: normal; font-size: 9px; line-height: 1.1; }
   .pg .tot td { font-weight: 700; }
   .pg .sig { display: flex; justify-content: space-around; margin-top: auto; padding-top: 18px; font-size: 11px; }
   .pg .sig div { text-align: center; width: 260px; }
@@ -361,9 +362,9 @@
     if (editIdx < 0 || !job.trucks[editIdx]) { box.hidden = true; return; }
     const t = job.trucks[editIdx], ro = job.status === "done" ? "disabled" : "";
     const plant = FieldReport.plantFromDO(t.do);
-    const plantOpts = [...new Set(FieldReport.PLANTS.map(([, n]) => n))];
+    const plantOpts = [...FieldReport.PLANTS].sort((a, b) => a[0].localeCompare(b[0]));
     const inp = ([k, l, m]) => k === "plant"
-      ? `<label>${l}<select data-t="plant" ${ro}><option value="">— เลือก —</option>${plantOpts.map((n) => `<option${n === t.plant ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></label>`
+      ? `<label>${l}<select data-t="plant" ${ro}><option value="">— เลือก —</option>${plantOpts.map(([c, n]) => `<option value="${esc(n)}"${n === t.plant ? " selected" : ""}>P${c} - ${esc(n)}</option>`).join("")}</select></label>`
       : `<label>${l}<input data-t="${k}" value="${esc(t[k])}" ${m ? `inputmode="${m}"` : ""} ${ro}></label>`;
     const w = FieldReport.checkDO(t.do, job.trucks, editIdx);
     box.hidden = false;
@@ -410,7 +411,7 @@
     const rows = Array.from({ length: FieldReport.ROWS_PER_PAGE }, (_, r) => {
       const t = p.rows[r]; if (!t) return `<tr>${"<td></td>".repeat(17)}</tr>`;
       const v = (k) => esc(t[k] || "-");
-      return `<tr><td>${p.start + r + 1}</td><td>${v("truck")}</td><td>${v("do")}</td><td>${v("volume")}</td><td>${v("plant")}</td>
+      return `<tr><td>${p.start + r + 1}</td><td>${v("truck")}</td><td>${v("do")}</td><td>${v("volume")}</td><td class="p">${v("plant")}</td>
         <td>${v("batching")}</td><td>${v("arrival")}</td><td>${v("start")}</td><td>${v("end")}</td><td>${v("airTemp")}</td><td>${v("conTemp")}</td>
         <td>${v("slump")}</td><td>${v("sampleType")}</td><td>${v("sampleQty")}</td><td>${v("label")}</td><td class="l">${v("remark")}</td><td>${v("operator")}</td></tr>`;
     }).join("");
