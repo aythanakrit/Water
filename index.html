@@ -49,14 +49,11 @@
   <h2>พร้อมใช้งาน</h2>
   <div class="grid" id="ready"></div>
 
-  <h2>กำลังพัฒนา</h2>
-  <div class="grid" id="soon"></div>
-
   <footer>ผลคำนวณทุกโปรแกรมเป็นค่าเริ่มต้นสำหรับ trial batch เท่านั้น ต้องให้วิศวกรผู้รับผิดชอบตรวจสอบก่อนใช้ผลิตจริง</footer>
 </main>
 
 <script>
-  // Add a tool: append one entry. Entries without `href` show under "กำลังพัฒนา".
+  // Add a tool: append one entry.
   const TOOLS = [
     { title: "Mix Design คอนกรีต", ref: "ACI 211.1",
       desc: "คำนวณสัดส่วนผสม รองรับ fly ash สารผสมเพิ่ม ปรับความชื้น และ trial batch",
@@ -70,10 +67,6 @@
     { title: "ตรวจสอบผลกดลูกปูน Coring", ref: "ACI 318 · ASTM C42",
       desc: "กรอกขนาด น้ำหนัก แรงกด ได้กำลังอัดหลังปรับ L:D, % เทียบ Mix, แรงกดเป้าหมาย และตัดสินผ่าน/ไม่ผ่านรายกลุ่ม",
       href: "core.html" },
-    { title: "บันทึกผลกำลังอัด", ref: "ACI 318 / ASTM C39",
-      desc: "บันทึกผล 7/28 วัน คำนวณ S.D. ตรวจ acceptance และ control chart" },
-    { title: "ต้นทุนต่อ m³", ref: "บาท/m³",
-      desc: "ใส่ราคาวัสดุ เปรียบเทียบต้นทุนแต่ละสูตร" },
   ];
 
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -81,7 +74,6 @@
     ? `<a class="tool" href="${esc(t.href)}"><span class="ref">${esc(t.ref)}</span><b>${esc(t.title)}</b><p>${esc(t.desc)}</p><span class="go">เปิดโปรแกรม →</span></a>`
     : `<div class="tool soon"><span class="ref">${esc(t.ref)}</span><b>${esc(t.title)}</b><p>${esc(t.desc)}</p></div>`;
   document.getElementById("ready").innerHTML = TOOLS.filter((t) => t.href).map(card).join("");
-  document.getElementById("soon").innerHTML = TOOLS.filter((t) => !t.href).map(card).join("");
 </script>
 </body>
 </html>

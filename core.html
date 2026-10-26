@@ -84,7 +84,7 @@
 
   <div class="top">
     <label>Project Name<input id="project" placeholder="ชื่อโครงการ"></label>
-    <label>Mix (ksc, Cy)<input id="spec" type="number" step="5" value="380" style="text-align:right"></label>
+    <label>Mix (ksc, Cy)<input id="spec" type="number" step="5" placeholder="เช่น 380" style="text-align:right"></label>
   </div>
 
   <section>
@@ -108,7 +108,7 @@
   </section>
   <p class="note">ช่องสีน้ำเงินคำนวณอัตโนมัติ · % และการตัดสินใช้กำลังหลังปรับ L:D · เขียว = ถึง 85% ของ Mix, แดง = ต่ำกว่า 85% ·
     ปกติกลุ่มละ 3 แท่ง ·
-    ข้อมูลที่กรอกจะจำไว้ในเครื่องนี้เท่านั้น · ผลประเมินคุณภาพคอนกรีตต้องให้วิศวกรผู้รับผิดชอบพิจารณา</p>
+    ข้อมูลไม่ถูกบันทึก ปิดหน้าแล้วต้องกรอกใหม่ · ผลประเมินคุณภาพคอนกรีตต้องให้วิศวกรผู้รับผิดชอบพิจารณา</p>
 </main>
 
 <script src="coretest.js"></script>
@@ -118,21 +118,9 @@
   const f = (x, d = 2) => x == null || !isFinite(x) ? "" : x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
   const KEY = "core-test-v2";
 
-  // Sample data from the sheet (Mix 380 ksc Cy)
-  const SAMPLE = {
-    project: "", spec: 380,
-    samples: [
-      { name: "No.16", group: "1", d: 69.1, l: 139.4, w: 1.218, load: 144.31 },
-      { name: "No.19", group: "1", d: 69.1, l: 137.7, w: 1.12, load: 151.84 },
-      { name: "No.20", group: "1", d: 69.1, l: 137.5, w: 1.196, load: 121.41 },
-      { name: "No.1", group: "2", d: 93.2, l: 185, w: 2.663, load: 31.01 },
-      { name: "No.2", group: "2", d: 67.2, l: 129.4, w: 0.964, load: 12.18 },
-      { name: "No.3", group: "2", d: 67.9, l: 140.5, w: 1.071, load: 9.71 },
-    ],
-  };
-  let state;
-  try { state = JSON.parse(localStorage.getItem(KEY)) || SAMPLE; } catch { state = SAMPLE; }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+  // Opens blank every time; nothing is kept between visits
+  const blank = () => [1, 2, 3].map((k) => ({ name: "M" + k, group: "1", d: "", l: "", w: "", load: "" }));
+  let state = { project: "", spec: "", samples: blank() };
 
   const INPUTS = [
     ["group", "กลุ่ม (ชุดตัดสิน)", "-"], ["d", "Average Diameter", "mm"], ["l", "Average Length", "mm"], ["w", "Weight", "Kg"],
@@ -202,25 +190,25 @@
   $("sheet").addEventListener("input", (e) => {
     const { i, k } = e.target.dataset; if (i == null) return;
     state.samples[i][k] = e.target.value;
-    save(); calc();
+    calc();
   });
   $("sheet").addEventListener("click", (e) => {
     if (e.target.dataset.del == null) return;
-    state.samples.splice(Number(e.target.dataset.del), 1); save(); render();
+    state.samples.splice(Number(e.target.dataset.del), 1); render();
   });
-  $("project").addEventListener("input", (e) => { state.project = e.target.value; save(); });
-  $("spec").addEventListener("input", (e) => { state.spec = e.target.value; save(); calc(); });
+  $("project").addEventListener("input", (e) => { state.project = e.target.value; });
+  $("spec").addEventListener("input", (e) => { state.spec = e.target.value; calc(); });
   $("add").addEventListener("click", () => {
     const last = state.samples[state.samples.length - 1];
-    state.samples.push({ name: "M" + (state.samples.length + 1), group: last ? last.group : "1", d: "", l: "", w: "", load: "" }); save(); render();
+    state.samples.push({ name: "M" + (state.samples.length + 1), group: last ? last.group : "1", d: "", l: "", w: "", load: "" }); render();
     const inputs = $("sheet").querySelectorAll(`input[data-i="${state.samples.length - 1}"][data-k="d"]`); inputs[0] && inputs[0].focus();
   });
   let armed = false;
   $("clear").addEventListener("click", () => {
     if (!armed) { armed = true; $("clearMsg").textContent = "กดอีกครั้งเพื่อยืนยันการล้าง"; setTimeout(() => { armed = false; $("clearMsg").textContent = ""; }, 4000); return; }
     armed = false; $("clearMsg").textContent = "ล้างแล้ว";
-    state = { project: "", spec: state.spec, samples: [1, 2, 3].map((k) => ({ name: "M" + k, group: "1", d: "", l: "", w: "", load: "" })) };
-    save(); render();
+    state = { project: "", spec: state.spec, samples: blank() };
+    render();
   });
 
   render();
