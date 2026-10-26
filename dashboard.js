@@ -91,5 +91,103 @@
     return "﻿" + [head.join(",")].concat(lines).join("\n");
   }
 
-  return { trips, stats, groupBy, daily, toCSV };
+  const hhmm = (m) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, "0")}:${String((((m % 1440) + 1440) % 1440) % 60).padStart(2, "0")}`;
+
+  /**
+   * Put clock times of one job on a single timeline (minutes), so a pour that
+   * runs past midnight keeps going forward: 23:50 → 1430, 00:20 → 1460.
+   */
+  function onTimeline(trucks, field) {
+    let base = null;
+    return trucks.map((t) => {
+      const m = clock(t[field]);
+      if (m == null) return null;
+      if (base == null) base = m;
+      let d = m - base;
+      if (d < -720) d += 1440; else if (d > 720) d -= 1440;
+      return base + d;
+    });
+  }
+
+  /**
+   * One project over a date range:
+   *  plants — volume, trips and production rate (m³/h) from batching times
+   *  hourly — volume per batching hour per plant
+   *  trucks — each mixer truck, its trips and time windows
+   *  issues — trips with a remark (typed or from the time checks)
+   */
+  function projectView(jobs, project, { from, to } = {}) {
+    const picked = jobs.filter((j) => j.status !== "deleted" && (j.header.project || "(ไม่มีชื่อ)") === project &&
+      (!from || (j.header.date || "") >= from) && (!to || (j.header.date || "") <= to));
+    const all = [];
+    picked.forEach((j) => {
+      const tr = (j.trucks || []).filter((t) => String(t.do || "").trim());
+      const bt = onTimeline(tr, "batching"), at = onTimeline(tr, "arrival"), et = onTimeline(tr, "end");
+      tr.forEach((t, i) => all.push({ job: j, t, date: j.header.date || "", plant: t.plant || "(ไม่ระบุ)", volume: num(t.volume), b: bt[i], a: at[i], e: et[i] }));
+    });
+
+    // production rate per plant (per day when the range has several days):
+    // volume ÷ batching span, the span covering n trucks as n intervals
+    const multiDay = new Set(all.map((r) => r.date)).size > 1;
+    const plants = new Map();
+    all.forEach((r) => {
+      const key = multiDay ? r.date + "|" + r.plant : r.plant;
+      if (!plants.has(key)) plants.set(key, { plant: r.plant, date: r.date, volume: 0, trips: 0, pours: new Map() });
+      const p = plants.get(key);
+      p.volume += r.volume; p.trips++;
+      const k = r.job.id;
+      if (!p.pours.has(k)) p.pours.set(k, []);
+      if (r.b != null) p.pours.get(k).push(r);
+    });
+    const plantRows = [...plants.values()].map((p) => {
+      let vol = 0, hours = 0, first = null, last = null;
+      p.pours.forEach((rs) => {
+        if (!rs.length) return;
+        const ts = rs.map((r) => r.b).sort((x, y) => x - y);
+        const n = ts.length, spanMin = ts[n - 1] - ts[0];
+        if (first == null || ts[0] < first) first = ts[0];
+        if (last == null || ts[n - 1] > last) last = ts[n - 1];
+        if (n < 2 || spanMin <= 0) return;
+        vol += rs.reduce((s, r) => s + r.volume, 0);
+        hours += spanMin * n / (n - 1) / 60;
+      });
+      return { plant: p.plant, date: multiDay ? p.date : "", volume: p.volume, trips: p.trips, rate: hours ? vol / hours : null,
+        first: first == null ? "" : hhmm(first), last: last == null ? "" : hhmm(last) };
+    }).sort((a, b) => a.date.localeCompare(b.date) || b.volume - a.volume);
+
+    // volume per batching hour (per date when the range has several days)
+    const hours = new Map();
+    all.forEach((r) => {
+      if (r.b == null) return;
+      const h = Math.floor(r.b / 60);
+      const key = `${r.date}|${String(h).padStart(5, "0")}`;
+      if (!hours.has(key)) hours.set(key, { date: multiDay ? r.date : "", label: hhmm(h * 60).slice(0, 2) + ":00", byPlant: {}, total: 0 });
+      const o = hours.get(key);
+      o.byPlant[r.plant] = (o.byPlant[r.plant] || 0) + r.volume; o.total += r.volume;
+    });
+    const hourly = [...hours.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+
+    // mixer trucks
+    const trucks = new Map();
+    all.forEach((r) => {
+      const k = String(r.t.truck || "").trim() || "(ไม่ระบุเลขรถ)";
+      if (!trucks.has(k)) trucks.set(k, { truck: k, trips: 0, volume: 0, windows: [] });
+      const o = trucks.get(k);
+      o.trips++; o.volume += r.volume;
+      o.windows.push({ date: r.date, batching: r.t.batching || "", arrival: r.t.arrival || "", end: r.t.end || "", do: r.t.do, plant: r.plant, sortKey: r.date + String(r.b ?? r.a ?? 0).padStart(6, "0") });
+    });
+    const truckRows = [...trucks.values()].map((o) => ({ ...o, windows: o.windows.sort((a, b) => a.sortKey.localeCompare(b.sortKey)) }))
+      .sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
+
+    const issues = all.map((r) => ({ date: r.date, truck: r.t.truck, do: r.t.do, plant: r.plant,
+      remark: FieldReport.remarkWithAlerts(r.t), alerts: FieldReport.timeAlerts(r.t), typed: String(r.t.remark || "").trim() }))
+      .filter((x) => x.remark);
+
+    return {
+      project, multiDay, jobs: picked.length, volume: all.reduce((s, r) => s + r.volume, 0), trips: all.length,
+      plants: plantRows, hourly, plantNames: [...new Set(plantRows.map((p) => p.plant))], trucks: truckRows, issues,
+    };
+  }
+
+  return { trips, stats, groupBy, daily, toCSV, projectView };
 });

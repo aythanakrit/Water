@@ -56,3 +56,28 @@ test("CSV keeps D/O as text and quotes commas", () => {
   assert.match(csv, /"A, B"/);
   assert.match(csv, /'0032610040165/);
 });
+
+test("project view: plant volume and rate, hourly volume, trucks and their trips, issues", () => {
+  const job = { id: "p1", status: "done", header: { project: "วิทยุ", date: "2026-10-20" }, trucks: [
+    { do: "1", truck: "715", volume: "7", plant: "คลองตัน", batching: "23:00", arrival: "23:30", start: "23:35", end: "23:50" },
+    { do: "2", truck: "716", volume: "7", plant: "คลองตัน", batching: "23:30", arrival: "00:00", start: "00:05", end: "00:20" },
+    { do: "3", truck: "715", volume: "7", plant: "คลองตัน", batching: "00:00", arrival: "00:30", start: "00:35", end: "00:50", remark: "ปั๊มเสีย" },
+    { do: "4", truck: "820", volume: "6", plant: "พระราม9/21", batching: "23:10", arrival: "00:30", start: "00:40", end: "00:55" },
+  ] };
+  const v = D.projectView([job], "วิทยุ");
+  assert.equal(v.volume, 27);
+  assert.equal(v.trips, 4);
+  const k = v.plants.find((p) => p.plant === "คลองตัน");
+  assert.equal(k.volume, 21);
+  // 3 trucks 30 min apart → 21 m³ over 3 × 30 min = 14 m³/h
+  assert.equal(k.rate, 14);
+  assert.equal(k.first, "23:00");
+  assert.equal(k.last, "00:00");
+  assert.equal(v.plants.find((p) => p.plant === "พระราม9/21").rate, null); // one truck: no rate
+  assert.deepEqual(v.hourly.map((h) => [h.label, h.total]), [["23:00", 20], ["00:00", 7]]);
+  const t715 = v.trucks.find((t) => t.truck === "715");
+  assert.equal(t715.trips, 2);
+  assert.deepEqual(t715.windows.map((w) => w.batching), ["23:00", "00:00"]);
+  assert.equal(v.trucks.length, 3);
+  assert.deepEqual(v.issues.map((i) => i.do), ["3", "4"]); // typed remark; travel 80 min
+});
