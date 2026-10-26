@@ -44,6 +44,7 @@ function doPost(e) {
       case "save": return json(saveJob(req.job));
       case "checkDO": return json({ ok: true, hit: checkDO(req.do, req.jobId) });
       case "delete": deleteJob(req.id); return json({ ok: true });
+      case "report": return json({ ok: true, jobs: reportJobs(req.from, req.to) });
       default: return json({ ok: false, error: "unknown_action" });
     }
   } finally {
@@ -156,6 +157,26 @@ function listJobs() {
   return readAll(sheets().jobs, JOB_COLS)
     .filter((r) => r.status !== "deleted" && (r.status !== "done" || Number(r.updated) >= since))
     .map((r) => jobFromRow(r, null));
+}
+
+// Jobs dated from..to (yyyy-MM-dd) with their trucks, for the dashboard.
+// Reads the main sheets only: jobs finished more than ARCHIVE_DAYS ago are in the archive files.
+function reportJobs(from, to) {
+  const { jobs, trucks } = sheets();
+  const iso = (v) => (v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd") : String(v || ""));
+  const picked = readAll(jobs, JOB_COLS).filter((r) => {
+    const d = iso(r.date);
+    return r.status !== "deleted" && (!from || d >= from) && (!to || d <= to);
+  });
+  if (!picked.length) return [];
+  const want = {};
+  picked.forEach((r) => { want[r.id] = []; });
+  readAll(trucks, TRUCK_COLS).forEach((t) => { if (want[t.jobId]) want[t.jobId].push(t); });
+  return picked.map((r) => {
+    const j = jobFromRow(r, want[r.id]);
+    j.header.date = iso(r.date);
+    return { id: j.id, status: j.status, header: j.header, trucks: j.trucks };
+  });
 }
 
 // ---------- D/O uniqueness (DO sheet keeps every D/O, including archived jobs) ----------

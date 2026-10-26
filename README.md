@@ -9,6 +9,7 @@
 - `core.html` + `coretest.js` ตรวจสอบผลกดลูกปูน Coring: L:D (ปรับตาม ASTM C42), ความหนาแน่น, กำลังอัด, % เทียบ Mix, Target 100%/85%, ตัดสินรายกลุ่มตาม ACI 318 (ตรวจเลขข้อตามฉบับที่ใช้) (เฉลี่ย ≥ 85%, ต่ำสุด ≥ 75%)
 - `field.html` + `fieldreport.js` ใบรายงานสนามและเก็บก้อนตัวอย่าง (FM-PQ-10): สร้างงาน, สแกน/พิมพ์ D/O → หน่วยผลิตจากรหัส 3 หลักแรก, บันทึกอัตโนมัติในเครื่อง, ส่งออก/นำเข้าไฟล์สำรอง, Export PDF A4 แนวนอน 15 คัน/หน้า
 - `fieldsync.js` + `apps-script/Code.gs` + `config.js` เก็บข้อมูลใบรายงานสนามกลางใน Google Sheets (ดูขั้นตอนที่ `docs/SETUP-GOOGLE-SHEETS.md`) ถ้า `config.js` ไม่มี url จะเก็บเฉพาะในเครื่อง
+- `dashboard.html` + `dashboard.js` Dashboard การส่งคอนกรีต: สรุปจากใบรายงานสนาม (Apps Script action `report`)
 - `fieldtools.js` สูตรคำนวณของสองหน้าข้างบน (ตามชีต Excel เดิม)
 - `admixtures.js` รายการสารผสมเพิ่มที่ใช้ร่วมกันทุกโปรแกรม
 

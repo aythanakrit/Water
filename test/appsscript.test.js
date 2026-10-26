@@ -192,3 +192,16 @@ test("an older sheet without the DO index gets it built from Trucks", () => {
   delete SpreadsheetApp.sheets.DO;
   assert.equal(call({ action: "checkDO", do: "0372610040130", jobId: "j2" }).hit.project, "A");
 });
+
+test("report returns jobs in the date range with their trucks", () => {
+  const { call } = load();
+  const a = job("a", "A", ["0372610040130", "0042610040087"]); a.header.date = "2026-10-20";
+  const b = job("b", "B", ["0032610040165"]); b.header.date = "2026-10-25";
+  const c = job("c", "C", ["0142610040116"]); c.header.date = "2026-10-21";
+  [a, b, c].forEach((j) => call({ action: "save", job: j }));
+  call({ action: "delete", id: "c" });
+  const r = call({ action: "report", from: "2026-10-01", to: "2026-10-22" });
+  assert.deepEqual(r.jobs.map((j) => j.id), ["a"]);
+  assert.equal(r.jobs[0].trucks.length, 2);
+  assert.equal(r.jobs[0].header.date, "2026-10-20");
+});
