@@ -144,28 +144,34 @@
   const num = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
   const f = (x, d = 0) => x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-  // Sika Thailand PDS: density (kg/L) range and recommended dose, converted to cc per kg binder
+  // From manufacturers' PDS: density (kg/L) range and recommended dose, converted to cc per kg binder.
+  // Entries without sg/dose are waiting for their PDS; the user types the density.
   const ADMIX = [
-    { name: "Sika Plastomix-704", type: "ASTM C494 Type A/D", sg: [1.060, 1.100], dose: [3, 8] },
-    { name: "Sikament NN TH", type: "ASTM C494 Type F", sg: [1.225, 1.255], dose: [6, 30] },
-    { name: "Sikament G-5", type: "ASTM C494 Type G", sg: [1.180, 1.200], dose: [8, 25] },
-    { name: "Sika ViscoCrete-10 TH", type: "PCE ลดน้ำอย่างมาก", sg: [1.050, 1.070], pct: [0.6, 3.0] },
+    { brand: "Sika", name: "Sika Plastomix-704", type: "ASTM C494 Type A/D", sg: [1.060, 1.100], dose: [3, 8] },
+    { brand: "Sika", name: "Sikament NN TH", type: "ASTM C494 Type F", sg: [1.225, 1.255], dose: [6, 30] },
+    { brand: "Sika", name: "Sikament G-5", type: "ASTM C494 Type G", sg: [1.180, 1.200], dose: [8, 25] },
+    { brand: "Sika", name: "Sika ViscoCrete-10 TH", type: "PCE ลดน้ำอย่างมาก", sg: [1.050, 1.070], pct: [0.6, 3.0], pce: true },
+    { brand: "GCP Applied Technologies", name: "GCP DARACEM S21C", type: "ASTM C494 Type F · ห้ามใช้ร่วมกับ PCE", noPce: true },
+    { brand: "GCP Applied Technologies", name: "GCP DARACEM 465" },
+    { brand: "GCP Applied Technologies", name: "GCP WRDA P120" },
   ];
   const mid = (a) => (a[0] + a[1]) / 2;
   // ViscoCrete is dosed in % by mass of cement: cc/kg = % × 10 ÷ density
-  const doseRange = (a, sg) => a.dose || a.pct.map((x) => x * 10 / sg);
+  const doseRange = (a, sg) => a.dose || (a.pct && a.pct.map((x) => x * 10 / sg));
+  const brands = [...new Set(ADMIX.map((a) => a.brand))];
   const admixOpts = `<option value="">— ไม่ใช้ —</option>` +
-    ADMIX.map((a, i) => `<option value="${i}">${a.name}</option>`).join("") + `<option value="other">อื่นๆ</option>`;
+    brands.map((b) => `<optgroup label="${b}">` + ADMIX.map((a, i) => a.brand === b ? `<option value="${i}">${a.name}</option>` : "").join("") + `</optgroup>`).join("") +
+    `<option value="other">อื่นๆ</option>`;
   [["a1", "0"], ["a2", ""]].forEach(([k, v]) => {
     $(k + "Name").innerHTML = admixOpts;
     $(k + "Name").value = v;
     $(k + "Name").addEventListener("change", () => {
       const a = ADMIX[$(k + "Name").value];
-      if (a) $(k + "Sg").value = mid(a.sg).toFixed(3);
+      if (a) $(k + "Sg").value = a.sg ? mid(a.sg).toFixed(3) : "";
       run();
     });
     const a = ADMIX[v];
-    if (a) $(k + "Sg").value = mid(a.sg).toFixed(3);
+    if (a && a.sg) $(k + "Sg").value = mid(a.sg).toFixed(3);
   });
 
   function admixInfo(k) {
@@ -174,7 +180,10 @@
     const a = ADMIX[sel];
     const sg = num(k + "Sg") || 1;
     const info = { name: a ? a.name : "สารผสมอื่นๆ", dose: num(k + "Dose") || 0, sg, solids: num(k + "Sol") ?? 100 };
-    if (a) {
+    if (!num(k + "Sg")) {
+      info.hint = `${a && a.type ? a.type + " · " : ""}ยังไม่มีข้อมูล PDS — กรอก ถ.พ. เอง`;
+      if (info.dose > 0) info.warn = `${info.name}: ยังไม่ได้กรอก ถ.พ. ปริมาณ cc ถูกต้อง แต่น้ำหนัก (kg) คิดจาก ถ.พ. = 1`;
+    } else if (a && a.sg) {
       const r = doseRange(a, sg);
       info.hint = `${a.type} · แนะนำ ${f(r[0], 1)}–${f(r[1], 1)} cc/kg${a.pct ? ` (${a.pct[0]}–${a.pct[1]}% โดยน้ำหนักซีเมนต์)` : ""} · ถ.พ. ${a.sg[0].toFixed(3)}–${a.sg[1].toFixed(3)}`;
       if (info.dose > 0 && (info.dose < r[0] - 1e-9 || info.dose > r[1] + 1e-9))
@@ -202,6 +211,9 @@
     try {
       const r = MixDesign.design(p);
       p.admixtures.forEach((a) => a.warn && r.warnings.push(a.warn));
+      const used = ["a1", "a2"].map((k) => ADMIX[$(k + "Name").value]).filter(Boolean);
+      if (used.some((a) => a.noPce) && used.some((a) => a.pce))
+        r.warnings.push("DARACEM S21C (naphthalene) ห้ามใช้ร่วมกับสารผสมกลุ่ม polycarboxylate (PCE) ตามข้อมูลผู้ผลิต");
       last = r;
       const ksc = conv !== 1 ? ` <span>(${f(r.fcr / KSC)} ksc)</span>` : "";
       $("out").innerHTML = `
