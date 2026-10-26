@@ -55,6 +55,8 @@
   .doin input { font-size: 1.05rem; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 12px; font-size: .88rem; margin-top: 8px; }
   .warn ul { margin: 0; padding-left: 18px; }
+  .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
+  table.list tbody tr.dup td { color: var(--bad); font-weight: 600; }
   .scroll { overflow-x: auto; }
   table.list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   table.list th, table.list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
@@ -290,9 +292,12 @@
 
   const COLS = [["no", "ลำดับ"], ["truck", "รถ"], ["do", "D/O"], ["volume", "m³"], ["plant", "หน่วยผลิต"], ["batching", "ผสม"],
     ["arrival", "ถึง"], ["start", "เริ่มเท"], ["end", "เทเสร็จ"], ["conTemp", "°C คอนกรีต"], ["slump", "Slump"], ["sampleQty", "ก้อน"], ["remark", "หมายเหตุ"]];
+  // Rows whose D/O is used more than once (in this job or another job on this device)
+  const dupRows = () => new Set(job.trucks.map((t, i) => (dupHit(t.do, i) ? i : -1)).filter((i) => i >= 0));
   function renderList() {
+    const dups = dupRows();
     $("list").innerHTML = `<thead><tr>${COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
-      (job.trucks.length ? job.trucks.map((t, i) => `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}">${COLS.map(([k]) =>
+      (job.trucks.length ? job.trucks.map((t, i) => `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}">${COLS.map(([k]) =>
         `<td>${k === "no" ? i + 1 : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`).join("")
         : `<tr><td colspan="${COLS.length}" class="note">ยังไม่มีรถ — สแกนหรือพิมพ์ D/O ด้านบน</td></tr>`) + "</tbody>";
   }
@@ -303,9 +308,13 @@
   });
 
   // ---------- add truck ----------
+  const dupHit = (doNo, index) => FieldReport.findDO(doNo, db.jobs, { jobId: job.id, index });
   function addWarn() {
-    const w = FieldReport.checkDO($("newDO").value, job.trucks);
-    $("addWarn").innerHTML = w.length ? `<div class="warn"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : "";
+    const hit = dupHit($("newDO").value);
+    const w = FieldReport.checkDO($("newDO").value);
+    $("addWarn").innerHTML = (hit ? `<div class="err">⛔ ${esc(FieldReport.dupMessage(hit))} — บันทึกซ้ำไม่ได้</div>` : "") +
+      (w.length ? `<div class="warn"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : "");
+    return hit;
   }
   $("newDO").addEventListener("input", addWarn);
   $("newDO").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newTruck").focus(); } });
@@ -313,6 +322,7 @@
   $("addTruck").addEventListener("click", () => {
     const d = FieldReport.cleanDO($("newDO").value);
     if (!d) { $("addWarn").innerHTML = `<div class="warn">ใส่เลข D/O ก่อนบันทึก</div>`; $("newDO").focus(); return; }
+    if (addWarn()) { $("newDO").focus(); $("newDO").select(); return; }
     const t = FieldReport.newTruck(job.trucks[job.trucks.length - 1]);
     t.do = d; t.truck = $("newTruck").value.trim(); t.volume = $("newVol").value || t.volume;
     t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM();
@@ -366,14 +376,17 @@
     const inp = ([k, l, m]) => k === "plant"
       ? `<label>${l}<select data-t="plant" ${ro}><option value="">— เลือก —</option>${plantOpts.map(([c, n]) => `<option value="${esc(n)}"${n === t.plant ? " selected" : ""}>P${c} - ${esc(n)}</option>`).join("")}</select></label>`
       : `<label>${l}<input data-t="${k}" value="${esc(t[k])}" ${m ? `inputmode="${m}"` : ""} ${ro}></label>`;
-    const w = FieldReport.checkDO(t.do, job.trucks, editIdx);
+    const hit = dupHit(t.do, editIdx);
+    const w = FieldReport.checkDO(t.do);
+    if (hit) w.unshift(FieldReport.dupMessage(hit));
     box.hidden = false;
     box.innerHTML = `
       <div class="row" style="justify-content:space-between;margin-bottom:8px">
         <h2 style="margin:0">แก้ไขลำดับที่ ${editIdx + 1}${plant.code ? ` · รหัสแพลนท์ ${esc(plant.code)}` : ""}</h2>
         <button class="link" data-close type="button">ปิด</button></div>
       <div class="fields">${F_TEXT.map(inp).join("")}</div>
-      ${w.length ? `<div class="warn"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : ""}
+      <div id="doErr"></div>
+      ${w.length ? `<div class="${hit ? "err" : "warn"}"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : ""}
       <div class="times" style="margin-top:12px">${F_TIME.map(([k, l]) => `<label>${l}<span class="tin">
         <input type="time" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
       <div class="fields" style="margin-top:12px">${F_MORE.map(inp).join("")}</div>
@@ -383,12 +396,25 @@
   }
   let rmArmed = false;
   $("editBox").addEventListener("input", (e) => {
-    const k = e.target.dataset.t; if (!k) return;
+    const k = e.target.dataset.t; if (!k || k === "do") return;
     const t = job.trucks[editIdx];
-    t[k] = k === "do" ? FieldReport.cleanDO(e.target.value) : e.target.value;
-    if (k === "do") { const p = FieldReport.plantFromDO(t.do); t.plant = p.name || t.plant; }
+    t[k] = e.target.value;
     touch(); renderList();
-    if (k === "do" || k === "volume") { const pos = e.target.selectionStart; renderJob(); const el = $("editBox").querySelector(`[data-t="${k}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} } }
+    if (k === "volume") { const pos = e.target.selectionStart; renderJob(); const el = $("editBox").querySelector(`[data-t="${k}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} } }
+  });
+  // D/O is saved when the field is left, and never to a number already used
+  $("editBox").addEventListener("change", (e) => {
+    if (e.target.dataset.t !== "do") return;
+    const t = job.trucks[editIdx], d = FieldReport.cleanDO(e.target.value);
+    if (d === t.do) return;
+    const hit = dupHit(d, editIdx);
+    if (!d || hit) {
+      e.target.value = t.do;
+      $("doErr").innerHTML = `<div class="err">⛔ ${hit ? esc(FieldReport.dupMessage(hit)) + " — แก้เป็นเลขนี้ไม่ได้" : "D/O ว่างไม่ได้"}</div>`;
+      return;
+    }
+    t.do = d; const p = FieldReport.plantFromDO(d); t.plant = p.name || t.plant;
+    touch(); renderJob();
   });
   $("editBox").addEventListener("click", (e) => {
     const t = job.trucks[editIdx];
@@ -400,7 +426,14 @@
     }
   });
 
+  function blockedByDuplicates() {
+    const dups = dupRows();
+    if (!dups.size) return false;
+    $("pdfMsg").innerHTML = `<span class="confirm">⛔ มี D/O ซ้ำในลำดับที่ ${[...dups].map((i) => i + 1).join(", ")} (แถวสีแดง) — แก้ให้ไม่ซ้ำก่อน</span>`;
+    return true;
+  }
   $("finish").addEventListener("click", () => {
+    if (job.status !== "done" && blockedByDuplicates()) return;
     job.status = job.status === "done" ? "open" : "done"; touch(); renderJob();
     if (job.status === "done") $("pdfMsg").textContent = "จบงานแล้ว — กด Export PDF เพื่อบันทึกใบรายงาน";
   });
@@ -443,6 +476,7 @@
   }
   $("pdf").addEventListener("click", async () => {
     const msg = $("pdfMsg");
+    if (blockedByDuplicates()) return;
     if (!window.html2canvas || !window.jspdf) { msg.textContent = "โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่"; return; }
     $("pdf").disabled = true; msg.textContent = "กำลังสร้าง PDF…";
     try {

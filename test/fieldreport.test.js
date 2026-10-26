@@ -16,13 +16,10 @@ test("plant from D/O prefix (plant code list)", () => {
   assert.equal(none.options.length, 0);
 });
 
-test("D/O checks: length, unknown plant, duplicate", () => {
-  const trucks = [{ do: "0372610040130" }];
-  assert.deepEqual(F.checkDO("0042610040087", trucks), []);
-  assert.match(F.checkDO("0372610040130", trucks)[0], /ซ้ำกับลำดับที่ 1/);
-  assert.deepEqual(F.checkDO("0372610040130", trucks, 0), []);
-  assert.match(F.checkDO("00426100400", trucks)[0], /11 หลัก/);
-  assert.match(F.checkDO("9992610040087", trucks)[0], /ไม่พบหน่วยผลิต/);
+test("D/O checks: length, unknown plant", () => {
+  assert.deepEqual(F.checkDO("0042610040087"), []);
+  assert.match(F.checkDO("00426100400")[0], /11 หลัก/);
+  assert.match(F.checkDO("9992610040087")[0], /ไม่พบหน่วยผลิต/);
 });
 
 test("summary matches the sheet header formulas", () => {
@@ -42,4 +39,19 @@ test("15 trucks per printed page with page totals", () => {
   assert.equal(p[0].total, 105);
   assert.equal(p[2].total, 3.5);
   assert.equal(F.pages([]).length, 1);
+});
+
+test("D/O must never repeat, across all jobs on the device", () => {
+  const jobs = [
+    { id: "a", header: { project: "งาน A" }, trucks: [{ do: "0372610040130" }, { do: "0042610040087" }] },
+    { id: "b", header: { project: "งาน B" }, trucks: [{ do: "0032610040165" }] },
+  ];
+  const sameJob = F.findDO("0042610040087", jobs, { jobId: "a" });
+  assert.equal(sameJob.index, 1);
+  assert.match(F.dupMessage(sameJob), /ลำดับที่ 2 ในงานนี้/);
+  const other = F.findDO(" 0032610040165 ", jobs, { jobId: "a" });
+  assert.match(F.dupMessage(other), /งาน "งาน B" ลำดับที่ 1/);
+  assert.equal(F.findDO("0042610040087", jobs, { jobId: "a", index: 1 }), null); // the row itself
+  assert.equal(F.findDO("0142610040116", jobs), null);
+  assert.deepEqual([...F.duplicateRows([{ do: "1" }, { do: "2" }, { do: "1" }])].sort(), [0, 2]);
 });

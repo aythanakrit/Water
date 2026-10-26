@@ -42,8 +42,8 @@
     return { code, name: hits.length === 1 ? hits[0] : "", options: hits };
   }
 
-  /** Warnings for a D/O entry: format and duplicates within the job. */
-  function checkDO(doNo, trucks, selfIndex = -1) {
+  /** Warnings for a D/O entry: format and plant code (duplicates: see findDO). */
+  function checkDO(doNo) {
     const d = cleanDO(doNo);
     const out = [];
     if (!d) return out;
@@ -52,8 +52,34 @@
     const p = plantFromDO(d);
     if (p.options.length === 0) out.push(`ไม่พบหน่วยผลิตรหัส ${p.code}`);
     if (p.options.length > 1) out.push(`รหัส ${p.code} ซ้ำกันหลายหน่วยผลิต (${p.options.join(", ")}) — เลือกเอง`);
-    const dup = trucks.findIndex((t, i) => i !== selfIndex && cleanDO(t.do) === d);
-    if (dup >= 0) out.push(`D/O ซ้ำกับลำดับที่ ${dup + 1}`);
+    return out;
+  }
+
+  /**
+   * D/O numbers must never repeat. Look in every job on this device:
+   * returns where the number is already used, or null. `skip` = { jobId, index } of the row being edited.
+   */
+  function findDO(doNo, jobs, skip = {}) {
+    const d = cleanDO(doNo);
+    if (!d) return null;
+    for (const j of jobs) {
+      const i = j.trucks.findIndex((t, k) => cleanDO(t.do) === d && !(j.id === skip.jobId && k === skip.index));
+      if (i >= 0) return { jobId: j.id, project: j.header.project, index: i, sameJob: j.id === skip.jobId };
+    }
+    return null;
+  }
+
+  const dupMessage = (hit) => hit.sameJob
+    ? `D/O นี้บันทึกไปแล้ว — ลำดับที่ ${hit.index + 1} ในงานนี้`
+    : `D/O นี้บันทึกไปแล้ว — งาน "${hit.project || "(ไม่มีชื่อ)"}" ลำดับที่ ${hit.index + 1}`;
+
+  /** Row indexes in a job whose D/O appears more than once (e.g. after importing a backup). */
+  function duplicateRows(trucks) {
+    const seen = new Map(), out = new Set();
+    trucks.forEach((t, i) => {
+      const d = cleanDO(t.do); if (!d) return;
+      if (seen.has(d)) { out.add(i); out.add(seen.get(d)); } else seen.set(d, i);
+    });
     return out;
   }
 
@@ -106,5 +132,5 @@
     };
   }
 
-  return { PLANTS, ROWS_PER_PAGE, cleanDO, plantFromDO, checkDO, summary, pages, nowHHMM, newTruck, newJob };
+  return { PLANTS, ROWS_PER_PAGE, cleanDO, plantFromDO, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
 });
