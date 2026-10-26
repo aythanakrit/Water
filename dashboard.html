@@ -155,7 +155,7 @@
     const plantsT = v.plants.map((p) => `<tr><td class="l">${esc(dm(p.date))}${esc(p.plant)}</td><td>${fmt(p.volume)}</td><td><b>${p.rate == null ? "–" : fmt(p.rate)}</b></td><td>${p.trips}</td>
       <td>${p.first ? `${p.first} – ${p.last}` : "–"}</td></tr>`).join("");
     const hourT = v.hourly.map((h) => `<tr><td class="l">${esc(dm(h.date))}${esc(h.label)}</td>${v.plantNames.map((p) => `<td>${h.byPlant[p] ? fmt(h.byPlant[p]) : ""}</td>`).join("")}<td><b>${fmt(h.total)}</b></td></tr>`).join("");
-    const win = (w) => `<span class="win" title="D/O ${esc(w.do)} · ${esc(w.plant)}">${v.multiDay ? esc(dm(w.date)) : ""}${esc(w.batching || "?")} → ${esc(w.arrival || "?")}${w.end ? " → " + esc(w.end) : ""}</span>`;
+    const win = (w) => `<span class="win" title="D/O ${esc(w.do)} · ${esc(w.plant)}">${v.multiDay ? esc(dm(w.date)) : ""}${esc(w.batching || "?")} → ${esc(w.arrival || "?")}</span>`;
     const trucksT = v.trucks.map((t) => `<tr><td class="l">${esc(t.truck)}</td><td>${t.trips}</td><td>${fmt(t.volume)}</td><td class="wins">${t.windows.map(win).join("")}</td></tr>`).join("");
     const issuesT = v.issues.map((i) => `<tr class="issue"><td class="l">${esc(thDate(i.date))}</td><td class="l">${esc(i.truck)}</td><td class="l">${esc(i.do)}</td><td class="l">${esc(i.plant)}</td><td class="wrap">${esc(i.remark)}</td></tr>`).join("");
     el.innerHTML = `
@@ -165,7 +165,7 @@
       <p class="note">คิว/ชั่วโมง = ปริมาณ ÷ ช่วงเวลาผลิตของแพลนท์นั้น (นับจากเวลาผลิตคันแรกถึงคันสุดท้าย บวกระยะห่างเฉลี่ยอีก 1 ช่วง) · ต้องมีอย่างน้อย 2 เที่ยวที่กรอกเวลาผลิต</p>
       <div class="scroll"><table><thead><tr><th class="l">ชั่วโมง (เวลาผลิต)</th>${v.plantNames.map((p) => `<th>${esc(p)}</th>`).join("")}<th>รวม</th></tr></thead><tbody>${hourT || `<tr><td class="empty">ยังไม่มีเวลาผลิต</td></tr>`}</tbody></table></div>
       <h3>2. รถโม่ ${v.trucks.length} คัน</h3>
-      <div class="scroll"><table><thead><tr><th class="l">รถ</th><th>เที่ยว</th><th>คิว</th><th class="l">ช่วงเวลา (ผลิต → ถึง → เทเสร็จ)</th></tr></thead><tbody>${trucksT}</tbody></table></div>
+      <div class="scroll"><table><thead><tr><th class="l">รถ</th><th>เที่ยว</th><th>คิว</th><th class="l">ช่วงเวลา (ผลิต → รถถึง)</th></tr></thead><tbody>${trucksT}</tbody></table></div>
       <h3>3. เที่ยวที่มีหมายเหตุ / ปัญหา (${v.issues.length})</h3>
       <div class="scroll"><table><thead><tr><th class="l">วันที่</th><th class="l">รถ</th><th class="l">D/O</th><th class="l">หน่วยผลิต</th><th class="l">หมายเหตุ</th></tr></thead>
         <tbody>${issuesT || `<tr><td class="empty" colspan="5">ไม่มีหมายเหตุหรือปัญหา</td></tr>`}</tbody></table></div>`;
