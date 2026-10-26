@@ -26,7 +26,7 @@
    - กด **Deploy** → **Authorize access** → เลือกบัญชี → Advanced → Go to … (unsafe) → Allow
 6. คัดลอก **Web app URL** ที่ลงท้ายด้วย `/exec`
 
-**ส่งให้ Claude 2 อย่าง:** Web app URL และค่า KEY แล้ว Claude จะใส่ลงไฟล์ `config.js` ให้
+เก็บ Web app URL และค่า KEY ไว้ใช้ในส่วนที่ 2 (ไม่ต้องใส่ลง GitHub)
 
 ชีต `Jobs` และ `Trucks` จะสร้างขึ้นเองเมื่อบันทึกงานแรก ห้ามเปลี่ยนชื่อชีตหรือหัวคอลัมน์
 
@@ -39,9 +39,12 @@
 3. อนุญาตให้ Netlify เข้าถึง repo **Water**
 4. ตั้งค่าการ deploy
    - Branch to deploy: `claude/capabilities-overview-4oqzvh` (หรือ `main` ถ้ารวม branch แล้ว)
-   - Build command: เว้นว่าง
-   - Publish directory: `.`
-5. กด **Deploy** จะได้ลิงก์ เช่น `https://xxxx.netlify.app` ตั้งชื่อใหม่ได้ที่ Site configuration → Change site name
+   - Build command และ Publish directory: ไม่ต้องแก้ (อ่านจาก `netlify.toml` เอง)
+5. ก่อนกด Deploy ให้กด **Add environment variables** แล้วเพิ่ม 2 ตัว
+   - `FIELD_SYNC_URL` = Web app URL จากส่วนที่ 1
+   - `FIELD_SYNC_KEY` = ค่า KEY จากส่วนที่ 1
+   (ถ้า deploy ไปแล้ว: Site configuration → Environment variables → Add a variable แล้ว Deploys → Trigger deploy)
+6. กด **Deploy** จะได้ลิงก์ เช่น `https://xxxx.netlify.app` ตั้งชื่อใหม่ได้ที่ Site configuration → Change site name
 
 ต่อจากนี้ทุกครั้งที่ Claude push โค้ดใหม่ Netlify จะอัปเดตเว็บให้เองภายใน 1–2 นาที
 
@@ -49,7 +52,7 @@
 
 ## ข้อควรรู้
 
-- **ความปลอดภัย:** ค่า KEY จะอยู่ในไฟล์ `config.js` บนเว็บ คนที่มีลิงก์เว็บจึงเขียนข้อมูลลงชีตได้ ให้แชร์ลิงก์เฉพาะในทีม ถ้า KEY หลุด ให้เปลี่ยนค่าใน Script properties แล้วแจ้ง Claude ให้แก้ `config.js`
+- **ความปลอดภัย:** ค่า KEY ไม่อยู่ใน GitHub แต่ Netlify จะใส่ไว้ในไฟล์ `config.js` บนเว็บ คนที่มีลิงก์เว็บจึงเขียนข้อมูลลงชีตได้ ให้แชร์ลิงก์เฉพาะในทีม ถ้า KEY หลุด ให้เปลี่ยนค่าใน Script properties และใน Netlify Environment variables ให้ตรงกัน แล้วกด Trigger deploy
 - **ออฟไลน์:** เน็ตหลุดที่หน้างานก็บันทึกต่อได้ ข้อมูลจะเก็บในเครื่องไว้ก่อน แล้วส่งขึ้นชีตเองเมื่อมีสัญญาณ
 - **D/O ซ้ำจากเครื่องที่ออฟไลน์:** ถ้าสองเครื่องออฟไลน์อยู่และยิงเลขเดียวกัน ชีตจะรับเฉพาะเครื่องที่ส่งถึงก่อน เครื่องที่ส่งทีหลังจะขึ้นกรอบแดงให้แก้
 - **แก้โค้ด Apps Script ภายหลัง:** ต้องกด Deploy → Manage deployments → ✏️ → Version: New version → Deploy ไม่อย่างนั้นเว็บจะยังใช้โค้ดเก่า
