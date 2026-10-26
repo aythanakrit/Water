@@ -99,12 +99,19 @@
     };
   }
 
-  /** Split trucks into printed pages of 15 with the page volume total. */
+  /**
+   * Split trucks into printed pages of 15. Each page carries the volume brought
+   * forward from earlier pages, its own total and the running total, so the pages
+   * reconcile: carried + total = cumulative = next page's carried.
+   */
   function pages(trucks, size = ROWS_PER_PAGE) {
     const out = [];
+    let carried = 0;
     for (let i = 0; i < Math.max(trucks.length, 1); i += size) {
       const rows = trucks.slice(i, i + size);
-      out.push({ start: i, rows, total: rows.reduce((s, t) => s + num(t.volume), 0) });
+      const total = rows.reduce((s, t) => s + num(t.volume), 0);
+      out.push({ start: i, rows, carried, total, cumulative: carried + total });
+      carried += total;
     }
     return out;
   }

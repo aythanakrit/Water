@@ -55,3 +55,15 @@ test("D/O must never repeat, across all jobs on the device", () => {
   assert.equal(F.findDO("0142610040116", jobs), null);
   assert.deepEqual([...F.duplicateRows([{ do: "1" }, { do: "2" }, { do: "1" }])].sort(), [0, 2]);
 });
+
+test("pages reconcile: carried + page total = cumulative = next page carried", () => {
+  const trucks = Array.from({ length: 34 }, (_, i) => ({ do: String(i), volume: i % 5 === 0 ? 5.5 : 7 }));
+  const p = F.pages(trucks);
+  assert.equal(p[0].carried, 0);
+  for (let i = 0; i < p.length; i++) {
+    assert.equal(p[i].carried + p[i].total, p[i].cumulative);
+    if (i > 0) assert.equal(p[i].carried, p[i - 1].cumulative);
+  }
+  const all = trucks.reduce((s, t) => s + t.volume, 0);
+  assert.equal(p[p.length - 1].cumulative, all);
+});

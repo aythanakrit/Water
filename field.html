@@ -648,7 +648,8 @@
       <tr>${td("g fl", "รายละเอียดสินค้า", 9)}${td("g", "การเทคอนกรีต", 5)}${td("g", "การเก็บตัวอย่าง", 4)}</tr>
       <tr>${hrow(0)}</tr><tr>${hrow(1)}</tr><tr>${hrow(2)}</tr>
       ${rows}
-      <tr>${td("fl", "", 2)}${td("c b", "รวมปริมาณ")}${td("c b bb", fmt(p.total))}${td("", "", 2)}${td("c b", "m3")}${td("", "", 12)}${td("fr")}</tr>
+      <tr>${td("fl", "", 2)}${td("c b", "รวมปริมาณ")}${td("c b bb", fmt(p.total))}${td("", "", 2)}${td("c b", "m3")}
+        ${td("r", "ยอดยกมา", 2)}${td("c bb", fmt(p.carried))}${td("", "m3")}${td("r b", "รวมสะสม", 2)}${td("c b bb", fmt(p.cumulative))}${td("b", "m3")}${td("", "", 4)}${td("fr")}</tr>
       <tr><td class="fl" colspan="19"></td><td class="fr"></td></tr>
       <tr>${td("fl", "", 2)}${td("c", "QC (M Concrete)")}${td("bb", "", 6)}${td("", "ลงชื่อผู้บันทึก", 10)}${td("fr")}</tr>
       <tr>${td("fl fb", "", 16)}${td("fr fb fm", "FM-PQ-10 Rev.01 09/07/64", 4)}</tr>
