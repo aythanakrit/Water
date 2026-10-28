@@ -67,3 +67,11 @@ test("trucks sort by arrival, also across midnight; a late-entered earlier arriv
   k.trucks.push({ id: "t2", do: "0042610040087", arrival: "10:10", created: 30, updated: 30 });
   assert.deepEqual(S.mergeJobs(j, k).trucks.map((x) => x.id), ["t2", "t1"]);
 });
+
+test("merge keeps the D/O that still has its leading zeros when both copies are the same edit", () => {
+  const j = base(), k = base();
+  j.trucks[0].do = "32610160061";
+  k.trucks[0].do = "0032610160061";
+  assert.equal(S.mergeJobs(j, k).trucks[0].do, "0032610160061");
+  assert.equal(S.mergeJobs(k, j).trucks[0].do, "0032610160061");
+});

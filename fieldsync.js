@@ -67,7 +67,9 @@
     const trucks = new Map();
     [].concat(a.trucks || [], b.trucks || []).forEach((t) => {
       const cur = trucks.get(t.id);
-      if (!cur || (t.updated || 0) > (cur.updated || 0)) trucks.set(t.id, t);
+      // same edit on both sides: keep the copy whose D/O still has its leading zeros
+      if (!cur || (t.updated || 0) > (cur.updated || 0) ||
+        ((t.updated || 0) === (cur.updated || 0) && cleanDO(t.do).length > cleanDO(cur.do).length)) trucks.set(t.id, t);
     });
     const live = sortTrucks([...trucks.values()]
       .filter((t) => !(removed.has(t.id) && removed.get(t.id).updated >= (t.updated || 0))));

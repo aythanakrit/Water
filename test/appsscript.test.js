@@ -10,11 +10,19 @@ function fakeSheets() {
   const files = {};
   const mkSheet = (name) => {
     const data = [];
+    const fmt = {}; // "row,col" → number format; like Sheets, a cell not set to text turns "0032…" into 32…
+    const put = (r, c, x) => {
+      const t = (data[r - 1] = data[r - 1] || []);
+      t[c - 1] = typeof x === "string" && /^\d+$/.test(x) && fmt[r + "," + c] !== "@" ? Number(x) : x;
+    };
     const range = (row, col, nr = 1, nc = 1) => ({
-      setValues(v) { v.forEach((r, i) => { const t = (data[row - 1 + i] = data[row - 1 + i] || []); r.forEach((x, j) => { t[col - 1 + j] = x; }); }); return this; },
-      setValue(x) { (data[row - 1] = data[row - 1] || [])[col - 1] = x; return this; },
+      setValues(v) { v.forEach((r, i) => r.forEach((x, j) => put(row + i, col + j, x))); return this; },
+      setValue(x) { put(row, col, x); return this; },
+      getNumberFormats: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => fmt[(row + i) + "," + (col + j)] || "General")),
+      setNumberFormats(f) { f.forEach((r, i) => r.forEach((x, j) => { fmt[(row + i) + "," + (col + j)] = x; })); return this; },
+      setNumberFormat(x) { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) fmt[(row + i) + "," + (col + j)] = x; return this; },
       getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => { const v = (data[row - 1 + i] || [])[col - 1 + j]; return v == null ? "" : v; })),
-      setFontWeight() { return this; }, setNumberFormat() { return this; },
+      setFontWeight() { return this; },
       createTextFinder(text) {
         let whole = false;
         const f = {
@@ -32,11 +40,11 @@ function fakeSheets() {
       },
     });
     return {
-      name, data,
+      name, data, getName: () => name,
       getLastRow: () => data.length,
       getMaxRows: () => 1000,
       setFrozenRows() {},
-      appendRow: (r) => { data.push(r.slice()); },
+      appendRow: (r) => { const n = data.length + 1; r.forEach((x, j) => put(n, j + 1, x)); },
       deleteRow: (n) => { data.splice(n - 1, 1); },
       getRange: range,
     };
@@ -204,4 +212,30 @@ test("report returns jobs in the date range with their trucks", () => {
   assert.deepEqual(r.jobs.map((j) => j.id), ["a"]);
   assert.equal(r.jobs[0].trucks.length, 2);
   assert.equal(r.jobs[0].header.date, "2026-10-20");
+});
+
+test("D/O keeps its leading zeros even when the sheet columns are not set to text", () => {
+  const { call, SpreadsheetApp } = load();
+  call({ action: "list" }); // creates the sheets
+  // a sheet made by hand / an older version: no text format anywhere
+  ["Trucks", "DO", "Jobs"].forEach((n) => SpreadsheetApp.getActiveSpreadsheet().getSheetByName(n).getRange(1, 1, 1000, 30).setNumberFormat("General"));
+  call({ action: "save", job: job("j1", "A", ["0032610160061"]) });
+  const tr = SpreadsheetApp.sheets.Trucks.data[1];
+  assert.equal(tr[4], "0032610160061"); // stored as text, not 32610160061
+  assert.equal(call({ action: "get", id: "j1" }).job.trucks[0].do, "0032610160061");
+  assert.equal(call({ action: "checkDO", do: "0032610160061", jobId: "j2" }).hit.project, "A");
+});
+
+test("D/O already saved as a number is repaired: shown with zeros and still blocks duplicates", () => {
+  const { call, SpreadsheetApp, props } = load();
+  call({ action: "save", job: job("j1", "A", ["0032610160061"]) });
+  // what the live sheet holds today: zeros lost in Trucks and in the DO index, repair not run yet
+  SpreadsheetApp.sheets.Trucks.data[1][4] = 32610160061;
+  SpreadsheetApp.sheets.DO.data[1][0] = 32610160061;
+  delete props.doTextFixed;
+  assert.equal(call({ action: "get", id: "j1" }).job.trucks[0].do, "0032610160061");
+  assert.equal(SpreadsheetApp.sheets.DO.data[1][0], "0032610160061");
+  const r = call({ action: "save", job: job("j2", "B", ["0032610160061"]) });
+  assert.equal(r.error, "duplicate");
+  assert.equal(r.conflict.project, "A");
 });

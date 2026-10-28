@@ -20,6 +20,8 @@ const TRUCK_COLS = ["jobId", "id", "no", "truck", "do", "volume", "plant", "batc
 const DO_COLS = ["do", "jobId"];
 // Shown as text in the sheet so D/O keeps its leading zeros and times stay HH:MM
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
+const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"] };
+const DO_DIGITS = 13;
 
 const RECENT_DAYS = 7;      // job list: open jobs + jobs changed in the last 7 days
 const ARCHIVE_DAYS = 90;    // finished/deleted jobs untouched this long move to the archive
@@ -67,10 +69,40 @@ function setupSheet(ss, name, cols) {
   // write / extend the header (older sheets may have fewer columns)
   const head = sh.getRange(1, 1, 1, cols.length).getValues()[0];
   if (cols.some((c, i) => head[i] !== c)) sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight("bold");
-  if (fresh && name === "Trucks") TEXT_TRUCK.forEach((k) => sh.getRange(1, cols.indexOf(k) + 1, sh.getMaxRows(), 1).setNumberFormat("@"));
-  if (fresh && name === "DO") sh.getRange(1, 1, sh.getMaxRows(), 1).setNumberFormat("@");
-  if (fresh && name === "Jobs") sh.getRange(1, cols.indexOf("date") + 1, sh.getMaxRows(), 1).setNumberFormat("@");
+  if (fresh) TEXT[name].forEach((k) => sh.getRange(1, cols.indexOf(k) + 1, sh.getMaxRows(), 1).setNumberFormat("@"));
   return { sh, fresh };
+}
+
+// Write one row at `row` (or after the last row). Text columns are set to plain text first,
+// so Sheets keeps "0032610160061" and "08:30" as typed instead of turning them into numbers.
+function putRow(sh, cols, values, row) {
+  const r = sh.getRange(row || sh.getLastRow() + 1, 1, 1, values.length);
+  const f = r.getNumberFormats()[0];
+  (TEXT[sh.getName()] || []).forEach((k) => { f[cols.indexOf(k)] = "@"; });
+  r.setNumberFormats([f]);
+  r.setValues([values]);
+}
+
+// A D/O that Sheets already stored as a number lost its leading zeros: put them back.
+function doText(v) {
+  if (typeof v === "number") return String(v).padStart(DO_DIGITS, "0");
+  return v == null ? "" : String(v);
+}
+
+// One-time repair of D/O cells saved as numbers before putRow (so duplicate checks find them)
+function repairDOCells(trucks, dos) {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty("doTextFixed")) return;
+  [[trucks, TRUCK_COLS.indexOf("do") + 1], [dos, 1]].forEach(([sh, col]) => {
+    const n = sh.getLastRow() - 1;
+    if (n < 1) return;
+    const r = sh.getRange(2, col, n, 1);
+    const v = r.getValues();
+    if (!v.some((x) => typeof x[0] === "number")) return;
+    r.setNumberFormat("@");
+    r.setValues(v.map((x) => [doText(x[0])]));
+  });
+  props.setProperty("doTextFixed", "1");
 }
 let SHEETS = null;
 function sheets() {
@@ -80,6 +112,7 @@ function sheets() {
   const trucks = setupSheet(ss, "Trucks", TRUCK_COLS).sh;
   const d = setupSheet(ss, "DO", DO_COLS);
   SHEETS = { ss, jobs, trucks, dos: d.sh };
+  repairDOCells(trucks, d.sh);
   if (d.fresh) backfillDOIndex();
   return SHEETS;
 }
@@ -130,7 +163,8 @@ function truckFromRow(t) {
     if (c === "jobId" || c === "no") return;
     const v = t[c];
     // a time typed straight into the sheet comes back as a Date
-    o[c] = v === "" || v == null ? "" : v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), "HH:mm") : String(v);
+    o[c] = v === "" || v == null ? "" : v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), "HH:mm")
+      : c === "do" ? doText(v) : String(v);
   });
   o.created = Number(t.created) || 0;
   o.updated = Number(t.updated) || 0;
@@ -199,8 +233,8 @@ function checkDO(doNo, jobId) {
 }
 function backfillDOIndex() {
   const { trucks, dos } = SHEETS;
-  const rows = readAll(trucks, TRUCK_COLS).filter((t) => t.do !== "").map((t) => [String(t.do), t.jobId]);
-  if (rows.length) dos.getRange(2, 1, rows.length, 2).setValues(rows);
+  const rows = readAll(trucks, TRUCK_COLS).filter((t) => t.do !== "").map((t) => [doText(t.do), t.jobId]);
+  if (rows.length) dos.getRange(2, 1, rows.length, 2).setNumberFormat("@").setValues(rows);
 }
 
 // ---------- save ----------
@@ -216,7 +250,7 @@ function saveJob(incoming) {
   const inside = FieldSync.findConflict(merged, []);
   if (inside) return { ok: false, error: "duplicate", conflict: inside, job: merged };
   const owned = {};
-  oldTrucks.forEach((t) => { owned[FieldSync.cleanDO(t.do)] = true; });
+  oldTrucks.forEach((t) => { owned[FieldSync.cleanDO(doText(t.do))] = true; });
   for (const t of merged.trucks) {
     const d = FieldSync.cleanDO(t.do);
     if (!d || owned[d]) continue;
@@ -237,8 +271,7 @@ function writeJob(job, oldRow, oldTrucks) {
     if (HEADER_KEYS.indexOf(c) >= 0) return job.header[c] == null ? "" : job.header[c];
     return job[c] == null ? "" : job[c];
   });
-  if (oldRow) jobs.getRange(oldRow._row, 1, 1, row.length).setValues([row]);
-  else jobs.appendRow(row);
+  putRow(jobs, JOB_COLS, row, oldRow && oldRow._row);
 
   const byId = {};
   oldTrucks.forEach((t) => { byId[t.id] = t; });
@@ -246,18 +279,17 @@ function writeJob(job, oldRow, oldTrucks) {
   job.trucks.forEach((t, i) => {
     keep[t.id] = true;
     const r = TRUCK_COLS.map((c) => (c === "jobId" ? job.id : c === "no" ? i + 1 : t[c] == null ? "" : t[c]));
-    if (byId[t.id]) trucks.getRange(byId[t.id]._row, 1, 1, r.length).setValues([r]);
-    else trucks.appendRow(r);
+    putRow(trucks, TRUCK_COLS, r, byId[t.id] && byId[t.id]._row);
   });
   deleteRows(trucks, oldTrucks.filter((t) => !keep[t.id]).map((t) => t._row));
 
   // keep the DO index in step: drop numbers no longer in this job, add new ones
   const before = {}, after = {};
-  oldTrucks.forEach((t) => { const d = FieldSync.cleanDO(t.do); if (d) before[d] = true; });
+  oldTrucks.forEach((t) => { const d = FieldSync.cleanDO(doText(t.do)); if (d) before[d] = true; });
   job.trucks.forEach((t) => { const d = FieldSync.cleanDO(t.do); if (d) after[d] = true; });
   const gone = Object.keys(before).filter((d) => !after[d]);
   deleteRows(dos, [].concat(...gone.map((d) => findRows(dos, DO_COLS, "do", d))));
-  Object.keys(after).filter((d) => !before[d]).forEach((d) => dos.appendRow([d, job.id]));
+  Object.keys(after).filter((d) => !before[d]).forEach((d) => putRow(dos, DO_COLS, [d, job.id]));
 }
 
 // A deleted job keeps its row with status "deleted" so other devices do not bring it back
@@ -307,9 +339,9 @@ function archiveOldJobs() {
     if (r.status === "done") {
       const year = new Date(Number(r.created) || Date.now()).getFullYear();
       const arc = archiveFile(year);
-      arc.getSheetByName("Jobs").appendRow(JOB_COLS.map((c) => (r[c] == null ? "" : r[c])));
+      putRow(arc.getSheetByName("Jobs"), JOB_COLS, JOB_COLS.map((c) => (r[c] == null ? "" : r[c])));
       const ts = arc.getSheetByName("Trucks");
-      t.forEach((x) => ts.appendRow(TRUCK_COLS.map((c) => (x[c] == null ? "" : x[c]))));
+      t.forEach((x) => putRow(ts, TRUCK_COLS, TRUCK_COLS.map((c) => (x[c] == null ? "" : c === "do" ? doText(x[c]) : x[c]))));
     }
     deleteRows(trucks, t.map((x) => x._row));
     jobRowsToDelete.push(r._row);
