@@ -87,8 +87,14 @@
   #print { position: fixed; left: -10000px; top: 0; }
   .pg { width: 794px; height: 1123px; padding: 46px 70px; background: #fff; color: #000; font: 15px/1.2 "Times New Roman", "Sarabun", serif; }
   .pg table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .pg td { border: 1.5px solid #000; text-align: center; vertical-align: middle; padding: 2px 4px; overflow: hidden; }
-  .pg .y { background: #ffff00; font-weight: 700; font-size: 19px; }
+  /* line weights: 2 px frame of each block, 1.5 px under headings and between groups, 0.75 px grey inside */
+  .pg td { border: .75px solid #707070; text-align: center; vertical-align: middle; padding: 2px 4px; overflow: hidden; }
+  .pg table.frame { border: 2px solid #000; }
+  .pg .L { border-left: 2px solid #000; } .pg .R { border-right: 2px solid #000; }
+  .pg .T { border-top: 2px solid #000; } .pg .B { border-bottom: 2px solid #000; }
+  .pg .G { border-left: 1.5px solid #000; }
+  .pg .y { background: #ffff00; font-weight: 700; font-size: 19px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; }
+  .pg .y + .y, .pg .v + .v { border-left: 1.5px solid #000; }
   .pg .v { height: 72px; font-family: "Sarabun", sans-serif; font-size: 16px; }
   .pg .v.s { height: 50px; }
   .pg .gap td { border: 0; height: 14px; }
@@ -96,14 +102,15 @@
   .pg .title img { height: 64px; display: block; }
   .pg .title b { font-size: 34px; }
   .pg .mh { background: #ffff00; font-weight: 700; font-size: 15px; height: 26px; }
+  .pg .mh.U { border-bottom: 1.5px solid #000; }
   .pg .mr td { height: 50px; font-size: 14px; font-family: "Sarabun", sans-serif; }
   .pg .mr .k { font-weight: 700; font-family: "Times New Roman", serif; }
   .pg .no { border: 0; }
   .pg .bt td { height: 50px; font-size: 17px; }
-  .pg .bt .k { font-weight: 700; }
+  .pg .bt .k { font-weight: 700; border-right: 1.5px solid #000; }
   .pg .bt .val { font-family: "Sarabun", sans-serif; text-align: center; position: relative; }
   .pg .bt .u { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-weight: 700; font-family: "Times New Roman", serif; }
-  .pg .bt .rm { text-align: left; font-size: 14px; line-height: 1.25; white-space: pre-wrap; }
+  .pg .bt .rm { text-align: left; padding-left: 12px; font-size: 14px; line-height: 1.25; white-space: pre-wrap; }
   /* Photo pages after the form: two photos per A4 page, in slot order */
   .pp { width: 794px; height: 1123px; padding: 40px 56px; background: #fff; color: #000; font: 14px/1.3 "Sarabun", sans-serif; display: flex; flex-direction: column; }
   .pp .ph { display: flex; justify-content: space-between; border-bottom: 1.5px solid #000; padding-bottom: 6px; margin-bottom: 10px; font-size: 13px; }
@@ -457,13 +464,13 @@
   // ---------- PDF (A4 portrait, layout of the paper form) ----------
   function pageHTML(t) {
     const h = t.header, v = (x) => esc(x ?? "");
-    const rows = t.rows.map((r, i) => `<tr class="mr">
-        <td class="k">${i + 1}</td><td class="k">${r.min}</td><td class="k no">Min</td><td>${v(r.time)}</td><td class="no"></td>
-        <td>${v(r.air)}</td><td>${v(r.con)}</td><td>${v(r.cone)}</td><td>${v(r.flow)}</td></tr>`).join("");
+    const rows = t.rows.map((r, i) => { const b = i === t.rows.length - 1 ? " B" : ""; return `<tr class="mr">
+        <td class="k L${b}">${i + 1}</td><td class="k R${b}">${r.min}</td><td class="k no">Min</td><td class="L R${b}">${v(r.time)}</td><td class="no"></td>
+        <td class="L${b}">${v(r.air)}</td><td class="${b}">${v(r.con)}</td><td class="G${b}">${v(r.cone)}</td><td class="R${b}">${v(r.flow)}</td></tr>`; }).join("");
     return `<div class="pg">
-      <table>
+      <table class="frame">
         <colgroup><col style="width:47.5%"><col></colgroup>
-        <tr class="title"><td colspan="2"><div style="display:flex;align-items:center;gap:30px;padding-left:30px"><img src="${LOGO}" alt=""><b>M Concrete Trial Mix</b></div></td></tr>
+        <tr class="title"><td colspan="2" style="border-bottom:2px solid #000"><div style="display:flex;align-items:center;gap:30px;padding-left:30px"><img src="${LOGO}" alt=""><b>M Concrete Trial Mix</b></div></td></tr>
         <tr><td class="y">Project</td><td class="y">Date</td></tr>
         <tr><td class="v">${v(h.project)}</td><td class="v">${v(thaiDate(h.date))}</td></tr>
         <tr><td class="y">Customer</td><td class="y">Code Mix Design</td></tr>
@@ -473,12 +480,12 @@
       </table>
       <table style="margin-top:14px">
         <colgroup><col style="width:8.3%"><col style="width:8.3%"><col style="width:8.6%"><col style="width:12.4%"><col style="width:8.4%"><col style="width:12.8%"><col style="width:12.8%"><col style="width:12.4%"><col></colgroup>
-        <tr><td class="mh" colspan="2" rowspan="2">Minute</td><td class="no" rowspan="2"></td><td class="mh" rowspan="2">Time</td><td class="no" rowspan="2"></td>
-          <td class="mh" colspan="2">Temp. (c°)</td><td class="mh" colspan="2">Slump (cm.)</td></tr>
-        <tr><td class="mh">Air</td><td class="mh">Con.</td><td class="mh">Cone</td><td class="mh">Flow</td></tr>
+        <tr><td class="mh U L R T" colspan="2" rowspan="2">Minute</td><td class="no" rowspan="2"></td><td class="mh U L R T" rowspan="2">Time</td><td class="no" rowspan="2"></td>
+          <td class="mh L T" colspan="2">Temp. (c°)</td><td class="mh G R T" colspan="2">Slump (cm.)</td></tr>
+        <tr><td class="mh U L">Air</td><td class="mh U">Con.</td><td class="mh U G">Cone</td><td class="mh U R">Flow</td></tr>
         ${rows}
       </table>
-      <table style="margin-top:14px" class="bt">
+      <table style="margin-top:14px" class="bt frame">
         <colgroup><col style="width:27.5%"><col></colgroup>
         <tr><td class="k">Unit Weight</td><td class="val">${v(t.unitWeight)}<span class="u">kg/m<sup>3</sup></span></td></tr>
         <tr><td class="k">Air Content</td><td class="val">${v(t.airContent)}<span class="u">%</span></td></tr>
