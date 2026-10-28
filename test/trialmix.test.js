@@ -28,3 +28,15 @@ test("slump loss against the 0-min slump; slump held until it drops below the re
   assert.equal(T.holdsSlumpUntil(t), 60);
   assert.equal(T.filledRows(t), 4);
 });
+
+test("photos follow the main page in slot order: mix, plant screen, scale, ticket, slump 1-7, samples", () => {
+  const t = T.newTrial("x");
+  const add = (slot, added) => t.photos.push({ id: slot + added, slot, added });
+  add("sample", 1); add("slump3", 2); add("ticket", 3); add("mix", 4); add("slump1", 5); add("sample", 6); add("old", 7);
+  const o = T.orderedPhotos(t);
+  assert.deepEqual(o.map((p) => p.slot), ["mix", "ticket", "slump1", "slump3", "sample", "sample"]);
+  assert.equal(o[2].caption, "สลัม ครั้งที่ 1 (0 นาที)");
+  assert.equal(o[3].caption, "สลัม ครั้งที่ 3 (60 นาที)");
+  assert.deepEqual(o.slice(4).map((p) => p.caption), ["ภาพเก็บลูกปูน / Slip Test (1/2)", "ภาพเก็บลูกปูน / Slip Test (2/2)"]);
+  assert.equal(T.PHOTO_SLOTS.length, 12);
+});

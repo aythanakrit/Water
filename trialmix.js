@@ -27,7 +27,7 @@
       id, created: t, updated: t, status: "open",
       header: { project: "", date: date || "", customer: "", code: "", truck: "", slump: "" },
       rows: MINUTES.map((min) => ({ min, time: "", air: "", con: "", cone: "", flow: "" })),
-      unitWeight: "", airContent: "", bleeding: "", remark: "",
+      unitWeight: "", airContent: "", bleeding: "", remark: "", photos: [],
     };
   }
 
@@ -65,8 +65,33 @@
     return last;
   }
 
+  /**
+   * Photo slots, in the order they follow the main page in the PDF.
+   * Slump has one slot per check (any of the 7 may be left empty).
+   */
+  const PHOTO_SLOTS = [
+    { key: "mix", label: "มิกซ์ที่ใช้ในการผลิต" },
+    { key: "plant", label: "หน้าจอผลิต" },
+    { key: "scale", label: "หน้าจอตาชั่ง" },
+    { key: "ticket", label: "หน้าตั๋ว" },
+    ...MINUTES.map((m, i) => ({ key: "slump" + (i + 1), label: `สลัม ครั้งที่ ${i + 1} (${m} นาที)` })),
+    { key: "sample", label: "ภาพเก็บลูกปูน / Slip Test" },
+  ];
+  const slotIndex = (key) => PHOTO_SLOTS.findIndex((s) => s.key === key);
+
+  /** Photos in PDF order (slot order, then the order they were added), each with its caption. */
+  function orderedPhotos(trial) {
+    const ps = (trial.photos || []).filter((p) => slotIndex(p.slot) >= 0)
+      .slice().sort((a, b) => slotIndex(a.slot) - slotIndex(b.slot) || a.added - b.added);
+    return ps.map((p) => {
+      const same = ps.filter((x) => x.slot === p.slot);
+      const label = PHOTO_SLOTS[slotIndex(p.slot)].label;
+      return { ...p, caption: same.length > 1 ? `${label} (${same.indexOf(p) + 1}/${same.length})` : label };
+    });
+  }
+
   /** Rows filled so far (for the list view). */
   const filledRows = (trial) => trial.rows.filter(rowHasData).length;
 
-  return { MINUTES, ROW_FIELDS, toMin, hhmm, newTrial, plannedTime, rowHasData, slumpLoss, holdsSlumpUntil, filledRows };
+  return { MINUTES, ROW_FIELDS, PHOTO_SLOTS, toMin, hhmm, newTrial, plannedTime, rowHasData, slumpLoss, holdsSlumpUntil, orderedPhotos, filledRows };
 });

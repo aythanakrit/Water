@@ -72,6 +72,17 @@
   .saved { font-size: .8rem; color: var(--muted); }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 12px; font-size: .88rem; margin-top: 8px; }
   .confirm { color: var(--bad); font-size: .85rem; }
+  .slots { display: grid; gap: 8px; }
+  .slot { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .slot .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .slot .hd b { font-size: .92rem; }
+  .slot .hd .row button { padding: 4px 10px; font-size: .85rem; }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .thumbs:not(:empty) { margin-top: 8px; }
+  .thumb { position: relative; width: 92px; height: 92px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button { position: absolute; top: 2px; right: 2px; width: 26px; height: 26px; border-radius: 50%; border: 0;
+    background: rgba(0,0,0,.6); color: #fff; font-size: 15px; line-height: 26px; padding: 0; cursor: pointer; }
   /* Printed page: replica of the "M Concrete Trial Mix" form (A4 portrait) */
   #print { position: fixed; left: -10000px; top: 0; }
   .pg { width: 794px; height: 1123px; padding: 46px 70px; background: #fff; color: #000; font: 15px/1.2 "Times New Roman", "Sarabun", serif; }
@@ -93,6 +104,13 @@
   .pg .bt .val { font-family: "Sarabun", sans-serif; text-align: center; position: relative; }
   .pg .bt .u { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-weight: 700; font-family: "Times New Roman", serif; }
   .pg .bt .rm { text-align: left; font-size: 14px; line-height: 1.25; white-space: pre-wrap; }
+  /* Photo pages after the form: two photos per A4 page, in slot order */
+  .pp { width: 794px; height: 1123px; padding: 40px 56px; background: #fff; color: #000; font: 14px/1.3 "Sarabun", sans-serif; display: flex; flex-direction: column; }
+  .pp .ph { display: flex; justify-content: space-between; border-bottom: 1.5px solid #000; padding-bottom: 6px; margin-bottom: 10px; font-size: 13px; }
+  .pp figure { margin: 0 0 12px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .pp figcaption { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+  .pp .box { flex: 1; min-height: 0; border: 1px solid #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .pp .box img { max-width: 100%; max-height: 100%; display: block; }
 </style>
 </head>
 <body>
@@ -151,6 +169,17 @@
     </section>
 
     <section>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0">รูปแนบ</h2>
+        <span class="note">ถ่ายสดหรือเลือกจากคลังภาพ · ใน PDF ต่อจากใบหลักตามลำดับนี้ · ช่องที่ไม่มีรูปจะข้ามไป</span>
+      </div>
+      <div class="slots" id="slots"></div>
+      <input id="camIn" type="file" accept="image/*" capture="environment" hidden>
+      <input id="picIn" type="file" accept="image/*" multiple hidden>
+      <p class="note" id="photoMsg" style="margin:8px 0 0"></p>
+    </section>
+
+    <section>
       <div class="row">
         <button class="b" id="finish" type="button">จบงาน</button>
         <button class="g" id="pdf" type="button">Export PDF</button>
@@ -206,6 +235,90 @@
     msgEl.textContent = `บันทึก ${filename} แล้ว`;
   }
 
+  // ---------- photos (IndexedDB on this device; the trial keeps { id, slot, added }) ----------
+  const photoDB = new Promise((ok, no) => {
+    try {
+      const r = indexedDB.open("trial-mix-photos", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("photos");
+      r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+    } catch (e) { no(e); }
+  });
+  const idb = (mode, fn) => photoDB.then((d) => new Promise((ok, no) => {
+    const tx = d.transaction("photos", mode), req = fn(tx.objectStore("photos"));
+    tx.oncomplete = () => ok(req && req.result); tx.onerror = () => no(tx.error);
+  }));
+  const putPhoto = (id, blob) => idb("readwrite", (s) => s.put(blob, id));
+  const getPhoto = (id) => idb("readonly", (s) => s.get(id));
+  const delPhoto = (id) => idb("readwrite", (s) => s.delete(id));
+  const urls = new Map(); // photo id → object URL
+  async function photoURL(id) {
+    if (!urls.has(id)) { const b = await getPhoto(id); if (!b) return ""; urls.set(id, URL.createObjectURL(b)); }
+    return urls.get(id);
+  }
+  // Shrink to at most 1600 px on the long side, JPEG — a phone photo goes from ~4 MB to ~300 KB
+  function shrink(file) {
+    return new Promise((ok, no) => {
+      const img = new Image(), u = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(u);
+        c.toBlob((b) => (b ? ok(b) : no(new Error("encode"))), "image/jpeg", 0.82);
+      };
+      img.onerror = () => { URL.revokeObjectURL(u); no(new Error("decode")); };
+      img.src = u;
+    });
+  }
+
+  let pickSlot = null, slotsGen = 0;
+  async function renderSlots() {
+    const gen = ++slotsGen; // a newer render replaces this one
+    trial.photos = trial.photos || [];
+    $("slots").innerHTML = TrialMix.PHOTO_SLOTS.map((sl) => `<div class="slot">
+        <div class="hd"><b>${esc(sl.label)}</b>
+          <span class="row"><button class="g" data-cam="${sl.key}" type="button">📷 ถ่าย</button><button class="g" data-pic="${sl.key}" type="button">🖼 เลือกรูป</button></span></div>
+        <div class="thumbs" data-thumbs="${sl.key}"></div></div>`).join("");
+    for (const p of trial.photos) {
+      const box = document.querySelector(`[data-thumbs="${p.slot}"]`);
+      if (!box) continue;
+      const u = await photoURL(p.id).catch(() => "");
+      if (gen !== slotsGen) return;
+      box.insertAdjacentHTML("beforeend", `<div class="thumb">${u ? `<img src="${u}" alt="">` : ""}<button data-delp="${esc(p.id)}" type="button" aria-label="ลบรูป">×</button></div>`);
+    }
+  }
+  $("slots").addEventListener("click", async (e) => {
+    const t = e.target;
+    if (t.dataset.cam) { pickSlot = t.dataset.cam; $("camIn").click(); }
+    else if (t.dataset.pic) { pickSlot = t.dataset.pic; $("picIn").click(); }
+    else if (t.dataset.delp) {
+      if (!t.dataset.armed) { t.dataset.armed = "1"; t.textContent = "?"; setTimeout(() => { delete t.dataset.armed; t.textContent = "×"; }, 3000); return; }
+      const id = t.dataset.delp;
+      trial.photos = trial.photos.filter((p) => p.id !== id);
+      touch(); delPhoto(id).catch(() => {});
+      if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
+      renderSlots();
+    }
+  });
+  async function addFiles(files) {
+    const slot = pickSlot, list = [...files].filter((f) => f.type.startsWith("image/") || !f.type);
+    if (!slot || !list.length) return;
+    const msg = $("photoMsg"); msg.textContent = "กำลังเพิ่มรูป…";
+    let added = 0;
+    for (const f of list) {
+      try {
+        const blob = await shrink(f);
+        const id = trial.id + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        await putPhoto(id, blob);
+        trial.photos.push({ id, slot, added: Date.now() });
+        added++;
+      } catch { msg.textContent = "เพิ่มรูปไม่ได้บางรูป — ลองใหม่ หรือพื้นที่เครื่องอาจเต็ม"; }
+    }
+    if (added) { touch(); await renderSlots(); if (msg.textContent === "กำลังเพิ่มรูป…") msg.textContent = `เพิ่ม ${added} รูปแล้ว`; }
+  }
+  ["camIn", "picIn"].forEach((k) => $(k).addEventListener("change", (e) => { const f = e.target.files; addFiles(f).finally(() => { e.target.value = ""; }); }));
+
   // ---------- list ----------
   function showList() {
     trial = null;
@@ -214,7 +327,7 @@
     $("trials").innerHTML = list.length ? list.map((t) => `<section class="job">
         <div><b>${esc(t.header.project || "(ยังไม่ใส่ชื่อโครงการ)")}</b>
           <span class="chip ${t.status}">${t.status === "open" ? "กำลังบันทึก" : "จบงาน"}</span>
-          <div class="meta">${esc([thaiDate(t.header.date), t.header.code, t.header.customer].filter(Boolean).join(" · "))} · บันทึกแล้ว ${TrialMix.filledRows(t)}/${t.rows.length} ช่วงเวลา</div></div>
+          <div class="meta">${esc([thaiDate(t.header.date), t.header.code, t.header.customer].filter(Boolean).join(" · "))} · บันทึกแล้ว ${TrialMix.filledRows(t)}/${t.rows.length} ช่วงเวลา${(t.photos || []).length ? ` · รูป ${t.photos.length}` : ""}</div></div>
         <button class="g" data-open="${esc(t.id)}" type="button">${t.status === "open" ? "บันทึกต่อ" : "เปิด"}</button>
       </section>`).join("") : `<p class="note">ยังไม่มี Trial — กด "สร้าง Trial ใหม่"</p>`;
   }
@@ -235,7 +348,8 @@
     document.querySelectorAll("[data-h]").forEach((el) => { el.value = trial.header[el.dataset.h] ?? ""; });
     document.querySelectorAll("[data-f]").forEach((el) => { el.value = trial[el.dataset.f] ?? ""; });
     $("savedMsg").textContent = ""; $("pdfMsg").textContent = "";
-    renderTitle(); renderRows(); window.scrollTo(0, 0);
+    $("photoMsg").textContent = "";
+    renderTitle(); renderRows(); renderSlots(); window.scrollTo(0, 0);
   }
   function renderTitle() {
     const h = trial.header;
@@ -304,6 +418,7 @@
   let delArmed = false;
   $("del").addEventListener("click", () => {
     if (!delArmed) { delArmed = true; $("del").textContent = "กดอีกครั้งเพื่อยืนยันลบ"; setTimeout(() => { delArmed = false; $("del").textContent = "ลบ"; }, 4000); return; }
+    (trial.photos || []).forEach((p) => delPhoto(p.id).catch(() => {}));
     db.trials = db.trials.filter((t) => t.id !== trial.id); delArmed = false; $("del").textContent = "ลบ";
     persist(); showList();
   });
@@ -341,18 +456,36 @@
       </table>
     </div>`;
   }
+  async function photoPagesHTML(t) {
+    const ps = TrialMix.orderedPhotos(t);
+    const items = [];
+    for (const p of ps) { const u = await photoURL(p.id).catch(() => ""); if (u) items.push({ ...p, u }); }
+    const pages = [];
+    for (let i = 0; i < items.length; i += 2) pages.push(items.slice(i, i + 2));
+    const h = t.header;
+    return pages.map((pg, n) => `<div class="pp">
+        <div class="ph"><b>M Concrete Trial Mix — รูปประกอบ</b><span>${esc([h.project, h.code, thaiDate(h.date)].filter(Boolean).join(" · "))} · หน้า ${n + 2}/${pages.length + 1}</span></div>
+        ${pg.map((p) => `<figure><figcaption>${esc(p.caption)}</figcaption><div class="box"><img src="${p.u}" alt=""></div></figure>`).join("")}
+        ${pg.length === 1 ? `<figure style="visibility:hidden"></figure>` : ""}
+      </div>`).join("");
+  }
   $("pdf").addEventListener("click", async () => {
     const msg = $("pdfMsg");
     if (!window.html2canvas || !window.jspdf) { msg.textContent = "โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่"; return; }
     $("pdf").disabled = true; msg.textContent = "กำลังสร้าง PDF…";
     try {
       const host = $("print");
-      host.innerHTML = pageHTML(trial);
+      host.innerHTML = pageHTML(trial) + await photoPagesHTML(trial);
       await document.fonts.ready;
       await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
-      const c = await html2canvas(host.querySelector(".pg"), { scale: 2, backgroundColor: "#ffffff" });
       const pdf = new jspdf.jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297);
+      const els = host.querySelectorAll(".pg, .pp");
+      for (let i = 0; i < els.length; i++) {
+        if (els.length > 1) msg.textContent = `กำลังสร้าง PDF… หน้า ${i + 1}/${els.length}`;
+        const c = await html2canvas(els[i], { scale: 2, backgroundColor: "#ffffff" });
+        if (i) pdf.addPage("a4", "portrait");
+        pdf.addImage(c.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, 210, 297);
+      }
       host.innerHTML = "";
       const h = trial.header;
       const name = ["TrialMix", h.project, h.code, h.date].filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "-") + ".pdf";
