@@ -77,7 +77,9 @@ function load() {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: (s) => ({ setMimeType: () => JSON.parse(s) }) },
-    Utilities: { formatDate: () => "" }, Session: { getScriptTimeZone: () => "Asia/Bangkok" },
+    Utilities: { formatDate: () => "2026-10-28", base64Decode: (b) => [...Buffer.from(b, "base64")], newBlob: (bytes, type, name) => ({ bytes, type, name }) },
+    Session: { getScriptTimeZone: () => "Asia/Bangkok" },
+    MailApp: { sent: [], sendEmail(o) { this.sent.push(o); } },
     Date, JSON, Math, Map, Set, Array, Object, String, Number, Infinity,
   };
   vm.createContext(ctx);
@@ -86,7 +88,7 @@ function load() {
   const call = (body) => { ctx.SHEETS = null; return ctx.doPost({ postData: { contents: JSON.stringify({ key: "secret", ...body }) } }); };
   vm.runInContext("var __reset = () => { SHEETS = null; };", ctx);
   const callFresh = (body) => { ctx.__reset(); return call(body); };
-  return { call: callFresh, SpreadsheetApp, props, ctx };
+  return { call: callFresh, SpreadsheetApp, props, ctx, mail: ctx.MailApp.sent };
 }
 
 const job = (id, project, dos, t = Date.now()) => ({
@@ -238,4 +240,20 @@ test("D/O already saved as a number is repaired: shown with zeros and still bloc
   const r = call({ action: "save", job: job("j2", "B", ["0032610160061"]) });
   assert.equal(r.error, "duplicate");
   assert.equal(r.conflict.project, "A");
+});
+
+test("Trial Mix PDF is mailed only to TRIAL_MAIL_TO, with a daily cap", () => {
+  const { call, props, mail } = load();
+  const pdf = Buffer.from("%PDF-1.3 test").toString("base64");
+  assert.equal(call({ action: "mailTrial", name: "TrialMix_A.pdf", pdf }).error, "no_recipient");
+  props.TRIAL_MAIL_TO = "qc@example.com";
+  const r = call({ action: "mailTrial", name: "Trial/Mix:A.pdf", pdf, subject: "Trial Mix · A", body: "Project: A", to: "someone@else.com" });
+  assert.equal(r.ok, true);
+  assert.equal(mail.length, 1);
+  assert.equal(mail[0].to, "qc@example.com"); // the page cannot choose the recipient
+  assert.equal(mail[0].attachments[0].name, "Trial-Mix-A.pdf");
+  assert.equal(mail[0].attachments[0].type, "application/pdf");
+  props.mailCount = "30";
+  assert.equal(call({ action: "mailTrial", name: "x.pdf", pdf }).error, "daily_limit");
+  assert.equal(call({ key: "wrong", action: "mailTrial", name: "x.pdf", pdf }).error, "unauthorized");
 });

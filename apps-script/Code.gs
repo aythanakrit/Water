@@ -47,6 +47,7 @@ function doPost(e) {
       case "checkDO": return json({ ok: true, hit: checkDO(req.do, req.jobId) });
       case "delete": deleteJob(req.id); return json({ ok: true });
       case "report": return json({ ok: true, jobs: reportJobs(req.from, req.to) });
+      case "mailTrial": return json(mailTrial(req));
       default: return json({ ok: false, error: "unknown_action" });
     }
   } finally {
@@ -302,6 +303,31 @@ function deleteJob(id) {
   jobs.getRange(r._row, JOB_COLS.indexOf("status") + 1).setValue("deleted");
   jobs.getRange(r._row, JOB_COLS.indexOf("statusUpdated") + 1).setValue(Date.now());
   jobs.getRange(r._row, JOB_COLS.indexOf("updated") + 1).setValue(Date.now());
+}
+
+// ---------- Trial Mix PDF by email ----------
+// Goes only to the address(es) in Script property TRIAL_MAIL_TO (comma-separated), never to one sent by the page,
+// and at most MAIL_PER_DAY a day, so the web app cannot be used to mail anyone else.
+const MAIL_PER_DAY = 30;
+const MAIL_MAX_BYTES = 20 * 1024 * 1024;
+function mailTrial(req) {
+  const props = PropertiesService.getScriptProperties();
+  const to = props.getProperty("TRIAL_MAIL_TO");
+  if (!to) return { ok: false, error: "no_recipient" };
+  if (!req.pdf || !req.name) return { ok: false, error: "bad_request" };
+  const bytes = Utilities.base64Decode(req.pdf);
+  if (bytes.length > MAIL_MAX_BYTES) return { ok: false, error: "too_large" };
+  const day = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  const count = props.getProperty("mailDay") === day ? Number(props.getProperty("mailCount")) || 0 : 0;
+  if (count >= MAIL_PER_DAY) return { ok: false, error: "daily_limit" };
+  const name = String(req.name).replace(/[\\/:*?"<>|]+/g, "-").slice(0, 120);
+  MailApp.sendEmail({
+    to, subject: String(req.subject || "Trial Mix").slice(0, 200), body: String(req.body || "").slice(0, 2000),
+    attachments: [Utilities.newBlob(bytes, "application/pdf", /\.pdf$/i.test(name) ? name : name + ".pdf")],
+  });
+  props.setProperty("mailDay", day);
+  props.setProperty("mailCount", String(count + 1));
+  return { ok: true };
 }
 
 // ---------- archive ----------

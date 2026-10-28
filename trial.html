@@ -191,7 +191,8 @@
     <section>
       <div class="row">
         <button class="b" id="finish" type="button">จบงาน</button>
-        <button class="g" id="pdf" type="button">Export PDF</button>
+        <button class="g" id="mail" type="button">📧 ดาวน์โหลด + ส่งเมล</button>
+        <button class="g" id="pdf" type="button">ดาวน์โหลด PDF</button>
         <button class="g d" id="del" type="button">ลบ</button>
         <span class="saved" id="pdfMsg"></span>
       </div>
@@ -202,6 +203,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="trialmix.js"></script>
+<script src="config.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -359,7 +361,7 @@
     $("trials").innerHTML = list.length ? list.map((t) => `<section class="job">
         <div><b>${esc(t.header.project || "(ยังไม่ใส่ชื่อโครงการ)")}</b>
           <span class="chip ${t.status}">${t.status === "open" ? "กำลังบันทึก" : "จบงาน"}</span>
-          <div class="meta">${esc([thaiDate(t.header.date), t.header.code, t.header.customer].filter(Boolean).join(" · "))} · บันทึกแล้ว ${TrialMix.filledRows(t)}/${t.rows.length} ช่วงเวลา${(t.photos || []).length ? ` · รูป ${t.photos.length}` : ""}</div></div>
+          <div class="meta">${esc([thaiDate(t.header.date), t.header.code, t.header.customer].filter(Boolean).join(" · "))} · บันทึกแล้ว ${TrialMix.filledRows(t)}/${t.rows.length} ช่วงเวลา${(t.photos || []).length ? ` · รูป ${t.photos.length}` : ""}${t.mailedAt ? " · ส่งเมลแล้ว ✓" : ""}</div></div>
         <button class="g" data-open="${esc(t.id)}" type="button">${t.status === "open" ? "บันทึกต่อ" : "เปิด"}</button>
       </section>`).join("") : `<p class="note">ยังไม่มี Trial — กด "สร้าง Trial ใหม่"</p>`;
   }
@@ -507,12 +509,11 @@
         ${pg.length === 1 ? `<figure style="visibility:hidden"></figure>` : ""}
       </div>`).join("");
   }
-  $("pdf").addEventListener("click", async () => {
-    const msg = $("pdfMsg");
-    if (!window.html2canvas || !window.jspdf) { msg.textContent = "โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่"; return; }
-    $("pdf").disabled = true; msg.textContent = "กำลังสร้าง PDF…";
+  async function buildPdf(msg) {
+    if (!window.html2canvas || !window.jspdf) throw new Error("โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่");
+    msg.textContent = "กำลังสร้าง PDF…";
+    const host = $("print");
     try {
-      const host = $("print");
       host.innerHTML = pageHTML(trial) + await photoPagesHTML(trial);
       await document.fonts.ready;
       await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
@@ -524,14 +525,43 @@
         if (i) pdf.addPage("a4", "portrait");
         pdf.addImage(c.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, 210, 297);
       }
-      host.innerHTML = "";
       const h = trial.header;
       const name = ["TrialMix", h.project, h.code, h.date].filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "-") + ".pdf";
-      await saveFile(name, pdf.output("blob"), msg);
+      return { name, blob: pdf.output("blob") };
+    } finally { host.innerHTML = ""; }
+  }
+  const b64 = (blob) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(blob); });
+
+  // Email goes out through the field-report Apps Script, to the address set there (TRIAL_MAIL_TO)
+  const MAIL = window.FIELD_SYNC && window.FIELD_SYNC.url ? window.FIELD_SYNC : null;
+  if (!MAIL) { $("mail").hidden = true; }
+  async function sendMail(file, msg) {
+    msg.textContent = "กำลังส่งเมล…";
+    const h = trial.header;
+    const res = await fetch(MAIL.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "mailTrial", key: MAIL.key, name: file.name, pdf: await b64(file.blob),
+        subject: ["Trial Mix", h.project, h.code, thaiDate(h.date)].filter(Boolean).join(" · "),
+        body: [`Project: ${h.project || "-"}`, `Customer: ${h.customer || "-"}`, `Code Mix Design: ${h.code || "-"}`,
+          `Date: ${thaiDate(h.date) || "-"}`, `Truck No.: ${h.truck || "-"}`, `Slump (cm.): ${TrialMix.slumpText(h) || "-"}`].join("\n") }) });
+    const out = await res.json();
+    if (!out.ok) throw new Error({ no_recipient: "ยังไม่ได้ตั้งอีเมลผู้รับใน Apps Script (TRIAL_MAIL_TO)", too_large: "ไฟล์ใหญ่เกินส่งเมล — ลดจำนวนรูปแล้วลองใหม่",
+      daily_limit: "ส่งเมลครบจำนวนต่อวันแล้ว — ลองใหม่พรุ่งนี้", unknown_action: "Apps Script ยังเป็นเวอร์ชันเก่า — อัปเดตแล้ว Deploy เวอร์ชันใหม่" }[out.error] || "ส่งเมลไม่สำเร็จ");
+    trial.mailedAt = Date.now(); touch();
+  }
+
+  async function runPdf(withMail) {
+    const msg = $("pdfMsg");
+    $("pdf").disabled = $("mail").disabled = true;
+    try {
+      const file = await buildPdf(msg);
+      await saveFile(file.name, file.blob, msg);
+      if (withMail) { const saved = msg.textContent; await sendMail(file, msg); msg.textContent = `${saved} · ส่งเมลแล้ว ✓`; }
     } catch (e) {
-      msg.textContent = "สร้าง PDF ไม่สำเร็จ — ลองใหม่อีกครั้ง";
-    } finally { $("pdf").disabled = false; }
-  });
+      msg.textContent = e && e.message && !/^Failed to fetch/.test(e.message) ? e.message : withMail ? "ส่งเมลไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่ (ไฟล์ PDF ดาวน์โหลดไว้แล้ว)" : "สร้าง PDF ไม่สำเร็จ — ลองใหม่อีกครั้ง";
+    } finally { $("pdf").disabled = $("mail").disabled = false; }
+  }
+  $("pdf").addEventListener("click", () => runPdf(false));
+  $("mail").addEventListener("click", () => runPdf(true));
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && trial) persist(); });
   showList();
