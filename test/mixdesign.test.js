@@ -92,5 +92,9 @@ test("slump interpolation between Table 6.3.3 range midpoints", () => {
   near(M.mixingWater(false, 125, i), 193 + (202 - 193) * 37.5 / 75, 1e-9);
   assert.equal(M.mixingWater(false, 175, i), 202);
   near(M.mixingWater(false, 50, i), 179 + (193 - 179) * 12.5 / 50, 1e-9);
-  assert.throws(() => M.design({ ...base, slump: 200 }));
+  assert.throws(() => M.design({ ...base, slump: 225 }));
+  // 20 cm: top row of the table, with a warning that the extra slump comes from admixture
+  const r20 = M.design({ ...base, slump: 200 });
+  assert.equal(r20.waterTable, 202);
+  assert.ok(r20.warnings.some((w) => /เกินช่วง ACI 211.1/.test(w)));
 });

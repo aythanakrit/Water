@@ -119,7 +119,7 @@
    * @param {object} p
    * fc            specified 28-day cylinder strength (MPa)
    * sd, nTests    plant standard deviation (MPa) and number of tests (optional)
-   * slump         target slump (mm), 25–175
+   * slump         target slump (mm), 25–200 (above 175 the table's top row is used, with a warning)
    * nmas          nominal max aggregate size (mm)
    * exposure      "none" | "mild" | "moderate" | "severe"  (none = non-air-entrained)
    * wcMax         durability w/c limit (optional)
@@ -140,8 +140,9 @@
     const req = requiredStrength(p.fc, p.sd, p.nTests);
 
     // 2) Mixing water and air
-    if (!(p.slump >= 25 && p.slump <= 175)) throw new Error("Slump ต้องอยู่ระหว่าง 2.5–17.5 cm (ช่วงของ ACI 211.1 Table 6.3.3)");
+    if (!(p.slump >= 25 && p.slump <= 200)) throw new Error("Slump ต้องอยู่ระหว่าง 2.5–20 cm");
     let water = mixingWater(ae, p.slump, i);
+    if (p.slump > 175) warnings.push(`Slump ${p.slump / 10} cm เกินช่วง ACI 211.1 Table 6.3.3 (สูงสุด 15–17.5 cm) — ใช้น้ำของช่วงบนสุด ส่วน slump ที่เกินต้องได้จากสารลดน้ำ/superplasticizer และยืนยันด้วย trial batch`);
     const waterTable = water;
     const red = Number(p.waterReduction) || 0;
     if (red > 0) {
