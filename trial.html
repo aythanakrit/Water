@@ -32,9 +32,9 @@
   a.back { display: inline-block; margin-bottom: 10px; }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; min-width: 0; }
   label { display: flex; flex-direction: column; font-size: .82rem; color: var(--muted); gap: 2px; min-width: 0; }
-  input, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
+  input, textarea, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
   textarea { resize: vertical; min-height: 60px; }
-  input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 12px; }
   .fields3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
   @media (max-width: 520px) { .fields3 { grid-template-columns: 1fr; } }
@@ -145,7 +145,9 @@
         <label>Customer<input data-h="customer"></label>
         <label>Code Mix Design<input data-h="code"></label>
         <label>Truck No.<input data-h="truck" inputmode="numeric"></label>
-        <label>Slump (cm.) ที่กำหนด<input data-h="slump" inputmode="decimal"></label>
+        <label>Slump (cm.) ที่กำหนด
+          <span class="unit"><select data-h="slump"><option value="">– เลือก –</option><option>5</option><option>7.5</option><option>10</option><option>12.5</option><option>15</option><option>17.5</option></select>
+            <span>±</span><input data-h="slumpTol" inputmode="decimal" style="width:5em"></span></label>
       </div>
     </section>
 
@@ -276,10 +278,13 @@
   async function renderSlots() {
     const gen = ++slotsGen; // a newer render replaces this one
     trial.photos = trial.photos || [];
-    $("slots").innerHTML = TrialMix.PHOTO_SLOTS.map((sl) => `<div class="slot">
-        <div class="hd"><b>${esc(sl.label)}</b>
+    $("slots").innerHTML = TrialMix.slotsOf(trial).map((sl) => `<div class="slot">
+        <div class="hd">${sl.extra
+          ? `<span class="row" style="flex:1;min-width:12em"><input data-slotname="${sl.key}" value="${esc(sl.label)}" placeholder="ชื่อภาพ เช่น ป้ายหน้าไซต์" style="flex:1"><button class="g d" data-delslot="${sl.key}" type="button">ลบช่อง</button></span>`
+          : `<b>${esc(sl.label)}</b>`}
           <span class="row"><button class="g" data-cam="${sl.key}" type="button">📷 ถ่าย</button><button class="g" data-pic="${sl.key}" type="button">🖼 เลือกรูป</button></span></div>
-        <div class="thumbs" data-thumbs="${sl.key}"></div></div>`).join("");
+        <div class="thumbs" data-thumbs="${sl.key}"></div></div>`).join("") +
+      `<button class="g" id="addSlot" type="button">+ เพิ่มช่องภาพ</button>`;
     for (const p of trial.photos) {
       const box = document.querySelector(`[data-thumbs="${p.slot}"]`);
       if (!box) continue;
@@ -290,7 +295,22 @@
   }
   $("slots").addEventListener("click", async (e) => {
     const t = e.target;
-    if (t.dataset.cam) { pickSlot = t.dataset.cam; $("camIn").click(); }
+    if (t.id === "addSlot") {
+      trial.extraSlots = trial.extraSlots || [];
+      const key = "x" + Date.now().toString(36);
+      trial.extraSlots.push({ key, label: "" });
+      touch(); await renderSlots();
+      document.querySelector(`[data-slotname="${key}"]`)?.focus();
+    }
+    else if (t.dataset.delslot) {
+      const key = t.dataset.delslot, n = trial.photos.filter((p) => p.slot === key).length;
+      if (n && !t.dataset.armed) { t.dataset.armed = "1"; t.textContent = `ลบพร้อม ${n} รูป?`; setTimeout(() => { delete t.dataset.armed; t.textContent = "ลบช่อง"; }, 3000); return; }
+      trial.photos.filter((p) => p.slot === key).forEach((p) => delPhoto(p.id).catch(() => {}));
+      trial.photos = trial.photos.filter((p) => p.slot !== key);
+      trial.extraSlots = trial.extraSlots.filter((x) => x.key !== key);
+      touch(); renderSlots();
+    }
+    else if (t.dataset.cam) { pickSlot = t.dataset.cam; $("camIn").click(); }
     else if (t.dataset.pic) { pickSlot = t.dataset.pic; $("picIn").click(); }
     else if (t.dataset.delp) {
       if (!t.dataset.armed) { t.dataset.armed = "1"; t.textContent = "?"; setTimeout(() => { delete t.dataset.armed; t.textContent = "×"; }, 3000); return; }
@@ -300,6 +320,11 @@
       if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
       renderSlots();
     }
+  });
+  $("slots").addEventListener("input", (e) => {
+    const key = e.target.dataset.slotname;
+    const x = key && (trial.extraSlots || []).find((s) => s.key === key);
+    if (x) { x.label = e.target.value; touch(); }
   });
   async function addFiles(files) {
     const slot = pickSlot, list = [...files].filter((f) => f.type.startsWith("image/") || !f.type);
@@ -345,7 +370,13 @@
   function openTrial(t) {
     trial = t;
     $("vList").hidden = true; $("vTrial").hidden = false;
-    document.querySelectorAll("[data-h]").forEach((el) => { el.value = trial.header[el.dataset.h] ?? ""; });
+    if (trial.header.slumpTol == null) trial.header.slumpTol = "2.5";
+    document.querySelectorAll("[data-h]").forEach((el) => {
+      const v = trial.header[el.dataset.h] ?? "";
+      // a slump typed before the list existed stays selectable
+      if (el.tagName === "SELECT" && v && ![...el.options].some((o) => o.value === v)) el.add(new Option(v, v));
+      el.value = v;
+    });
     document.querySelectorAll("[data-f]").forEach((el) => { el.value = trial[el.dataset.f] ?? ""; });
     $("savedMsg").textContent = ""; $("pdfMsg").textContent = "";
     $("photoMsg").textContent = "";
@@ -357,7 +388,7 @@
     $("titleSub").textContent = [thaiDate(h.date), h.code && "Code " + h.code, h.customer].filter(Boolean).join(" · ");
     $("finish").textContent = trial.status === "open" ? "จบงาน" : "เปิดแก้ไขอีกครั้ง";
   }
-  document.querySelectorAll("[data-h]").forEach((el) => el.addEventListener("input", () => {
+  document.querySelectorAll("[data-h]").forEach((el) => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
     trial.header[el.dataset.h] = el.value; touch(); renderTitle(); renderHold();
   }));
   document.querySelectorAll("[data-f]").forEach((el) => el.addEventListener("input", () => { trial[el.dataset.f] = el.value; touch(); }));
@@ -389,9 +420,9 @@
   }
   function renderHold() {
     const until = TrialMix.holdsSlumpUntil(trial);
-    const target = trial.header.slump;
-    $("hold").innerHTML = until == null || !target ? "" :
-      `<p class="note" style="margin:8px 0 0">Slump ยังไม่ต่ำกว่าค่าที่กำหนด (${esc(target)} cm) ถึงนาทีที่ <b>${until}</b> · เทียบตรง ๆ ยังไม่คิดค่าเผื่อ (tolerance)</p>`;
+    const h = trial.header;
+    $("hold").innerHTML = until == null || !h.slump ? "" :
+      `<p class="note" style="margin:8px 0 0">Slump อยู่ในเกณฑ์ ${esc(TrialMix.slumpText(h))} cm (ไม่ต่ำกว่า ${Number(h.slump) - (Number(h.slumpTol) || 0)} cm) ถึงนาทีที่ <b>${until}</b></p>`;
   }
   $("rows").addEventListener("input", (e) => {
     const el = e.target, i = Number(el.dataset.r), k = el.dataset.k;
@@ -438,7 +469,7 @@
         <tr><td class="y">Customer</td><td class="y">Code Mix Design</td></tr>
         <tr><td class="v">${v(h.customer)}</td><td class="v">${v(h.code)}</td></tr>
         <tr><td class="y">Truck No.</td><td class="y">Slump (cm.)</td></tr>
-        <tr><td class="v s">${v(h.truck)}</td><td class="v s">${v(h.slump)}</td></tr>
+        <tr><td class="v s">${v(h.truck)}</td><td class="v s">${v(TrialMix.slumpText(h))}</td></tr>
       </table>
       <table style="margin-top:14px">
         <colgroup><col style="width:8.3%"><col style="width:8.3%"><col style="width:8.6%"><col style="width:12.4%"><col style="width:8.4%"><col style="width:12.8%"><col style="width:12.8%"><col style="width:12.4%"><col></colgroup>

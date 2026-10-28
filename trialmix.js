@@ -25,7 +25,7 @@
     const t = Date.now();
     return {
       id, created: t, updated: t, status: "open",
-      header: { project: "", date: date || "", customer: "", code: "", truck: "", slump: "" },
+      header: { project: "", date: date || "", customer: "", code: "", truck: "", slump: "", slumpTol: "2.5" },
       rows: MINUTES.map((min) => ({ min, time: "", air: "", con: "", cone: "", flow: "" })),
       unitWeight: "", airContent: "", bleeding: "", remark: "", photos: [],
     };
@@ -51,10 +51,17 @@
     });
   }
 
-  /** Last checked minute at which the slump was still at least the required slump (header), or null. */
+  /** Required slump as printed: "12.5 ± 2.5" (or just "12.5" without a tolerance). */
+  function slumpText(h) {
+    if (!String(h.slump ?? "").trim()) return "";
+    return num(h.slumpTol) ? `${h.slump} ± ${h.slumpTol}` : String(h.slump);
+  }
+
+  /** Last checked minute at which the slump was still at least the required slump minus its tolerance, or null. */
   function holdsSlumpUntil(trial) {
-    const target = num(trial.header.slump);
-    if (target == null) return null;
+    const req = num(trial.header.slump);
+    if (req == null) return null;
+    const target = req - (num(trial.header.slumpTol) || 0);
     let last = null;
     for (const r of trial.rows) {
       const v = num(r.cone) ?? num(r.flow);
@@ -77,15 +84,18 @@
     ...MINUTES.map((m, i) => ({ key: "slump" + (i + 1), label: `สลัม ครั้งที่ ${i + 1} (${m} นาที)` })),
     { key: "sample", label: "ภาพเก็บลูกปูน / Slip Test" },
   ];
-  const slotIndex = (key) => PHOTO_SLOTS.findIndex((s) => s.key === key);
+  /** The fixed slots, then the ones added for this trial (named by the user), in that order. */
+  const slotsOf = (trial) => PHOTO_SLOTS.concat((trial.extraSlots || []).map((x) => ({ ...x, extra: true })));
 
   /** Photos in PDF order (slot order, then the order they were added), each with its caption. */
   function orderedPhotos(trial) {
+    const slots = slotsOf(trial);
+    const slotIndex = (key) => slots.findIndex((s) => s.key === key);
     const ps = (trial.photos || []).filter((p) => slotIndex(p.slot) >= 0)
       .slice().sort((a, b) => slotIndex(a.slot) - slotIndex(b.slot) || a.added - b.added);
     return ps.map((p) => {
       const same = ps.filter((x) => x.slot === p.slot);
-      const label = PHOTO_SLOTS[slotIndex(p.slot)].label;
+      const label = slots[slotIndex(p.slot)].label || "ภาพเพิ่มเติม";
       return { ...p, caption: same.length > 1 ? `${label} (${same.indexOf(p) + 1}/${same.length})` : label };
     });
   }
@@ -93,5 +103,5 @@
   /** Rows filled so far (for the list view). */
   const filledRows = (trial) => trial.rows.filter(rowHasData).length;
 
-  return { MINUTES, ROW_FIELDS, PHOTO_SLOTS, toMin, hhmm, newTrial, plannedTime, rowHasData, slumpLoss, holdsSlumpUntil, orderedPhotos, filledRows };
+  return { MINUTES, ROW_FIELDS, PHOTO_SLOTS, slotsOf, toMin, hhmm, newTrial, slumpText, plannedTime, rowHasData, slumpLoss, holdsSlumpUntil, orderedPhotos, filledRows };
 });
