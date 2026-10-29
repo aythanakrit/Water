@@ -140,14 +140,14 @@
           <label class="w2">Customer (ลูกค้า)<input data-h="customer"></label>
           <label>Structure (โครงสร้าง)<input data-h="structure"></label>
           <label>Structure no.<input data-h="structureNo"></label>
-          <label>Date (วันที่)<input data-h="date" type="date"></label>
+          <label>Date (วันที่)<input data-h="date" class="dth"></label>
           <label>Product Code<input data-h="productCode"></label>
-          <label>Cube (ksc)<input data-h="cube" type="number" inputmode="decimal"></label>
-          <label>Cylinder (ksc)<input data-h="cylinder" type="number" inputmode="decimal"></label>
+          <label>Cube (ksc)<input data-h="cube" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
+          <label>Cylinder (ksc)<input data-h="cylinder" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
           <label>ชื่อช่าง<input data-h="tech"></label>
           <label>เบอร์ติดต่อ<input data-h="phone" type="tel"></label>
-          <label>ยอดสั่ง (คิว)<input data-h="ordered" type="number" inputmode="decimal"></label>
-          <label>ยอดผลิต (คิว)<input data-h="produced" type="number" inputmode="decimal"></label>
+          <label>ยอดสั่ง (คิว)<input data-h="ordered" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
+          <label>ยอดผลิต (คิว)<input data-h="produced" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
         </div>
       </details>
     </section>
@@ -161,11 +161,11 @@
       <h2>รับรถ</h2>
       <div class="scan">
         <label class="do">D/O No. (ใบส่งสินค้า) — สแกนหรือพิมพ์
-          <span class="doin"><input id="newDO" inputmode="numeric" autocomplete="off" placeholder="0372610040130">
+          <span class="doin"><input id="newDO" type="text" class="npad" data-pad="int" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="0372610040130">
             <button class="g" id="scanBtn" type="button">📷 สแกน</button></span></label>
-        <label>Truck No.<input id="newTruck" inputmode="numeric" autocomplete="off"></label>
+        <label>Truck No.<input id="newTruck" type="text" class="npad" data-pad="int" inputmode="numeric" autocomplete="off"></label>
         <label>เวลาผสม<input id="newBatch" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off"></label>
-        <label>Volume (m³)<input id="newVol" type="number" inputmode="decimal" step="0.5"></label>
+        <label>Volume (m³)<input id="newVol" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
         <button class="b" id="addTruck" type="button">บันทึกรถ</button>
       </div>
       <input id="scanFile" type="file" accept="image/*" capture="environment" hidden>
@@ -202,11 +202,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-<script src="time24.js"></script>
+<script src="numpad.js"></script>
 <script src="fieldreport.js"></script>
 <script src="fieldsync.js"></script>
 <script src="config.js"></script>
 <script>
+  NumPad.bind(document);
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (x, d = 1) => x == null || !isFinite(x) ? "–" : Number(x).toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -484,7 +485,7 @@
     const t = FieldReport.newTruck(job.trucks[job.trucks.length - 1]);
     t.id = FieldSync.newId("t"); t.created = t.updated = Date.now();
     t.do = d; t.truck = $("newTruck").value.trim(); t.volume = $("newVol").value || t.volume;
-    t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM(); t.batching = Time24.normalize($("newBatch").value) || "";
+    t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM(); t.batching = NumPad.normalize($("newBatch").value) || "";
     job.trucks.push(t); job.trucks = FieldSync.sortTrucks(job.trucks); touch();
     $("newDO").value = ""; $("newTruck").value = ""; $("newBatch").value = ""; $("addWarn").innerHTML = "";
     renderJob(); $("newDO").focus();
@@ -587,7 +588,7 @@
     const plantOpts = [...FieldReport.PLANTS].sort((a, b) => a[0].localeCompare(b[0]));
     const inp = ([k, l, m]) => k === "plant"
       ? `<label>${l}<select data-t="plant" ${ro}><option value="">— เลือก —</option>${plantOpts.map(([c, n]) => `<option value="${esc(n)}"${n === t.plant ? " selected" : ""}>P${c} - ${esc(n)}</option>`).join("")}</select></label>`
-      : `<label>${l}<input data-t="${k}" value="${esc(t[k])}" ${m ? `inputmode="${m}"` : ""} ${ro}></label>`;
+      : `<label>${l}<input data-t="${k}" value="${esc(t[k])}" ${m === "decimal" ? 'type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"' : m === "numeric" ? 'type="text" class="npad" data-pad="int" inputmode="numeric" autocomplete="off"' + (k === "do" ? ' maxlength="13"' : "") : ""} ${ro}></label>`;
     const hit = dupHit(t.do, editIdx);
     const w = FieldReport.checkDO(t.do);
     if (hit) w.unshift(FieldReport.dupMessage(hit));
@@ -757,7 +758,6 @@
   });
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
-  Time24.bind(document);
   showList();
   if (SYNC) syncNow().then(pull);
   const open = db.jobs.filter((j) => j.status === "open");

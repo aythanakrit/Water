@@ -150,13 +150,13 @@
       <h2>ข้อมูล</h2>
       <div class="fields">
         <label>Project<input data-h="project"></label>
-        <label>Date<input data-h="date" type="date"></label>
+        <label>Date<input data-h="date" class="dth"></label>
         <label>Customer<input data-h="customer"></label>
         <label>Code Mix Design<input data-h="code"></label>
-        <label>Truck No.<input data-h="truck" inputmode="numeric"></label>
+        <label>Truck No.<input data-h="truck" type="text" class="npad" data-pad="int" inputmode="numeric" autocomplete="off"></label>
         <label>Slump (cm.) ที่กำหนด
           <span class="unit"><select data-h="slump"><option value="">– เลือก –</option><option>5</option><option>7.5</option><option>10</option><option>12.5</option><option>15</option><option>17.5</option><option>20</option></select>
-            <span>±</span><input data-h="slumpTol" inputmode="decimal" style="width:5em"></span></label>
+            <span>±</span><input data-h="slumpTol" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off" style="width:5em"></span></label>
       </div>
     </section>
 
@@ -172,9 +172,9 @@
     <section>
       <h2>ผลทดสอบคอนกรีตสด</h2>
       <div class="fields3">
-        <label>Unit Weight<span class="unit"><input data-f="unitWeight" inputmode="decimal"><span>kg/m³</span></span></label>
-        <label>Air Content<span class="unit"><input data-f="airContent" inputmode="decimal"><span>%</span></span></label>
-        <label>Bleeding<span class="unit"><input data-f="bleeding" inputmode="decimal"><span>%</span></span></label>
+        <label>Unit Weight<span class="unit"><input data-f="unitWeight" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"><span>kg/m³</span></span></label>
+        <label>Air Content<span class="unit"><input data-f="airContent" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"><span>%</span></span></label>
+        <label>Bleeding<span class="unit"><input data-f="bleeding" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"><span>%</span></span></label>
       </div>
       <label style="margin-top:10px">Remarks<textarea data-f="remark"></textarea></label>
     </section>
@@ -204,10 +204,11 @@
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="time24.js"></script>
+<script src="numpad.js"></script>
 <script src="trialmix.js"></script>
 <script src="config.js"></script>
 <script>
+  NumPad.bind(document);
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const KEY = "trial-mix-v1";
@@ -405,7 +406,7 @@
   }));
   document.querySelectorAll("[data-f]").forEach((el) => el.addEventListener("input", () => { trial[el.dataset.f] = el.value; touch(); }));
 
-  const cell = (i, k, mode = "decimal") => `<input data-r="${i}" data-k="${k}" inputmode="${mode}" value="${esc(trial.rows[i][k])}">`;
+  const cell = (i, k) => `<input data-r="${i}" data-k="${k}" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off" value="${esc(trial.rows[i][k])}">`;
   function renderRows() {
     $("rows").innerHTML = `<thead>
         <tr><th rowspan="2" class="no">ครั้งที่</th><th rowspan="2">Minute</th><th rowspan="2">Time</th><th colspan="2">Temp. (°C)</th><th colspan="2">Slump (cm.)</th></tr>
@@ -567,7 +568,6 @@
   $("mail").addEventListener("click", () => runPdf(true));
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && trial) persist(); });
-  Time24.bind(document);
   showList();
 </script>
 </body>

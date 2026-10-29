@@ -58,6 +58,8 @@
   .issue { color: var(--bad); }
   @media (max-width: 600px) { td.wins, td.wrap { min-width: 9em; } .win { white-space: normal; } th, td { padding: 6px 5px; } }
   h3 { font-size: .92rem; margin: 16px 0 6px; }
+  input.bad-time { border-color: var(--bad); outline: 1px solid var(--bad); }
+  input.dth { width: 9.5em; font-variant-numeric: tabular-nums; }
   .kpis { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
   .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; min-width: 150px; }
   .kpi b { display: block; font-size: 1.2rem; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -87,8 +89,8 @@
         <button type="button" data-range="30">30 วัน</button>
         <button type="button" data-range="month">เดือนนี้</button>
       </div>
-      <label>ตั้งแต่<input type="date" id="from"></label>
-      <label>ถึง<input type="date" id="to"></label>
+      <label>ตั้งแต่<input class="dth" id="from"></label>
+      <label>ถึง<input class="dth" id="to"></label>
       <button class="b" type="button" id="load">แสดงผล</button>
       <button type="button" id="csv">ดาวน์โหลด CSV</button>
     </div>
@@ -108,8 +110,10 @@
 <script src="fieldreport.js"></script>
 <script src="fieldsync.js"></script>
 <script src="dashboard.js"></script>
+<script src="numpad.js"></script>
 <script src="config.js"></script>
 <script>
+  NumPad.bind(document);
   const $ = (id) => document.getElementById(id);
   const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (x, d = 1) => x == null || !isFinite(x) ? "–" : Number(x).toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
