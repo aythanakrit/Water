@@ -203,12 +203,14 @@
     const byPlant = new Map();
     const totalByHour = {};
     all.forEach((r) => {
-      if (!byPlant.has(r.plant)) byPlant.set(r.plant, { plant: r.plant, volume: 0, trips: 0, byHour: {}, travel: [] });
+      if (!byPlant.has(r.plant)) byPlant.set(r.plant, { plant: r.plant, volume: 0, trips: 0, byHour: {}, travel: [], first: null, last: null });
       const o = byPlant.get(r.plant);
       o.volume += r.volume; o.trips++;
       const tr = travelOf(r);
       if (tr != null) o.travel.push(tr);
       if (r.b == null) return;
+      if (o.first == null || r.b < o.first) o.first = r.b;
+      if (o.last == null || r.b > o.last) o.last = r.b;
       const k = hourKey(r);
       o.byHour[k] = (o.byHour[k] || 0) + r.volume;
       totalByHour[k] = (totalByHour[k] || 0) + r.volume;
@@ -216,7 +218,8 @@
     // m³ per hour = average over the hours that plant actually batched
     const perHour = (m) => { const xs = Object.values(m).filter((x) => x > 0); return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null; };
     const plantHours = [...byPlant.values()].map((o) => ({ plant: o.plant, volume: o.volume, trips: o.trips, byHour: o.byHour,
-      perHour: perHour(o.byHour), avgTravel: avg(o.travel) })).sort((a, b) => b.volume - a.volume);
+      perHour: perHour(o.byHour), avgTravel: avg(o.travel),
+      first: o.first == null ? "" : hhmm(o.first), last: o.last == null ? "" : hhmm(o.last) })).sort((a, b) => b.volume - a.volume);
     const allTravel = [].concat(...[...byPlant.values()].map((o) => o.travel));
     const truckHours = [...trucks.values()].map((o) => {
       // each hour: the trips batched in it, as batching → arrival

@@ -64,7 +64,8 @@
   .kpi span { font-size: .78rem; color: var(--muted); }
   table.hours th, table.hours td { text-align: center; }
   table.hours th.l, table.hours td.l { text-align: left; }
-  table.hours td.sum, table.hours th.sum { border-left: 1px solid var(--line); }
+  table.hours td.sum, table.hours th.sum { border-right: 1px solid var(--line); }
+  tr.tot td { font-weight: 700; border-top: 1.5px solid var(--muted); }
   /* long jobs (24 h, many plants): the name column stays in view while the hours scroll */
   table.hours th:first-child, table.hours td:first-child { position: sticky; left: 0; background: var(--card); z-index: 1; }
   table.hours th.st, table.hours td.st { width: 3.2em; min-width: 3.2em; }
@@ -171,11 +172,15 @@
     const n0 = (x) => (x ? fmt(x) : "");
     const min = (x) => (x == null ? "–" : `${Math.round(x)} นาที`);
     const head = v.columns.map((c) => `<th>${c.date ? esc(dm(c.date)) + "<br>" : ""}${esc(c.label)}</th>`).join("");
-    const plantsT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td>${v.columns.map((c) => `<td>${n0(p.byHour[c.key])}</td>`).join("")}
-      <td class="sum">${fmt(p.volume)}</td><td class="sum"><b>${p.perHour == null ? "–" : fmt(p.perHour)}</b></td></tr>`).join("");
-    const totalT = `<tr><td class="l"><b>รวมทุกแพล้น</b></td>${v.columns.map((c) => `<td><b>${n0(v.totalByHour[c.key])}</b></td>`).join("")}
-      <td class="sum"><b>${fmt(v.volume)}</b></td><td class="sum"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b></td></tr>`;
-    const travelT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td><td>${min(p.avgTravel)}</td></tr>`).join("");
+    // summary per plant, then the plant × hour table (totals first, then the hours)
+    const perH = (x) => (x == null ? "–" : fmt(x));
+    const sumT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td><td>${fmt(p.volume)}</td><td><b>${perH(p.perHour)}</b></td>
+      <td>${p.first ? `${p.first} – ${p.last}` : "–"}</td><td>${min(p.avgTravel)}</td></tr>`).join("") +
+      `<tr class="tot"><td class="l">รวม</td><td>${fmt(v.volume)}</td><td>${perH(v.perHour)}</td><td></td><td>${min(v.avgTravel)}</td></tr>`;
+    let cum = 0;
+    const hourT = v.plantHours.map((p) => { cum += p.volume; return `<tr><td class="l">${esc(p.plant)}</td><td class="sum">${fmt(p.volume)}</td><td class="sum">${fmt(cum)}</td>
+      ${v.columns.map((c) => `<td>${n0(p.byHour[c.key])}</td>`).join("")}</tr>`; }).join("") +
+      `<tr class="tot"><td class="l">รวมทุกแพล้น</td><td class="sum">${fmt(v.volume)}</td><td class="sum"></td>${v.columns.map((c) => `<td>${n0(v.totalByHour[c.key])}</td>`).join("")}</tr>`;
     const trucksT = v.truckHours.map((t, i) => `<tr><td class="st">${i + 1}</td><td class="l st2">${esc(t.truck)}</td><td><b>${t.trips}</b></td><td>${fmt(t.volume)}</td>
       ${v.columns.map((c) => `<td>${(t.byHour[c.key] || []).length || ""}</td>`).join("")}</tr>`).join("");
     const issuesT = v.issues.map((i) => `<tr class="issue"><td class="l">${esc(thDate(i.date))}</td><td class="l">${esc(i.truck)}</td><td class="l">${esc(i.do)}</td><td class="l">${esc(i.plant)}</td><td class="wrap">${esc(i.remark)}</td></tr>`).join("");
@@ -187,12 +192,9 @@
         <div class="kpi"><b>${min(v.avgTravel)}</b><span>เฉลี่ยเวลาเดินทาง</span></div>
       </div>
       <h3>ยอดผลิต รายแพล้น</h3>
-      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l">หน่วยผลิต</th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${plantsT}</tbody></table></div>` : noHours}
+      <div class="scroll"><table><thead><tr><th class="l">หน่วยผลิต</th><th>คิว</th><th>คิว/ชม.</th><th>ช่วงเวลาผลิต</th><th>เดินทางเฉลี่ย</th></tr></thead><tbody>${sumT}</tbody></table></div>
       <h3>ยอดผลิต รายชั่วโมง</h3>
-      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l"></th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${totalT}</tbody></table></div>` : noHours}
-      <h3>เวลาเดินทางเฉลี่ย รายแพล้น</h3>
-      <div class="scroll"><table style="max-width:520px"><thead><tr><th class="l">หน่วยผลิต</th><th>เดินทางเฉลี่ย</th></tr></thead><tbody>${travelT}
-        <tr><td class="l"><b>รวม</b></td><td><b>${min(v.avgTravel)}</b></td></tr></tbody></table></div>
+      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l">หน่วยผลิต</th><th class="sum">รวม</th><th class="sum">ผลรวมสะสม</th>${head}</tr></thead><tbody>${hourT}</tbody></table></div>` : noHours}
       <h3>รถโม่ ${v.trucks.length} คัน · เที่ยวตามเวลาผสม</h3>
       ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="st">ลำดับ</th><th class="l st2">เบอร์รถ</th><th>เที่ยว</th><th>คิว</th>${head}</tr></thead><tbody>${trucksT}</tbody></table></div>` : noHours}
       <h3>เที่ยวที่มีหมายเหตุ / ปัญหา (${v.issues.length})</h3>
