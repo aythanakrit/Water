@@ -22,7 +22,7 @@ const DO_COLS = ["do", "jobId"];
 // Shown as text in the sheet so D/O keeps its leading zeros and times stay HH:MM
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
 const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"] };
-const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated"];
+const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated", "email"];
 const DO_DIGITS = 13;
 
 const RECENT_DAYS = 7;      // job list: open jobs + jobs changed in the last 7 days
@@ -55,6 +55,7 @@ function doPost(e) {
       case "adminCheck": return json(isAdmin(req.adminKey) ? { ok: true } : { ok: false, error: "not_admin" });
       case "contactUpdate": return json(isAdmin(req.adminKey) ? updateContact(req.contact) : { ok: false, error: "not_admin" });
       case "contactDelete": return json(isAdmin(req.adminKey) ? deleteContact(req.id) : { ok: false, error: "not_admin" });
+      case "contactImport": return json(isAdmin(req.adminKey) ? importContacts(req.people, req.dept, req.plant) : { ok: false, error: "not_admin" });
       case "contactSettings": return json(isAdmin(req.adminKey) ? saveContactSettings(req.settings) : { ok: false, error: "not_admin" });
       default: return json({ ok: false, error: "unknown_action" });
     }
@@ -358,7 +359,7 @@ function updateContact(input) {
   const sh = contactsSheet();
   const rows = findRows(sh, CONTACT_COLS, "id", input && input.id);
   if (!rows.length) return { ok: false, error: "not_found" };
-  const { contact, errors } = Contacts.check(input);
+  const { contact, errors } = Contacts.check(input, { loose: true }); // the admin may keep an imported contact without plant/surname
   if (errors.length) return { ok: false, error: "invalid", errors };
   const owner = phoneOwner(contact.phone, input.id);
   if (owner) return { ok: false, error: "phone_taken", owner };
@@ -366,6 +367,22 @@ function updateContact(input) {
   const c = { ...contact, id: old.id, created: old.created, updated: Date.now() };
   writeContact(c, rows[0]);
   return { ok: true, contact: c };
+}
+// Admin paste from Excel: only name and phone required; phones already listed are skipped
+function importContacts(list, dept, plant) {
+  const have = {};
+  listContacts().forEach((p) => { have[p.phone] = true; });
+  const added = [], skipped = [];
+  (Array.isArray(list) ? list : []).slice(0, 500).forEach((x, i) => {
+    const { contact, errors } = Contacts.check({ ...x, dept: dept || x.dept || "", plant: plant || x.plant || "" }, { loose: true });
+    if (errors.length) { skipped.push({ row: i + 1, why: errors.join(" · ") }); return; }
+    if (have[contact.phone]) { skipped.push({ row: i + 1, why: `เบอร์ซ้ำ (${contact.first})` }); return; }
+    const t = Date.now() + i;
+    writeContact({ ...contact, id: "c" + t.toString(36) + Math.random().toString(36).slice(2, 6), created: t, updated: t });
+    have[contact.phone] = true;
+    added.push(contact.first);
+  });
+  return { ok: true, added: added.length, skipped };
 }
 function deleteContact(id) {
   const sh = contactsSheet();

@@ -119,7 +119,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const FIELDS = ["first", "last", "nick", "phone", "plant", "dept", "pos"];
+  const FIELDS = ["first", "last", "nick", "phone", "email", "plant", "dept", "pos"];
   const NO_DEPT = "ยังไม่ระบุแผนก";
   const NO_POS = "ยังไม่ระบุตำแหน่ง";
 
@@ -139,17 +139,53 @@
     return d;
   }
 
-  /** Trimmed fields and a list of what is missing or wrong (Thai messages). */
-  function check(c) {
+  const emailOk = (s) => !s || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  /**
+   * Trimmed fields and a list of what is missing or wrong (Thai messages).
+   * loose (admin import): only the name and phone are required.
+   */
+  function check(c, { loose } = {}) {
     const o = {};
     FIELDS.forEach((k) => { o[k] = String(c[k] == null ? "" : c[k]).trim().replace(/\s+/g, " "); });
     o.phone = cleanPhone(o.phone);
+    o.email = o.email.toLowerCase();
     const err = [];
     if (!o.first) err.push("ใส่ชื่อ");
-    if (!o.last) err.push("ใส่นามสกุล");
+    if (!o.last && !loose) err.push("ใส่นามสกุล");
     if (!phoneOk(o.phone)) err.push("เบอร์โทรไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)");
-    if (!o.plant) err.push("เลือกแพล้น");
+    if (!emailOk(o.email)) err.push("อีเมลไม่ถูกต้อง");
+    if (!o.plant && !loose) err.push("เลือกแพล้น");
     return { contact: o, errors: err };
+  }
+
+  /** "นายสมชาย ใจดี" → { first: "สมชาย", last: "ใจดี" } (title dropped) */
+  function splitName(s) {
+    const n = String(s || "").trim().replace(/\s+/g, " ").replace(/^(คุณ|นางสาว|นาง|นาย|น\.ส\.|Mr\.?|Mrs\.?|Ms\.?|Miss)\s*/i, "");
+    const i = n.indexOf(" ");
+    return i < 0 ? { first: n, last: "" } : { first: n.slice(0, i), last: n.slice(i + 1) };
+  }
+
+  /**
+   * Rows copied from Excel (tab-separated): name, nickname, phone, e-mail in any order.
+   * A cell with @ is the e-mail, one that is a phone number is the phone, the first other cell is the name,
+   * the next the nickname. Header rows and rows without a phone are skipped.
+   */
+  function parsePaste(text) {
+    return String(text || "").split(/\r?\n/).map((line) => {
+      const cells = line.split("\t").map((c) => c.trim()).filter(Boolean);
+      const o = { first: "", last: "", nick: "", phone: "", email: "" };
+      const rest = [];
+      cells.forEach((c) => {
+        if (!o.email && /@/.test(c)) o.email = c;
+        else if (!o.phone && phoneOk(c) && /^[\d\s+()-]+$/.test(c)) o.phone = cleanPhone(c);
+        else if (!/^\d{1,3}\.?$/.test(c)) rest.push(c); // drop a running number column
+      });
+      if (!o.phone || !rest.length) return null;
+      Object.assign(o, splitName(rest[0]));
+      o.nick = rest[1] || "";
+      return o;
+    }).filter(Boolean);
   }
 
   /** Settings as the admin left them: [{ name, positions: [..] }], cleaned of blanks and repeats. */
@@ -195,11 +231,11 @@
     const s = String(q || "").trim().toLowerCase();
     if (!s) return true;
     const d = digits(s);
-    const hay = [p.first, p.last, p.nick, p.plant, p.dept, p.pos].join(" ").toLowerCase();
+    const hay = [p.first, p.last, p.nick, p.plant, p.dept, p.pos, p.email].join(" ").toLowerCase();
     return s.split(/\s+/).every((w) => hay.includes(w)) || (d.length >= 3 && cleanPhone(p.phone).includes(d));
   }
 
-  return { FIELDS, NO_DEPT, NO_POS, cleanPhone, phoneOk, showPhone, check, cleanSettings, orgChart, matches };
+  return { FIELDS, NO_DEPT, NO_POS, cleanPhone, phoneOk, showPhone, emailOk, check, splitName, parsePaste, cleanSettings, orgChart, matches };
 });
 
 /*
@@ -226,7 +262,7 @@ const DO_COLS = ["do", "jobId"];
 // Shown as text in the sheet so D/O keeps its leading zeros and times stay HH:MM
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
 const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"] };
-const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated"];
+const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated", "email"];
 const DO_DIGITS = 13;
 
 const RECENT_DAYS = 7;      // job list: open jobs + jobs changed in the last 7 days
@@ -259,6 +295,7 @@ function doPost(e) {
       case "adminCheck": return json(isAdmin(req.adminKey) ? { ok: true } : { ok: false, error: "not_admin" });
       case "contactUpdate": return json(isAdmin(req.adminKey) ? updateContact(req.contact) : { ok: false, error: "not_admin" });
       case "contactDelete": return json(isAdmin(req.adminKey) ? deleteContact(req.id) : { ok: false, error: "not_admin" });
+      case "contactImport": return json(isAdmin(req.adminKey) ? importContacts(req.people, req.dept, req.plant) : { ok: false, error: "not_admin" });
       case "contactSettings": return json(isAdmin(req.adminKey) ? saveContactSettings(req.settings) : { ok: false, error: "not_admin" });
       default: return json({ ok: false, error: "unknown_action" });
     }
@@ -562,7 +599,7 @@ function updateContact(input) {
   const sh = contactsSheet();
   const rows = findRows(sh, CONTACT_COLS, "id", input && input.id);
   if (!rows.length) return { ok: false, error: "not_found" };
-  const { contact, errors } = Contacts.check(input);
+  const { contact, errors } = Contacts.check(input, { loose: true }); // the admin may keep an imported contact without plant/surname
   if (errors.length) return { ok: false, error: "invalid", errors };
   const owner = phoneOwner(contact.phone, input.id);
   if (owner) return { ok: false, error: "phone_taken", owner };
@@ -570,6 +607,22 @@ function updateContact(input) {
   const c = { ...contact, id: old.id, created: old.created, updated: Date.now() };
   writeContact(c, rows[0]);
   return { ok: true, contact: c };
+}
+// Admin paste from Excel: only name and phone required; phones already listed are skipped
+function importContacts(list, dept, plant) {
+  const have = {};
+  listContacts().forEach((p) => { have[p.phone] = true; });
+  const added = [], skipped = [];
+  (Array.isArray(list) ? list : []).slice(0, 500).forEach((x, i) => {
+    const { contact, errors } = Contacts.check({ ...x, dept: dept || x.dept || "", plant: plant || x.plant || "" }, { loose: true });
+    if (errors.length) { skipped.push({ row: i + 1, why: errors.join(" · ") }); return; }
+    if (have[contact.phone]) { skipped.push({ row: i + 1, why: `เบอร์ซ้ำ (${contact.first})` }); return; }
+    const t = Date.now() + i;
+    writeContact({ ...contact, id: "c" + t.toString(36) + Math.random().toString(36).slice(2, 6), created: t, updated: t });
+    have[contact.phone] = true;
+    added.push(contact.first);
+  });
+  return { ok: true, added: added.length, skipped };
 }
 function deleteContact(id) {
   const sh = contactsSheet();

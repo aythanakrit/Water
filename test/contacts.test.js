@@ -13,9 +13,9 @@ test("phones: digits only, +66 becomes 0, shown with dashes", () => {
 });
 
 test("check: required name, surname, phone and plant", () => {
-  const ok = C.check({ first: " ธนกฤต ", last: "อริยะ", nick: "กันต์", phone: "081 234 5678", plant: "คลองตัน" });
+  const ok = C.check({ first: " สมศักดิ์ ", last: "อริยะ", nick: "ศักดิ์", phone: "081 234 5678", plant: "คลองตัน" });
   assert.deepEqual(ok.errors, []);
-  assert.equal(ok.contact.first, "ธนกฤต");
+  assert.equal(ok.contact.first, "สมศักดิ์");
   assert.equal(ok.contact.phone, "0812345678");
   assert.equal(C.check({}).errors.length, 4);
 });
@@ -35,9 +35,29 @@ test("org chart: departments and positions in the admin's order, unknown ones af
 });
 
 test("search by name, nickname, plant or part of the phone", () => {
-  const p = { first: "ธนกฤต", last: "อริยะ", nick: "กันต์", phone: "0812345678", plant: "คลองตัน", dept: "ผลิต", pos: "ผู้จัดการฝ่ายผลิต" };
-  assert.equal(C.matches(p, "กันต์"), true);
+  const p = { first: "สมศักดิ์", last: "อริยะ", nick: "ศักดิ์", phone: "0812345678", plant: "คลองตัน", dept: "ผลิต", pos: "ผู้จัดการฝ่ายผลิต" };
+  assert.equal(C.matches(p, "ศักดิ์"), true);
   assert.equal(C.matches(p, "คลองตัน ผลิต"), true);
   assert.equal(C.matches(p, "5678"), true);
   assert.equal(C.matches(p, "บางพลี"), false);
+});
+
+test("paste from Excel: titles dropped, columns found by content, header and blank rows skipped", () => {
+  const text = [
+    "\tPQ Trial Mix Team",
+    "No.\tName\tNickname\tTel.\tEmail.",
+    "1\tคุณทดสอบ ตัวอย่าง\tช่างหนึ่ง\t082-000-0001\tTest.One@example.com",
+    "\tนายสมมุติ นามสกุล\tสอง\t082-000-0002\ttwo@example.com",
+    "\tคุณสาม\tช่างสาม\t082-000-0003\t",
+    "",
+  ].join("\n");
+  const rows = C.parsePaste(text);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows[0], { first: "ทดสอบ", last: "ตัวอย่าง", nick: "ช่างหนึ่ง", phone: "0820000001", email: "Test.One@example.com" });
+  assert.equal(rows[1].first, "สมมุติ");
+  assert.equal(rows[2].last, "");
+  assert.deepEqual(C.check({ ...rows[2], dept: "PQ" }, { loose: true }).errors, []);
+  assert.ok(C.check(rows[2]).errors.length > 0); // self-registration still needs surname and plant
+  assert.equal(C.check({ ...rows[0], plant: "x" }).contact.email, "test.one@example.com");
+  assert.equal(C.splitName("นางสาวสมหญิง รักงาน").first, "สมหญิง");
 });

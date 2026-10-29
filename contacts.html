@@ -59,6 +59,9 @@
   .person b { font-size: 1rem; }
   .person .nick { color: var(--muted); font-weight: 400; }
   .person .meta { font-size: .82rem; color: var(--muted); }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  a.mail { display: inline-flex; align-items: center; text-decoration: none; border: 1px solid var(--line); color: var(--accent);
+           border-radius: 999px; padding: 4px 12px; font-size: .85rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   a.call { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; text-decoration: none; background: var(--ok); color: #fff;
            border-radius: 999px; padding: 4px 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .adminbar { display: flex; gap: 6px; }
@@ -88,6 +91,7 @@
       <label>นามสกุล<input id="last" required></label>
       <label>ชื่อเล่น<input id="nick"></label>
       <label>เบอร์โทร<input id="phone" type="text" class="npad" data-pad="int" inputmode="numeric" maxlength="10" placeholder="0812345678" required></label>
+      <label>อีเมล (ถ้ามี)<input id="email" type="email" inputmode="email" placeholder="name@mconcrete.co.th"></label>
       <label>แพล้น<select id="plant" required></select></label>
       <label>แผนก<select id="dept"></select></label>
       <label>ตำแหน่ง<select id="pos"></select></label>
@@ -114,6 +118,17 @@
     <div id="adminPanel" hidden style="margin-top:10px">
       <p class="msg" style="margin:0 0 8px">แผนกเรียงจากบนลงล่างตามผังองค์กร · ตำแหน่งในแต่ละแผนก บรรทัดละ 1 ตำแหน่ง เรียงจากสูงไปต่ำ · แก้/ลบรายชื่อได้ที่ปุ่มบนการ์ดแต่ละคน</p>
       <div id="deptList"></div>
+      <details id="impBox" style="margin:12px 0">
+        <summary style="cursor:pointer;color:var(--accent)">นำเข้ารายชื่อจาก Excel</summary>
+        <p class="msg" style="margin:8px 0">ใน Excel เลือกแถวรายชื่อ (ชื่อ · ชื่อเล่น · เบอร์ · อีเมล) → คัดลอก → วางในช่องด้านล่าง · ตัดคำนำหน้า คุณ/นาย/นางสาว ให้เอง · เบอร์ที่มีอยู่แล้วจะข้าม</p>
+        <textarea id="impText" rows="6" placeholder="วางจาก Excel ที่นี่"></textarea>
+        <div class="fields" style="margin-top:8px">
+          <label>แผนกของทุกคนที่นำเข้า<select id="impDept"></select></label>
+          <label>แพล้น (ถ้าทุกคนอยู่แพล้นเดียวกัน)<select id="impPlant"></select></label>
+        </div>
+        <p class="msg" id="impPreview" style="margin:8px 0"></p>
+        <div class="row"><button class="b" id="impGo" type="button" disabled>นำเข้า</button><span class="msg" id="impMsg"></span></div>
+      </details>
       <div class="row">
         <button id="deptAdd" type="button">+ เพิ่มแผนก</button>
         <button class="b" id="deptSave" type="button">บันทึกแผนก/ตำแหน่ง</button>
@@ -158,6 +173,7 @@
       people = r.people; settings = r.settings;
       try { localStorage.setItem(CACHE, JSON.stringify({ people, settings, at: Date.now() })); } catch {}
       $("sync").textContent = `รายชื่อทั้งหมด ${people.length} คน`;
+      if (adminKey) fillImport();
     } catch (e) {
       $("sync").textContent = people.length ? `📴 โหลดใหม่ไม่ได้ — แสดงรายชื่อที่จำไว้ในเครื่อง (${people.length} คน)` : "📴 โหลดรายชื่อไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่";
     }
@@ -176,9 +192,10 @@
     $("chart").innerHTML = chart.length ? chart.map((d) => `<section class="dept">
         <h2>${esc(d.dept)} <span>${d.count} คน</span></h2>
         ${d.groups.map((g) => `<div class="pos"><h3>${esc(g.pos)}</h3><div class="people">${g.people.map((p) => `<div class="person">
-            <b>${esc(p.first)} ${esc(p.last)}${p.nick ? ` <span class="nick">(${esc(p.nick)})</span>` : ""}</b>
-            <span class="meta">${esc(p.plant)}</span>
-            <a class="call" href="tel:${esc(Contacts.cleanPhone(p.phone))}" aria-label="โทรหา ${esc(p.first)}">📞 ${esc(Contacts.showPhone(p.phone))}</a>
+            <b>${esc(p.first)}${p.last ? " " + esc(p.last) : ""}${p.nick ? ` <span class="nick">(${esc(p.nick)})</span>` : ""}</b>
+            ${p.plant ? `<span class="meta">${esc(p.plant)}</span>` : ""}
+            <span class="acts"><a class="call" href="tel:${esc(Contacts.cleanPhone(p.phone))}" aria-label="โทรหา ${esc(p.first)}">📞 ${esc(Contacts.showPhone(p.phone))}</a>
+              ${p.email ? `<a class="mail" href="mailto:${esc(p.email)}" title="${esc(p.email)}" aria-label="ส่งอีเมลถึง ${esc(p.first)}">✉️ อีเมล</a>` : ""}</span>
             ${admin ? `<div class="adminbar"><button class="x" data-edit="${esc(p.id)}" type="button">แก้ไข</button><button class="x d" data-del="${esc(p.id)}" type="button">ลบ</button></div>` : ""}
           </div>`).join("")}</div></div>`).join("")}
       </section>`).join("") : `<p class="empty">${people.length ? "ไม่พบรายชื่อที่ค้นหา" : "ยังไม่มีรายชื่อ — กด \"+ ลงทะเบียน\""}</p>`;
@@ -205,7 +222,7 @@
   function openForm(c) {
     editing = c && c.id ? c : null;
     $("regTitle").textContent = editing ? `แก้ไข: ${c.first} ${c.last}` : "ลงทะเบียน";
-    ["first", "last", "nick", "phone"].forEach((k) => { $(k).value = (c && c[k]) || ""; });
+    ["first", "last", "nick", "phone", "email"].forEach((k) => { $(k).value = (c && c[k]) || ""; });
     fillSelects(c || {});
     $("regErr").innerHTML = ""; $("regMsg").textContent = "";
     $("regBox").hidden = false; $("regBox").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -215,7 +232,7 @@
   $("regCancel").addEventListener("click", () => { $("regBox").hidden = true; editing = null; });
   $("regSave").addEventListener("click", async () => {
     const c = Object.fromEntries(Contacts.FIELDS.map((k) => [k, $(k).value]));
-    const { errors } = Contacts.check(c);
+    const { errors } = Contacts.check(c, { loose: !!editing });
     if (errors.length) { $("regErr").innerHTML = `<div class="err">${errors.map(esc).join(" · ")}</div>`; return; }
     if (!SYNC) { $("regErr").innerHTML = `<div class="err">ยังไม่ได้เชื่อม Google Sheets</div>`; return; }
     $("regSave").disabled = true; $("regMsg").textContent = "กำลังบันทึก…"; $("regErr").innerHTML = "";
@@ -241,12 +258,37 @@
     }
   });
 
+  // ---------- admin: import from Excel ----------
+  function fillImport() {
+    const cur = $("impDept").value;
+    $("impDept").innerHTML = `<option value="">— ไม่ระบุ —</option>` + settings.depts.map((d) => `<option${d.name === cur ? " selected" : ""}>${esc(d.name)}</option>`).join("");
+    if (!$("impPlant").options.length) $("impPlant").innerHTML = `<option value="">— ไม่ระบุ —</option>` + PLANTS.map((p) => `<option>${esc(p)}</option>`).join("");
+  }
+  function previewImport() {
+    const rows = Contacts.parsePaste($("impText").value);
+    const have = new Set(people.map((p) => p.phone));
+    const fresh = rows.filter((r) => !have.has(r.phone));
+    $("impPreview").innerHTML = rows.length ? `พบ <b>${rows.length}</b> คน${rows.length - fresh.length ? ` · มีอยู่แล้ว ${rows.length - fresh.length} คน (จะข้าม)` : ""}: ` +
+      rows.slice(0, 6).map((r) => esc(`${r.first}${r.nick ? " (" + r.nick + ")" : ""}`)).join(", ") + (rows.length > 6 ? " …" : "") : "";
+    $("impGo").disabled = !fresh.length;
+  }
+  $("impText").addEventListener("input", previewImport);
+  $("impGo").addEventListener("click", async () => {
+    const rows = Contacts.parsePaste($("impText").value);
+    $("impGo").disabled = true; $("impMsg").textContent = "กำลังนำเข้า…";
+    const r = await api("contactImport", { people: rows, dept: $("impDept").value, plant: $("impPlant").value }).catch(() => ({ ok: false }));
+    if (!r.ok) { $("impMsg").textContent = errText(r); $("impGo").disabled = false; return; }
+    $("impText").value = ""; $("impPreview").textContent = "";
+    await load();
+    $("impMsg").textContent = `นำเข้า ${r.added} คน` + (r.skipped.length ? ` · ข้าม ${r.skipped.length}: ${r.skipped.map((x) => x.why).join(", ")}` : "");
+  });
+
   // ---------- admin ----------
   function showAdmin() {
     const on = !!adminKey;
     $("adminLogin").hidden = on; $("adminPanel").hidden = !on;
     $("adminState").textContent = on ? "อยู่ในโหมดผู้ดูแล" : "";
-    if (on) renderDepts();
+    if (on) { renderDepts(); fillImport(); }
     render();
   }
   function renderDepts() {
@@ -271,7 +313,7 @@
     $("deptMsg").textContent = "กำลังบันทึก…";
     const r = await api("contactSettings", { settings: { depts: readDepts() } }).catch(() => ({ ok: false }));
     if (!r.ok) { $("deptMsg").textContent = errText(r); return; }
-    settings = r.settings; renderDepts(); render(); $("deptMsg").textContent = "บันทึกแล้ว ✓";
+    settings = r.settings; renderDepts(); fillImport(); render(); $("deptMsg").textContent = "บันทึกแล้ว ✓";
   });
   $("adminIn").addEventListener("click", async () => {
     if (!SYNC) { $("adminState").textContent = "ยังไม่ได้เชื่อม Google Sheets"; return; }

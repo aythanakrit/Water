@@ -10,7 +10,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const FIELDS = ["first", "last", "nick", "phone", "plant", "dept", "pos"];
+  const FIELDS = ["first", "last", "nick", "phone", "email", "plant", "dept", "pos"];
   const NO_DEPT = "ยังไม่ระบุแผนก";
   const NO_POS = "ยังไม่ระบุตำแหน่ง";
 
@@ -30,17 +30,53 @@
     return d;
   }
 
-  /** Trimmed fields and a list of what is missing or wrong (Thai messages). */
-  function check(c) {
+  const emailOk = (s) => !s || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+  /**
+   * Trimmed fields and a list of what is missing or wrong (Thai messages).
+   * loose (admin import): only the name and phone are required.
+   */
+  function check(c, { loose } = {}) {
     const o = {};
     FIELDS.forEach((k) => { o[k] = String(c[k] == null ? "" : c[k]).trim().replace(/\s+/g, " "); });
     o.phone = cleanPhone(o.phone);
+    o.email = o.email.toLowerCase();
     const err = [];
     if (!o.first) err.push("ใส่ชื่อ");
-    if (!o.last) err.push("ใส่นามสกุล");
+    if (!o.last && !loose) err.push("ใส่นามสกุล");
     if (!phoneOk(o.phone)) err.push("เบอร์โทรไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)");
-    if (!o.plant) err.push("เลือกแพล้น");
+    if (!emailOk(o.email)) err.push("อีเมลไม่ถูกต้อง");
+    if (!o.plant && !loose) err.push("เลือกแพล้น");
     return { contact: o, errors: err };
+  }
+
+  /** "นายสมชาย ใจดี" → { first: "สมชาย", last: "ใจดี" } (title dropped) */
+  function splitName(s) {
+    const n = String(s || "").trim().replace(/\s+/g, " ").replace(/^(คุณ|นางสาว|นาง|นาย|น\.ส\.|Mr\.?|Mrs\.?|Ms\.?|Miss)\s*/i, "");
+    const i = n.indexOf(" ");
+    return i < 0 ? { first: n, last: "" } : { first: n.slice(0, i), last: n.slice(i + 1) };
+  }
+
+  /**
+   * Rows copied from Excel (tab-separated): name, nickname, phone, e-mail in any order.
+   * A cell with @ is the e-mail, one that is a phone number is the phone, the first other cell is the name,
+   * the next the nickname. Header rows and rows without a phone are skipped.
+   */
+  function parsePaste(text) {
+    return String(text || "").split(/\r?\n/).map((line) => {
+      const cells = line.split("\t").map((c) => c.trim()).filter(Boolean);
+      const o = { first: "", last: "", nick: "", phone: "", email: "" };
+      const rest = [];
+      cells.forEach((c) => {
+        if (!o.email && /@/.test(c)) o.email = c;
+        else if (!o.phone && phoneOk(c) && /^[\d\s+()-]+$/.test(c)) o.phone = cleanPhone(c);
+        else if (!/^\d{1,3}\.?$/.test(c)) rest.push(c); // drop a running number column
+      });
+      if (!o.phone || !rest.length) return null;
+      Object.assign(o, splitName(rest[0]));
+      o.nick = rest[1] || "";
+      return o;
+    }).filter(Boolean);
   }
 
   /** Settings as the admin left them: [{ name, positions: [..] }], cleaned of blanks and repeats. */
@@ -86,9 +122,9 @@
     const s = String(q || "").trim().toLowerCase();
     if (!s) return true;
     const d = digits(s);
-    const hay = [p.first, p.last, p.nick, p.plant, p.dept, p.pos].join(" ").toLowerCase();
+    const hay = [p.first, p.last, p.nick, p.plant, p.dept, p.pos, p.email].join(" ").toLowerCase();
     return s.split(/\s+/).every((w) => hay.includes(w)) || (d.length >= 3 && cleanPhone(p.phone).includes(d));
   }
 
-  return { FIELDS, NO_DEPT, NO_POS, cleanPhone, phoneOk, showPhone, check, cleanSettings, orgChart, matches };
+  return { FIELDS, NO_DEPT, NO_POS, cleanPhone, phoneOk, showPhone, emailOk, check, splitName, parsePaste, cleanSettings, orgChart, matches };
 });

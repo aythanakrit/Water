@@ -261,7 +261,7 @@ test("Trial Mix PDF is mailed only to TRIAL_MAIL_TO, with a daily cap", () => {
 
 test("contacts: anyone registers, phone kept as text and unique; only the admin edits, deletes and sets departments", () => {
   const { call, props, SpreadsheetApp } = load();
-  const me = { first: "ธนกฤต", last: "อริยะ", nick: "กันต์", phone: "081-234-5678", plant: "คลองตัน", dept: "ผลิต", pos: "ผู้จัดการฝ่ายผลิต" };
+  const me = { first: "สมศักดิ์", last: "อริยะ", nick: "ศักดิ์", phone: "081-234-5678", plant: "คลองตัน", dept: "ผลิต", pos: "ผู้จัดการฝ่ายผลิต" };
   const r = call({ action: "contactAdd", contact: me });
   assert.equal(r.ok, true);
   assert.equal(SpreadsheetApp.sheets.Contacts.data[1][4], "0812345678"); // stored as text, 0 kept
@@ -279,4 +279,16 @@ test("contacts: anyone registers, phone kept as text and unique; only the admin 
   assert.deepEqual(call({ action: "contacts" }).settings.depts[0].positions, ["ผจก.", "หัวหน้าแพล้น"]);
   assert.equal(call({ action: "contactDelete", adminKey: "boss", id: r.contact.id }).ok, true);
   assert.equal(call({ action: "contacts" }).people.length, 0);
+});
+
+test("contacts: admin import from a paste skips repeated phones", () => {
+  const { call, props } = load();
+  props.ADMIN_KEY = "boss";
+  const people = [{ first: "ก", phone: "0811111111", email: "a@x.co" }, { first: "ข", last: "ค", phone: "0822222222" }, { first: "ซ้ำ", phone: "0811111111" }, { first: "", phone: "0833333333" }];
+  assert.equal(call({ action: "contactImport", people, dept: "PQ" }).error, "not_admin");
+  const r = call({ action: "contactImport", adminKey: "boss", people, dept: "PQ" });
+  assert.equal(r.added, 2);
+  assert.equal(r.skipped.length, 2);
+  const list = call({ action: "contacts" }).people;
+  assert.deepEqual(list.map((p) => [p.first, p.dept, p.email]), [["ก", "PQ", "a@x.co"], ["ข", "PQ", ""]]);
 });
