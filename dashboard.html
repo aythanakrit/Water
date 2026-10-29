@@ -181,16 +181,16 @@
         <div class="kpi"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b><span>เฉลี่ยผลิต คิว/ชม. (รวม)</span></div>
         <div class="kpi"><b>${min(v.avgTravel)}</b><span>เฉลี่ยเวลาเดินทาง</span></div>
       </div>
-      <h3>1.1 คิวตามเวลาผสม รายแพลนท์</h3>
+      <h3>คิวตามเวลาผสม รายแพลนท์</h3>
       ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l">หน่วยผลิต</th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${plantsT}</tbody></table></div>` : noHours}
-      <h3>1.2 ยอดผลิตรายชั่วโมง</h3>
+      <h3>ยอดผลิตรายชั่วโมง</h3>
       ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l"></th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${totalT}</tbody></table></div>` : noHours}
-      <h3>1.3 เวลาเดินทางเฉลี่ย รายแพลนท์</h3>
+      <h3>เวลาเดินทางเฉลี่ย รายแพลนท์</h3>
       <div class="scroll"><table style="max-width:520px"><thead><tr><th class="l">หน่วยผลิต</th><th>เดินทางเฉลี่ย</th></tr></thead><tbody>${travelT}
         <tr><td class="l"><b>รวม</b></td><td><b>${min(v.avgTravel)}</b></td></tr></tbody></table></div>
-      <h3>2. รถโม่ ${v.trucks.length} คัน · เที่ยวตามเวลาผสม</h3>
+      <h3>รถโม่ ${v.trucks.length} คัน · เที่ยวตามเวลาผสม</h3>
       ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th>ลำดับ</th><th class="l">เบอร์รถ</th><th>เที่ยว</th>${head}</tr></thead><tbody>${trucksT}</tbody></table></div>` : noHours}
-      <h3>3. เที่ยวที่มีหมายเหตุ / ปัญหา (${v.issues.length})</h3>
+      <h3>เที่ยวที่มีหมายเหตุ / ปัญหา (${v.issues.length})</h3>
       <div class="scroll"><table><thead><tr><th class="l">วันที่</th><th class="l">รถ</th><th class="l">D/O</th><th class="l">หน่วยผลิต</th><th class="l">หมายเหตุ</th></tr></thead>
         <tbody>${issuesT || `<tr><td class="empty" colspan="5">ไม่มีหมายเหตุหรือปัญหา</td></tr>`}</tbody></table></div>`;
   }
