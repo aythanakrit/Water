@@ -1,6 +1,6 @@
-// Netlify build step: writes config.js from environment variables so the
+// Build step (Cloudflare Pages / Netlify): writes config.js from environment variables so the
 // Apps Script key is not stored in the repository.
-// Set FIELD_SYNC_URL and FIELD_SYNC_KEY in Netlify → Site configuration → Environment variables.
+// Set FIELD_SYNC_URL and FIELD_SYNC_KEY in the host's environment variables (Cloudflare Pages → Settings → Variables and Secrets).
 const fs = require("fs");
 const path = require("path");
 const url = process.env.FIELD_SYNC_URL || "";
