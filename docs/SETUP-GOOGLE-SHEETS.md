@@ -33,27 +33,34 @@
 
 ---
 
-## ส่วนที่ 2: เอาเว็บขึ้น Netlify (ฟรี)
+## ส่วนที่ 2: เอาเว็บขึ้น Cloudflare Pages (ฟรี)
 
-1. เข้า https://app.netlify.com แล้วกด **Sign up with GitHub** ใช้บัญชี `aythanakrit`
-2. กด **Add new site → Import an existing project → GitHub**
-3. อนุญาตให้ Netlify เข้าถึง repo **Water**
-4. ตั้งค่าการ deploy
-   - Branch to deploy: `claude/capabilities-overview-4oqzvh` (หรือ `main` ถ้ารวม branch แล้ว)
-   - Build command และ Publish directory: ไม่ต้องแก้ (อ่านจาก `netlify.toml` เอง)
-5. ก่อนกด Deploy ให้กด **Add environment variables** แล้วเพิ่ม 2 ตัว
-   - `FIELD_SYNC_URL` = Web app URL จากส่วนที่ 1
+เว็บใช้งานจริง: **https://production-mconcrete.pages.dev** (ย้ายจาก Netlify เมื่อ 29 ต.ค. 2569 เพราะ Netlify แผนฟรีคิดเครดิตทุกครั้งที่ deploy)
+
+1. เข้า https://dash.cloudflare.com → **Workers & Pages** → **Create**
+2. ใต้กล่อง "Make something new" กด **Continue to Pages** (ใช้แบบ Pages ไม่ใช่ Workers) → **Import an existing Git repository** → **Get started**
+3. เชื่อม GitHub แบบ **Only select repositories** → เลือก **Water** → **Begin setup**
+4. ตั้งค่า
+   - Production branch: `claude/capabilities-overview-4oqzvh` (หรือ `main` ถ้ารวม branch แล้ว)
+   - Framework preset: `None`
+   - Build command: `node tools/write-config.js`
+   - Build output directory: เว้นว่าง
+5. **Environment variables (advanced)** → เพิ่ม 2 ตัว (แยกตัวละแถว)
+   - `FIELD_SYNC_URL` = Web app URL จากส่วนที่ 1 (ลงท้าย `/exec` ครั้งเดียว)
    - `FIELD_SYNC_KEY` = ค่า KEY จากส่วนที่ 1
-   (ถ้า deploy ไปแล้ว: Site configuration → Environment variables → Add a variable แล้ว Deploys → Trigger deploy)
-6. กด **Deploy** จะได้ลิงก์ เช่น `https://xxxx.netlify.app` ตั้งชื่อใหม่ได้ที่ Site configuration → Change site name
+6. กด **Save and Deploy**
 
-ต่อจากนี้ทุกครั้งที่ Claude push โค้ดใหม่ Netlify จะอัปเดตเว็บให้เองภายใน 1–2 นาที
+ต่อจากนี้ทุกครั้งที่ Claude push โค้ดใหม่ Cloudflare จะอัปเดตเว็บให้เองภายใน 1–2 นาที
+
+**แก้ค่าตัวแปรภายหลัง:** โปรเจกต์ → **Settings → Variables and Secrets** → ✏️ แก้แถวเดิม (อย่า Add ซ้ำชื่อ) → Save แล้ว **Deployments → ⋯ → Retry deployment** · ตรวจผลที่ `https://production-mconcrete.pages.dev/config.js`
+
+**Netlify เดิม** (`spiffy-meringue-4b49d3.netlify.app`) ตั้ง Stopped builds ไว้ ไม่อัปเดตแล้ว
 
 ---
 
 ## ข้อควรรู้
 
-- **ความปลอดภัย:** ค่า KEY ไม่อยู่ใน GitHub แต่ Netlify จะใส่ไว้ในไฟล์ `config.js` บนเว็บ คนที่มีลิงก์เว็บจึงเขียนข้อมูลลงชีตได้ ให้แชร์ลิงก์เฉพาะในทีม ถ้า KEY หลุด ให้เปลี่ยนค่าใน Script properties และใน Netlify Environment variables ให้ตรงกัน แล้วกด Trigger deploy
+- **ความปลอดภัย:** ค่า KEY ไม่อยู่ใน GitHub แต่ตอน build จะถูกใส่ไว้ในไฟล์ `config.js` บนเว็บ คนที่มีลิงก์เว็บจึงเขียนข้อมูลลงชีตได้ ให้แชร์ลิงก์เฉพาะในทีม ถ้า KEY หลุด ให้เปลี่ยนค่าใน Script properties และใน Cloudflare Pages → Settings → Variables and Secrets ให้ตรงกัน แล้ว Retry deployment
 - **ออฟไลน์:** เน็ตหลุดที่หน้างานก็บันทึกต่อได้ ข้อมูลจะเก็บในเครื่องไว้ก่อน แล้วส่งขึ้นชีตเองเมื่อมีสัญญาณ
 - **D/O ซ้ำจากเครื่องที่ออฟไลน์:** ถ้าสองเครื่องออฟไลน์อยู่และยิงเลขเดียวกัน ชีตจะรับเฉพาะเครื่องที่ส่งถึงก่อน เครื่องที่ส่งทีหลังจะขึ้นกรอบแดงให้แก้
 - **แก้โค้ด Apps Script ภายหลัง:** ต้องกด Deploy → Manage deployments → ✏️ → Version: New version → Deploy ไม่อย่างนั้นเว็บจะยังใช้โค้ดเก่า
