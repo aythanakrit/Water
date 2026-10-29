@@ -168,7 +168,7 @@
     const head = v.columns.map((c) => `<th>${c.date ? esc(dm(c.date)) + "<br>" : ""}${esc(c.label)}</th>`).join("");
     const plantsT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td>${v.columns.map((c) => `<td>${n0(p.byHour[c.key])}</td>`).join("")}
       <td class="sum">${fmt(p.volume)}</td><td class="sum"><b>${p.perHour == null ? "–" : fmt(p.perHour)}</b></td></tr>`).join("");
-    const totalT = `<tr><td class="l"><b>รวมทุกแพลนท์</b></td>${v.columns.map((c) => `<td><b>${n0(v.totalByHour[c.key])}</b></td>`).join("")}
+    const totalT = `<tr><td class="l"><b>รวมทุกแพล้น</b></td>${v.columns.map((c) => `<td><b>${n0(v.totalByHour[c.key])}</b></td>`).join("")}
       <td class="sum"><b>${fmt(v.volume)}</b></td><td class="sum"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b></td></tr>`;
     const travelT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td><td>${min(p.avgTravel)}</td></tr>`).join("");
     const trucksT = v.truckHours.map((t, i) => `<tr><td>${i + 1}</td><td class="l">${esc(t.truck)}</td><td><b>${t.trips}</b></td>
