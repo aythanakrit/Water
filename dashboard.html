@@ -181,11 +181,11 @@
         <div class="kpi"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b><span>เฉลี่ยผลิต คิว/ชม. (รวม)</span></div>
         <div class="kpi"><b>${min(v.avgTravel)}</b><span>เฉลี่ยเวลาเดินทาง</span></div>
       </div>
-      <h3>คิวตามเวลาผสม รายแพลนท์</h3>
+      <h3>ยอดผลิต รายแพล้น</h3>
       ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l">หน่วยผลิต</th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${plantsT}</tbody></table></div>` : noHours}
-      <h3>ยอดผลิตรายชั่วโมง</h3>
+      <h3>ยอดผลิต รายชั่วโมง</h3>
       ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l"></th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${totalT}</tbody></table></div>` : noHours}
-      <h3>เวลาเดินทางเฉลี่ย รายแพลนท์</h3>
+      <h3>เวลาเดินทางเฉลี่ย รายแพล้น</h3>
       <div class="scroll"><table style="max-width:520px"><thead><tr><th class="l">หน่วยผลิต</th><th>เดินทางเฉลี่ย</th></tr></thead><tbody>${travelT}
         <tr><td class="l"><b>รวม</b></td><td><b>${min(v.avgTravel)}</b></td></tr></tbody></table></div>
       <h3>รถโม่ ${v.trucks.length} คัน · เที่ยวตามเวลาผสม</h3>
