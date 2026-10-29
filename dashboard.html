@@ -65,6 +65,13 @@
   table.hours th, table.hours td { text-align: center; }
   table.hours th.l, table.hours td.l { text-align: left; }
   table.hours td.sum, table.hours th.sum { border-left: 1px solid var(--line); }
+  /* long jobs (24 h, many plants): the name column stays in view while the hours scroll */
+  table.hours th:first-child, table.hours td:first-child { position: sticky; left: 0; background: var(--card); z-index: 1; }
+  table.hours th.st, table.hours td.st { width: 3.2em; min-width: 3.2em; }
+  table.hours th.st2, table.hours td.st2 { position: sticky; left: 3.2em; background: var(--card); z-index: 1; }
+  table.hours td.wcell { white-space: nowrap; vertical-align: top; }
+  table.hours td.wcell .win { display: block; margin: 2px 0; }
+  table.hours td:first-child.l { max-width: 12em; white-space: normal; }
 </style>
 </head>
 <body>
@@ -171,8 +178,9 @@
     const totalT = `<tr><td class="l"><b>รวมทุกแพล้น</b></td>${v.columns.map((c) => `<td><b>${n0(v.totalByHour[c.key])}</b></td>`).join("")}
       <td class="sum"><b>${fmt(v.volume)}</b></td><td class="sum"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b></td></tr>`;
     const travelT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td><td>${min(p.avgTravel)}</td></tr>`).join("");
-    const trucksT = v.truckHours.map((t, i) => `<tr><td>${i + 1}</td><td class="l">${esc(t.truck)}</td><td><b>${t.trips}</b></td>
-      ${v.columns.map((c) => `<td>${t.byHour[c.key] || ""}</td>`).join("")}</tr>`).join("");
+    const win = (w) => `<span class="win" title="D/O ${esc(w.do)} · ${esc(w.plant)}">${esc(w.batching || "?")} → ${esc(w.arrival || "?")}</span>`;
+    const trucksT = v.truckHours.map((t, i) => `<tr><td class="st">${i + 1}</td><td class="l st2">${esc(t.truck)}</td><td><b>${t.trips}</b></td>
+      ${v.columns.map((c) => `<td class="wcell">${(t.byHour[c.key] || []).map(win).join("")}</td>`).join("")}</tr>`).join("");
     const issuesT = v.issues.map((i) => `<tr class="issue"><td class="l">${esc(thDate(i.date))}</td><td class="l">${esc(i.truck)}</td><td class="l">${esc(i.do)}</td><td class="l">${esc(i.plant)}</td><td class="wrap">${esc(i.remark)}</td></tr>`).join("");
     const noHours = `<p class="empty">ยังไม่มีเวลาผสม</p>`;
     el.innerHTML = `
@@ -188,8 +196,8 @@
       <h3>เวลาเดินทางเฉลี่ย รายแพล้น</h3>
       <div class="scroll"><table style="max-width:520px"><thead><tr><th class="l">หน่วยผลิต</th><th>เดินทางเฉลี่ย</th></tr></thead><tbody>${travelT}
         <tr><td class="l"><b>รวม</b></td><td><b>${min(v.avgTravel)}</b></td></tr></tbody></table></div>
-      <h3>รถโม่ ${v.trucks.length} คัน · เที่ยวตามเวลาผสม</h3>
-      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th>ลำดับ</th><th class="l">เบอร์รถ</th><th>เที่ยว</th>${head}</tr></thead><tbody>${trucksT}</tbody></table></div>` : noHours}
+      <h3>รถโม่ ${v.trucks.length} คัน · ช่วงเวลา (ผลิต → รถถึง)</h3>
+      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="st">ลำดับ</th><th class="l st2">เบอร์รถ</th><th>เที่ยว</th>${head}</tr></thead><tbody>${trucksT}</tbody></table></div>` : noHours}
       <h3>เที่ยวที่มีหมายเหตุ / ปัญหา (${v.issues.length})</h3>
       <div class="scroll"><table><thead><tr><th class="l">วันที่</th><th class="l">รถ</th><th class="l">D/O</th><th class="l">หน่วยผลิต</th><th class="l">หมายเหตุ</th></tr></thead>
         <tbody>${issuesT || `<tr><td class="empty" colspan="5">ไม่มีหมายเหตุหรือปัญหา</td></tr>`}</tbody></table></div>`;

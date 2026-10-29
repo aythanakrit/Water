@@ -98,14 +98,17 @@
    * runs past midnight keeps going forward: 23:50 → 1430, 00:20 → 1460.
    */
   function onTimeline(trucks, field) {
-    let base = null;
+    // each time is taken relative to the previous truck (in entry/arrival order), so a job of 24 h or more
+    // keeps counting forward instead of folding back at the 12-hour mark
+    let prev = null;
     return trucks.map((t) => {
       const m = clock(t[field]);
       if (m == null) return null;
-      if (base == null) base = m;
-      let d = m - base;
-      if (d < -720) d += 1440; else if (d > 720) d -= 1440;
-      return base + d;
+      if (prev == null) { prev = m; return m; }
+      let d = (m - (prev % 1440) + 1440) % 1440;
+      if (d > 720) d -= 1440;
+      prev += d;
+      return prev;
     });
   }
 
@@ -216,9 +219,11 @@
       perHour: perHour(o.byHour), avgTravel: avg(o.travel) })).sort((a, b) => b.volume - a.volume);
     const allTravel = [].concat(...[...byPlant.values()].map((o) => o.travel));
     const truckHours = [...trucks.values()].map((o) => {
+      // each hour: the trips batched in it, as batching → arrival
       const byHour = {};
       all.filter((r) => (String(r.t.truck || "").trim() || "(ไม่ระบุเลขรถ)") === o.truck && r.b != null)
-        .forEach((r) => { const k = hourKey(r); byHour[k] = (byHour[k] || 0) + 1; });
+        .sort((x, y) => x.b - y.b)
+        .forEach((r) => { const k = hourKey(r); (byHour[k] = byHour[k] || []).push({ batching: r.t.batching || "", arrival: r.t.arrival || "", do: r.t.do, plant: r.plant }); });
       return { truck: o.truck, trips: o.trips, volume: o.volume, byHour };
     }).sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
 

@@ -100,5 +100,17 @@ test("project view by whole hours: plant × hour volume, totals, per-hour averag
   assert.equal(v.perHour, 17); // (14 + 20) ÷ 2
   assert.equal(v.avgTravel, (30 + 40 + 30 + 50) / 4);
   assert.deepEqual(v.truckHours.map((t) => [t.truck, t.trips]), [["7125", 3], ["7126", 1], ["7300", 1]]);
-  assert.deepEqual(v.columns.map((c) => v.truckHours[0].byHour[c.key] || 0), [1, 0, 2]);
+  assert.deepEqual(v.columns.map((c) => (v.truckHours[0].byHour[c.key] || []).map((w) => `${w.batching}→${w.arrival}`)),
+    [["06:10→06:40"], [], ["08:05→08:35", "08:20→09:10"]]);
+});
+
+test("a 24-hour job keeps its hours in order (18:00 … 17:00 next day)", () => {
+  const hh = (m) => `${String(Math.floor((m % 1440) / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const trucks = Array.from({ length: 49 }, (_, i) => ({ do: String(i), truck: String(i % 9), volume: "7", plant: "P" + (i % 15), batching: hh(1080 + i * 30), arrival: hh(1110 + i * 30) }));
+  const v = D.projectView([{ id: "x", status: "done", header: { project: "24h", date: "2026-10-29" }, trucks }], "24h");
+  assert.equal(v.columns.length, 25);
+  assert.equal(v.columns[0].label, "18:00");
+  assert.equal(v.columns[24].label, "18:00");
+  assert.equal(v.plantHours.length, 15);
+  assert.equal(Object.values(v.totalByHour).reduce((a, b) => a + b, 0), 49 * 7);
 });
