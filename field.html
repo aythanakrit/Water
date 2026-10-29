@@ -763,5 +763,6 @@
   const open = db.jobs.filter((j) => j.status === "open");
   if (open.length === 1) $("listMsg").textContent = `มีงานที่ยังบันทึกไม่จบ: ${open[0].header.project || "(ไม่มีชื่อ)"}`;
 </script>
+<script src="topbar.js"></script>
 </body>
 </html>

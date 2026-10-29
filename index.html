@@ -10,42 +10,56 @@
 <title>Production BY ช่างกันต์</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-  /* Layout: header + grid of tool cards; one list (TOOLS) drives the cards */
+  /* Home: grouped list of tools (icon colour = group) with ⭐ favourites pinned on top. One list (GROUPS) drives it. */
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
-    --accent: #1f5fbf; --chip: #e8eefa;
+    --accent: #1f5fbf; --chip: #e8eefa; --star: #d99a00;
+    --g-calc: #3b6fd8; --g-qc: #1f9d6b; --g-site: #d9822b; --g-soon: #7b61c9;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
-      --accent: #6fa3ff; --chip: #23314a; color-scheme: dark; }
+      --accent: #6fa3ff; --chip: #23314a; --star: #f2c66d; color-scheme: dark; }
   }
   :root[data-theme="dark"] {
     --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
-    --accent: #6fa3ff; --chip: #23314a; color-scheme: dark; }
+    --accent: #6fa3ff; --chip: #23314a; --star: #f2c66d; color-scheme: dark; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
-  main { max-width: 960px; margin: 0 auto; padding-block: 28px 48px;
+  main { max-width: 760px; margin: 0 auto; padding-block: 24px 48px;
          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   h1 { font-size: 1.5rem; margin: 0 0 4px; text-wrap: balance; }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
-  .head .sub { margin: 0; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  .sub { color: var(--muted); margin: 0; }
   .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex: none; border: 2px solid var(--line); }
-  .sub { color: var(--muted); margin: 0 0 24px; }
-  h2 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 28px; }
-  .tool { display: flex; flex-direction: column; gap: 6px; background: var(--card); border: 1px solid var(--line);
-          border-radius: 10px; padding: 16px; color: inherit; text-decoration: none; min-width: 0; }
-  a.tool:hover, a.tool:focus-visible { border-color: var(--accent); outline: none; }
-  a.tool:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
-  .tool b { font-size: 1.05rem; }
-  .tool p { margin: 0; color: var(--muted); font-size: .9rem; }
-  .ref { align-self: flex-start; font-size: .75rem; background: var(--chip); color: var(--accent); border-radius: 999px; padding: 1px 9px; }
-  .tool.soon { opacity: .6; border-style: dashed; }
-  .tool.soon .ref { background: transparent; color: var(--muted); border: 1px solid var(--line); }
-  .go { margin-top: auto; padding-top: 6px; color: var(--accent); font-size: .9rem; }
-  footer { font-size: 1.05rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+  h2 { font-size: .82rem; letter-spacing: .04em; color: var(--muted); margin: 20px 0 8px; font-weight: 600; }
+  /* icon: coloured square by group, white line icon */
+  .ic { width: 42px; height: 42px; flex: none; border-radius: 11px; display: grid; place-items: center; color: #fff; }
+  .ic svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .calc .ic { background: var(--g-calc); } .qc .ic { background: var(--g-qc); } .site .ic { background: var(--g-site); } .soon .ic { background: var(--g-soon); }
+  /* favourites */
+  .fav { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .fav a { display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+           padding: 12px; color: inherit; text-decoration: none; min-height: 104px; }
+  .fav a b { font-size: .95rem; line-height: 1.3; }
+  .hint { color: var(--muted); font-size: .88rem; background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; margin: 0; }
+  /* grouped list */
+  .list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .it { display: flex; align-items: center; border-top: 1px solid var(--line); }
+  .it:first-child { border-top: 0; }
+  .it a, .it .txt { flex: 1; min-width: 0; display: flex; gap: 12px; align-items: center; padding: 11px 6px 11px 12px; color: inherit; text-decoration: none; min-height: 64px; }
+  .it .t { min-width: 0; }
+  .it b { display: block; font-size: 1rem; }
+  .it small { display: block; color: var(--muted); font-size: .85rem; }
+  .it .go { margin-left: auto; color: var(--muted); font-size: 1.4rem; padding-left: 6px; }
+  .it a:hover b, .it a:focus-visible b { color: var(--accent); }
+  .it a:focus-visible, .star:focus-visible, .fav a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .star { flex: none; width: 52px; align-self: stretch; border: 0; background: transparent; color: var(--muted); font-size: 1.35rem; cursor: pointer; }
+  .star[aria-pressed="true"] { color: var(--star); }
+  .soon .it { opacity: .55; }
+  .soon small { font-style: italic; }
+  footer { font-size: 1.05rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; margin-top: 24px; }
 </style>
 </head>
 <body>
@@ -58,56 +72,77 @@
     <img class="avatar" src="icons/icon-192.png" alt="ช่างกันต์">
   </div>
 
-  <h2>พร้อมใช้งาน</h2>
-  <div class="grid" id="ready"></div>
-
-  <h2>กำลังพัฒนา</h2>
-  <div class="grid" id="soon"></div>
+  <h2>⭐ ใช้บ่อย</h2>
+  <div id="fav"></div>
+  <div id="groups"></div>
 
   <footer>หากสงสัยวิธีใช้งาน สอบถามได้ครับ</footer>
 </main>
 
 <script>
-  // Add a tool: append one entry.
-  const TOOLS = [
-    { title: "Mix Design คอนกรีต", ref: "ACI 211.1",
-      desc: "ออกแบบสัดส่วนผสม พร้อม fly ash และน้ำยา",
-      href: "mix-design.html" },
-    { title: "Mix Rev. Design", ref: "ปรับสูตรหน้างาน",
-      desc: "ปรับปูนหน้างาน คำนวณน้ำยาต่อเที่ยวโหลด",
-      href: "dose.html" },
-    { title: "คำนวณผลกดลูกปูน", ref: "kN ↔ ksc",
-      desc: "แปลง kN ↔ ksc ↔ MPa",
-      href: "convert.html" },
-    { title: "ตรวจสอบผลกดลูกปูน Coring", ref: "ACI 318 · ASTM C42",
-      desc: "ตรวจผลกด core ผ่าน/ไม่ผ่าน",
-      href: "core.html" },
-    { title: "ใบรายงานสนาม", ref: "FM-PQ-10",
-      desc: "บันทึกรถหน้างาน สแกน D/O ออก PDF",
-      href: "field.html" },
-    { title: "Dashboard การส่งคอนกรีต", ref: "รายโครงการ",
-      desc: "สรุปคิว รถโม่ และปัญหารายโครงการ",
-      href: "dashboard.html" },
-    { title: "ปริมาตรคอนกรีต", ref: "m³ + เผื่อสูญเสีย",
-      desc: "คิดคิวจากขนาดงาน พร้อมเหตุผลที่เผื่อ",
-      href: "volume.html" },
-    { title: "Trial Mix", ref: "Slump loss 0–180 นาที",
-      desc: "บันทึก slump อุณหภูมิ unit weight ออก PDF",
-      href: "trial.html" },
-  ];
-  // Cards being built (no link yet): move an entry into TOOLS with its href when it is ready.
-  const SOON = [
-    { title: "รายชื่อผู้ติดต่อ Demo", ref: "กดโทรได้ทันที", desc: "ลงทะเบียนครั้งเดียว ทุกคนเห็น เรียงตามแผนก/ตำแหน่ง" },
-    { title: "Checklist เครื่องจักรประจำวัน", ref: "ตรวจเช็คแพล้น", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" },
-    { title: "Checklist รถตักประจำวัน", ref: "ตรวจเช็ครถตัก", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" },
+  // Line icons (24×24, stroke)
+  const ICON = {
+    flask: '<path d="M9 3h6M10 3v6L4.5 18.5A1.8 1.8 0 0 0 6 21h12a1.8 1.8 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>',
+    wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+    cube: '<path d="M12 3 3 7.5v9L12 21l9-4.5v-9z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+    press: '<rect x="5" y="3" width="14" height="4" rx="1"/><path d="M12 7v3"/><rect x="8" y="10" width="8" height="8" rx="1"/><path d="M4 21h16"/>',
+    core: '<ellipse cx="12" cy="5" rx="5" ry="2"/><path d="M7 5v14c0 1.1 2.2 2 5 2s5-.9 5-2V5"/><path d="M7 12c0 1.1 2.2 2 5 2s5-.9 5-2"/>',
+    timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4"/>',
+    truck: '<path d="M2 6h11v10H2zM13 9h4l4 4v3h-8"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
+    chart: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+    factory: '<path d="M3 21V10l5 3V10l5 3V5h4v16z"/><path d="M3 21h18M7 17h2M12 17h2"/>',
+    loader: '<path d="M3 17h10v-5H7l-2 5M13 12h3l3 3v2h-6"/><circle cx="6" cy="18.5" r="1.5"/><circle cx="16" cy="18.5" r="1.5"/><path d="M19 15l2-6h-3"/>',
+  };
+  // Add a tool: one entry in its group (no href = still being built, shown greyed in กำลังพัฒนา)
+  const GROUPS = [
+    { key: "calc", name: "ออกแบบ / คำนวณสูตร", tools: [
+      { icon: "flask", title: "Mix Design คอนกรีต", desc: "ออกแบบสัดส่วนผสม พร้อม fly ash และน้ำยา", href: "mix-design.html" },
+      { icon: "wrench", title: "Mix Rev. Design", desc: "ปรับปูนหน้างาน คำนวณน้ำยาต่อเที่ยวโหลด", href: "dose.html" },
+      { icon: "cube", title: "ปริมาตรคอนกรีต", desc: "คิดคิวจากขนาดงาน พร้อมเหตุผลที่เผื่อ", href: "volume.html" } ] },
+    { key: "qc", name: "QC / ทดสอบ", tools: [
+      { icon: "press", title: "คำนวณผลกดลูกปูน", desc: "แปลง kN ↔ ksc ↔ MPa", href: "convert.html" },
+      { icon: "core", title: "ตรวจสอบผลกดลูกปูน Coring", desc: "ตรวจผลกด core ผ่าน/ไม่ผ่าน", href: "core.html" },
+      { icon: "timer", title: "Trial Mix", desc: "บันทึก slump อุณหภูมิ unit weight ออก PDF", href: "trial.html" } ] },
+    { key: "site", name: "หน้างาน / การส่ง", tools: [
+      { icon: "truck", title: "ใบรายงานสนาม", desc: "บันทึกรถหน้างาน สแกน D/O ออก PDF", href: "field.html" },
+      { icon: "chart", title: "Dashboard การส่งคอนกรีต", desc: "สรุปคิว รถโม่ และปัญหารายโครงการ", href: "dashboard.html" } ] },
+    { key: "soon", name: "กำลังพัฒนา", tools: [
+      { icon: "user", title: "รายชื่อผู้ติดต่อ Demo", desc: "ลงทะเบียนครั้งเดียว ทุกคนเห็น เรียงตามแผนก/ตำแหน่ง" },
+      { icon: "factory", title: "Checklist เครื่องจักรประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" },
+      { icon: "loader", title: "Checklist รถตักประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" } ] },
   ];
 
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const card = (t) => t.href
-    ? `<a class="tool" href="${esc(t.href)}"><span class="ref">${esc(t.ref)}</span><b>${esc(t.title)}</b><p>${esc(t.desc)}</p><span class="go">เปิดโปรแกรม →</span></a>`
-    : `<div class="tool soon"><span class="ref">${esc(t.ref)}</span><b>${esc(t.title)}</b><p>${esc(t.desc)}</p></div>`;
-  document.getElementById("ready").innerHTML = TOOLS.filter((t) => t.href).map(card).join("");
-  document.getElementById("soon").innerHTML = SOON.map(card).join("");
+  const svg = (k) => `<span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg></span>`;
+  // favourites: per device (this browser), in the order they were starred
+  const FAV = "home-favourites";
+  let favs = [];
+  try { favs = JSON.parse(localStorage.getItem(FAV)) || []; } catch {}
+  const saveFavs = () => { try { localStorage.setItem(FAV, JSON.stringify(favs)); } catch {} };
+  const tools = GROUPS.flatMap((g) => g.tools.map((t) => ({ ...t, group: g.key })));
+
+  function render() {
+    const pinned = favs.map((h) => tools.find((t) => t.href === h)).filter(Boolean);
+    document.getElementById("fav").innerHTML = pinned.length
+      ? `<div class="fav">${pinned.map((t) => `<a class="${t.group}" href="${esc(t.href)}">${svg(t.icon)}<b>${esc(t.title)}</b></a>`).join("")}</div>`
+      : `<p class="hint">กด ☆ ท้ายการ์ดด้านล่าง เพื่อปักการ์ดที่ใช้บ่อยไว้ตรงนี้ (จำแยกแต่ละเครื่อง)</p>`;
+    document.getElementById("groups").innerHTML = GROUPS.map((g) => `<h2>${esc(g.name)}</h2><div class="list ${g.key}">${g.tools.map((t) => {
+      const body = `${svg(t.icon)}<span class="t"><b>${esc(t.title)}</b><small>${esc(t.href ? t.desc : "เร็ว ๆ นี้ · " + t.desc)}</small></span>`;
+      if (!t.href) return `<div class="it"><span class="txt">${body}</span></div>`;
+      const on = favs.includes(t.href);
+      return `<div class="it"><a href="${esc(t.href)}">${body}<span class="go" aria-hidden="true">›</span></a>
+        <button class="star" type="button" data-fav="${esc(t.href)}" aria-pressed="${on}" aria-label="${on ? "เอาออกจากใช้บ่อย" : "ปักไว้ใช้บ่อย"}: ${esc(t.title)}">${on ? "★" : "☆"}</button></div>`;
+    }).join("")}</div>`).join("");
+  }
+  document.getElementById("groups").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-fav]"); if (!b) return;
+    const h = b.dataset.fav;
+    favs = favs.includes(h) ? favs.filter((x) => x !== h) : favs.concat(h);
+    saveFavs(); render();
+    const again = document.querySelector(`[data-fav="${CSS.escape(h)}"]`); if (again) again.focus();
+  });
+  render();
 </script>
 </body>
 </html>
