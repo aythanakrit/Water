@@ -58,6 +58,13 @@
   .issue { color: var(--bad); }
   @media (max-width: 600px) { td.wins, td.wrap { min-width: 9em; } .win { white-space: normal; } th, td { padding: 6px 5px; } }
   h3 { font-size: .92rem; margin: 16px 0 6px; }
+  .kpis { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; min-width: 150px; }
+  .kpi b { display: block; font-size: 1.2rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: .78rem; color: var(--muted); }
+  table.hours th, table.hours td { text-align: center; }
+  table.hours th.l, table.hours td.l { text-align: left; }
+  table.hours td.sum, table.hours th.sum { border-left: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -156,20 +163,33 @@
     if (!name) { el.innerHTML = `<div class="empty">ไม่มีโครงการในช่วงวันที่นี้</div>`; return; }
     const v = Dashboard.projectView(jobs, name, { from: $("from").value, to: $("to").value });
     const dm = (d) => (d ? thDate(d).slice(0, -3) + " " : "");
-    const plantsT = v.plants.map((p) => `<tr><td class="l">${esc(dm(p.date))}${esc(p.plant)}</td><td>${fmt(p.volume)}</td><td><b>${p.rate == null ? "–" : fmt(p.rate)}</b></td><td>${p.trips}</td>
-      <td>${p.first ? `${p.first} – ${p.last}` : "–"}</td></tr>`).join("");
-    const hourT = v.hourly.map((h) => `<tr><td class="l">${esc(dm(h.date))}${esc(h.label)}</td>${v.plantNames.map((p) => `<td>${h.byPlant[p] ? fmt(h.byPlant[p]) : ""}</td>`).join("")}<td><b>${fmt(h.total)}</b></td></tr>`).join("");
-    const win = (w) => `<span class="win" title="D/O ${esc(w.do)} · ${esc(w.plant)}">${v.multiDay ? esc(dm(w.date)) : ""}${esc(w.batching || "?")} → ${esc(w.arrival || "?")}</span>`;
-    const trucksT = v.trucks.map((t) => `<tr><td class="l">${esc(t.truck)}</td><td>${t.trips}</td><td>${fmt(t.volume)}</td><td class="wins">${t.windows.map(win).join("")}</td></tr>`).join("");
+    const n0 = (x) => (x ? fmt(x) : "");
+    const min = (x) => (x == null ? "–" : `${Math.round(x)} นาที`);
+    const head = v.columns.map((c) => `<th>${c.date ? esc(dm(c.date)) + "<br>" : ""}${esc(c.label)}</th>`).join("");
+    const plantsT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td>${v.columns.map((c) => `<td>${n0(p.byHour[c.key])}</td>`).join("")}
+      <td class="sum">${fmt(p.volume)}</td><td class="sum"><b>${p.perHour == null ? "–" : fmt(p.perHour)}</b></td></tr>`).join("");
+    const totalT = `<tr><td class="l"><b>รวมทุกแพลนท์</b></td>${v.columns.map((c) => `<td><b>${n0(v.totalByHour[c.key])}</b></td>`).join("")}
+      <td class="sum"><b>${fmt(v.volume)}</b></td><td class="sum"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b></td></tr>`;
+    const travelT = v.plantHours.map((p) => `<tr><td class="l">${esc(p.plant)}</td><td>${min(p.avgTravel)}</td></tr>`).join("");
+    const trucksT = v.truckHours.map((t, i) => `<tr><td>${i + 1}</td><td class="l">${esc(t.truck)}</td><td><b>${t.trips}</b></td>
+      ${v.columns.map((c) => `<td>${t.byHour[c.key] || ""}</td>`).join("")}</tr>`).join("");
     const issuesT = v.issues.map((i) => `<tr class="issue"><td class="l">${esc(thDate(i.date))}</td><td class="l">${esc(i.truck)}</td><td class="l">${esc(i.do)}</td><td class="l">${esc(i.plant)}</td><td class="wrap">${esc(i.remark)}</td></tr>`).join("");
+    const noHours = `<p class="empty">ยังไม่มีเวลาผสม</p>`;
     el.innerHTML = `
       <div class="proj-head"><b>${esc(v.project)}</b><span>${fmt(v.volume)} คิว · ${v.trips} เที่ยว · รถโม่ ${v.trucks.length} คัน · ${v.jobs} งาน</span></div>
-      <h3>1. แต่ละแพลนท์ผลิต</h3>
-      <div class="scroll"><table><thead><tr><th class="l">หน่วยผลิต</th><th>คิว</th><th>คิว/ชม.</th><th>เที่ยว</th><th>ช่วงเวลาผลิต</th></tr></thead><tbody>${plantsT}</tbody></table></div>
-      <p class="note">คิว/ชั่วโมง = ปริมาณ ÷ ช่วงเวลาผลิตของแพลนท์นั้น (นับจากเวลาผลิตคันแรกถึงคันสุดท้าย บวกระยะห่างเฉลี่ยอีก 1 ช่วง) · ต้องมีอย่างน้อย 2 เที่ยวที่กรอกเวลาผลิต</p>
-      <div class="scroll"><table><thead><tr><th class="l">ชั่วโมง (เวลาผลิต)</th>${v.plantNames.map((p) => `<th>${esc(p)}</th>`).join("")}<th>รวม</th></tr></thead><tbody>${hourT || `<tr><td class="empty">ยังไม่มีเวลาผลิต</td></tr>`}</tbody></table></div>
-      <h3>2. รถโม่ ${v.trucks.length} คัน</h3>
-      <div class="scroll"><table><thead><tr><th class="l">รถ</th><th>เที่ยว</th><th>คิว</th><th class="l">ช่วงเวลา (ผลิต → รถถึง)</th></tr></thead><tbody>${trucksT}</tbody></table></div>
+      <div class="kpis">
+        <div class="kpi"><b>${v.perHour == null ? "–" : fmt(v.perHour)}</b><span>เฉลี่ยผลิต คิว/ชม. (รวม)</span></div>
+        <div class="kpi"><b>${min(v.avgTravel)}</b><span>เฉลี่ยเวลาเดินทาง</span></div>
+      </div>
+      <h3>1.1 คิวตามเวลาผสม รายแพลนท์</h3>
+      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l">หน่วยผลิต</th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${plantsT}</tbody></table></div>` : noHours}
+      <h3>1.2 ยอดผลิตรายชั่วโมง</h3>
+      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th class="l"></th>${head}<th class="sum">รวม</th><th class="sum">เฉลี่ย/ชม.</th></tr></thead><tbody>${totalT}</tbody></table></div>` : noHours}
+      <h3>1.3 เวลาเดินทางเฉลี่ย รายแพลนท์</h3>
+      <div class="scroll"><table style="max-width:520px"><thead><tr><th class="l">หน่วยผลิต</th><th>เดินทางเฉลี่ย</th></tr></thead><tbody>${travelT}
+        <tr><td class="l"><b>รวม</b></td><td><b>${min(v.avgTravel)}</b></td></tr></tbody></table></div>
+      <h3>2. รถโม่ ${v.trucks.length} คัน · เที่ยวตามเวลาผสม</h3>
+      ${v.columns.length ? `<div class="scroll"><table class="hours"><thead><tr><th>ลำดับ</th><th class="l">เบอร์รถ</th><th>เที่ยว</th>${head}</tr></thead><tbody>${trucksT}</tbody></table></div>` : noHours}
       <h3>3. เที่ยวที่มีหมายเหตุ / ปัญหา (${v.issues.length})</h3>
       <div class="scroll"><table><thead><tr><th class="l">วันที่</th><th class="l">รถ</th><th class="l">D/O</th><th class="l">หน่วยผลิต</th><th class="l">หมายเหตุ</th></tr></thead>
         <tbody>${issuesT || `<tr><td class="empty" colspan="5">ไม่มีหมายเหตุหรือปัญหา</td></tr>`}</tbody></table></div>`;

@@ -179,6 +179,49 @@
     const truckRows = [...trucks.values()].map((o) => ({ ...o, windows: o.windows.sort((a, b) => a.sortKey.localeCompare(b.sortKey)) }))
       .sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
 
+    // whole-hour columns by batching time (06:00, 07:00 …), continuous from the first to the last hour of each day
+    const hourKey = (r) => `${r.date}|${String(Math.floor(r.b / 60)).padStart(5, "0")}`;
+    const span2 = {};
+    all.forEach((r) => {
+      if (r.b == null) return;
+      const h = Math.floor(r.b / 60), d = span2[r.date] || (span2[r.date] = [h, h]);
+      d[0] = Math.min(d[0], h); d[1] = Math.max(d[1], h);
+    });
+    const columns = [];
+    Object.keys(span2).sort().forEach((d) => {
+      for (let h = span2[d][0]; h <= span2[d][1]; h++) {
+        columns.push({ key: `${d}|${String(h).padStart(5, "0")}`, date: multiDay ? d : "", label: hhmm(h * 60) });
+      }
+    });
+    const travelOf = (r) => {
+      if (FieldReport.timeAlerts(r.t).some((x) => x.text.startsWith("ตรวจเวลา"))) return null;
+      return span(clock(r.t.batching), clock(r.t.arrival));
+    };
+    const byPlant = new Map();
+    const totalByHour = {};
+    all.forEach((r) => {
+      if (!byPlant.has(r.plant)) byPlant.set(r.plant, { plant: r.plant, volume: 0, trips: 0, byHour: {}, travel: [] });
+      const o = byPlant.get(r.plant);
+      o.volume += r.volume; o.trips++;
+      const tr = travelOf(r);
+      if (tr != null) o.travel.push(tr);
+      if (r.b == null) return;
+      const k = hourKey(r);
+      o.byHour[k] = (o.byHour[k] || 0) + r.volume;
+      totalByHour[k] = (totalByHour[k] || 0) + r.volume;
+    });
+    // m³ per hour = average over the hours that plant actually batched
+    const perHour = (m) => { const xs = Object.values(m).filter((x) => x > 0); return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null; };
+    const plantHours = [...byPlant.values()].map((o) => ({ plant: o.plant, volume: o.volume, trips: o.trips, byHour: o.byHour,
+      perHour: perHour(o.byHour), avgTravel: avg(o.travel) })).sort((a, b) => b.volume - a.volume);
+    const allTravel = [].concat(...[...byPlant.values()].map((o) => o.travel));
+    const truckHours = [...trucks.values()].map((o) => {
+      const byHour = {};
+      all.filter((r) => (String(r.t.truck || "").trim() || "(ไม่ระบุเลขรถ)") === o.truck && r.b != null)
+        .forEach((r) => { const k = hourKey(r); byHour[k] = (byHour[k] || 0) + 1; });
+      return { truck: o.truck, trips: o.trips, volume: o.volume, byHour };
+    }).sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
+
     const issues = all.map((r) => ({ date: r.date, truck: r.t.truck, do: r.t.do, plant: r.plant,
       remark: FieldReport.remarkWithAlerts(r.t), alerts: FieldReport.timeAlerts(r.t), typed: String(r.t.remark || "").trim() }))
       .filter((x) => x.remark);
@@ -186,6 +229,7 @@
     return {
       project, multiDay, jobs: picked.length, volume: all.reduce((s, r) => s + r.volume, 0), trips: all.length,
       plants: plantRows, hourly, plantNames: [...new Set(plantRows.map((p) => p.plant))], trucks: truckRows, issues,
+      columns, plantHours, totalByHour, perHour: perHour(totalByHour), avgTravel: avg(allTravel), truckHours,
     };
   }
 
