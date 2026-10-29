@@ -195,9 +195,36 @@
     });
   }
 
-  /** Attach to a page once (call before the page sets any date values). Fields added later work too. */
+  /** A browser number field becomes a pad field: whole numbers when its step is a whole number, else decimals. */
+  function fromNumber(el) {
+    if (el.type !== "number" || el.classList.contains("npad")) return;
+    const step = el.getAttribute("step");
+    const whole = step && step !== "any" && /^\d+$/.test(step);
+    const v = el.value;
+    el.type = "text"; el.classList.add("npad");
+    el.dataset.pad = whole ? "int" : "dec";
+    el.setAttribute("inputmode", whole ? "numeric" : "decimal");
+    el.setAttribute("autocomplete", "off");
+    el.value = v;
+  }
+  function convertAll(root) {
+    if (!root.querySelectorAll) return;
+    if (root.matches && root.matches('input[type="number"]')) fromNumber(root);
+    root.querySelectorAll('input[type="number"]').forEach(fromNumber);
+    if (root.matches && root.matches("input.dth")) enhanceDate(root);
+    root.querySelectorAll("input.dth").forEach(enhanceDate);
+  }
+
+  /**
+   * Attach to a page once. Number fields (also ones the page adds later) get the pad;
+   * call it before the page sets any date values.
+   */
   function bind(doc) {
-    doc.querySelectorAll("input.dth").forEach(enhanceDate);
+    if (doc._numpad) return;
+    doc._numpad = true;
+    convertAll(doc);
+    new doc.defaultView.MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach(convertAll)))
+      .observe(doc.body, { childList: true, subtree: true });
     keypad(doc);
     // capture phase, so the page's own listeners already see the tidied value
     doc.addEventListener("input", (e) => {
