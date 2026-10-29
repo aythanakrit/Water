@@ -80,6 +80,8 @@
   .note { font-size: .82rem; color: var(--muted); }
   .saved { font-size: .8rem; color: var(--muted); }
   .confirm { color: var(--bad); font-size: .85rem; }
+  input.t24 { font-variant-numeric: tabular-nums; }
+  input.bad-time { border-color: var(--bad); outline: 1px solid var(--bad); }
   /* Printed page: replica of the FM-PQ-10 Excel sheet "1-15" (A4 landscape, columns B–U) */
   #print { position: fixed; left: -10000px; top: 0; }
   .pg { width: 1123px; height: 794px; padding: 34px 30px; background: #fff; color: #000; font: 12px/1.15 "Sarabun", sans-serif; }
@@ -162,7 +164,7 @@
           <span class="doin"><input id="newDO" inputmode="numeric" autocomplete="off" placeholder="0372610040130">
             <button class="g" id="scanBtn" type="button">📷 สแกน</button></span></label>
         <label>Truck No.<input id="newTruck" inputmode="numeric" autocomplete="off"></label>
-        <label>เวลาผสม<input id="newBatch" type="time"></label>
+        <label>เวลาผสม<input id="newBatch" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off"></label>
         <label>Volume (m³)<input id="newVol" type="number" inputmode="decimal" step="0.5"></label>
         <button class="b" id="addTruck" type="button">บันทึกรถ</button>
       </div>
@@ -200,6 +202,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="time24.js"></script>
 <script src="fieldreport.js"></script>
 <script src="fieldsync.js"></script>
 <script src="config.js"></script>
@@ -481,7 +484,7 @@
     const t = FieldReport.newTruck(job.trucks[job.trucks.length - 1]);
     t.id = FieldSync.newId("t"); t.created = t.updated = Date.now();
     t.do = d; t.truck = $("newTruck").value.trim(); t.volume = $("newVol").value || t.volume;
-    t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM(); t.batching = $("newBatch").value;
+    t.plant = FieldReport.plantFromDO(d).name; t.arrival = FieldReport.nowHHMM(); t.batching = Time24.normalize($("newBatch").value) || "";
     job.trucks.push(t); job.trucks = FieldSync.sortTrucks(job.trucks); touch();
     $("newDO").value = ""; $("newTruck").value = ""; $("newBatch").value = ""; $("addWarn").innerHTML = "";
     renderJob(); $("newDO").focus();
@@ -597,7 +600,7 @@
       <div id="doErr"></div>
       ${w.length ? `<div class="${hit ? "err" : "warn"}"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : ""}
       <div class="times" style="margin-top:12px">${F_TIME.map(([k, l]) => `<label>${l}<span class="tin">
-        <input type="time" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
+        <input type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
       <div id="timeAlerts"></div>
       <div class="fields" style="margin-top:12px">${F_MORE.map(inp).join("")}</div>
       <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะต่อท้ายหมายเหตุให้เองในรายการและใน PDF (ไม่ต้องพิมพ์เอง)</p>
@@ -754,6 +757,7 @@
   });
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
+  Time24.bind(document);
   showList();
   if (SYNC) syncNow().then(pull);
   const open = db.jobs.filter((j) => j.status === "open");

@@ -72,6 +72,8 @@
   .saved { font-size: .8rem; color: var(--muted); }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 12px; font-size: .88rem; margin-top: 8px; }
   .confirm { color: var(--bad); font-size: .85rem; }
+  input.t24 { font-variant-numeric: tabular-nums; }
+  input.bad-time { border-color: var(--bad); outline: 1px solid var(--bad); }
   .slots { display: grid; gap: 8px; }
   .slot { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .slot .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -202,6 +204,7 @@
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="time24.js"></script>
 <script src="trialmix.js"></script>
 <script src="config.js"></script>
 <script>
@@ -409,7 +412,7 @@
         <tr><th>Air</th><th>Con.</th><th>Cone</th><th>Flow</th></tr></thead><tbody>` +
       trial.rows.map((r, i) => `<tr>
         <td class="no">${i + 1}</td><td class="m">${r.min}<br>Min</td>
-        <td><span class="tin"><input data-r="${i}" data-k="time" type="time" value="${esc(r.time)}"><button class="g" data-now="${i}" type="button">ตอนนี้</button></span>
+        <td><span class="tin"><input data-r="${i}" data-k="time" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off" value="${esc(r.time)}"><button class="g" data-now="${i}" type="button">ตอนนี้</button></span>
           <span class="loss" data-plan="${i}"></span></td>
         <td>${cell(i, "air")}</td><td>${cell(i, "con")}</td>
         <td>${cell(i, "cone")}<span class="loss" data-loss="cone${i}"></span></td>
@@ -564,6 +567,7 @@
   $("mail").addEventListener("click", () => runPdf(true));
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && trial) persist(); });
+  Time24.bind(document);
   showList();
 </script>
 </body>
