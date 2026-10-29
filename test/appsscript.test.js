@@ -84,6 +84,7 @@ function load() {
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../fieldsync.js"), "utf8"), ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../contacts.js"), "utf8"), ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../apps-script/Code.gs"), "utf8"), ctx);
   const call = (body) => { ctx.SHEETS = null; return ctx.doPost({ postData: { contents: JSON.stringify({ key: "secret", ...body }) } }); };
   vm.runInContext("var __reset = () => { SHEETS = null; };", ctx);
@@ -256,4 +257,26 @@ test("Trial Mix PDF is mailed only to TRIAL_MAIL_TO, with a daily cap", () => {
   props.mailCount = "30";
   assert.equal(call({ action: "mailTrial", name: "x.pdf", pdf }).error, "daily_limit");
   assert.equal(call({ key: "wrong", action: "mailTrial", name: "x.pdf", pdf }).error, "unauthorized");
+});
+
+test("contacts: anyone registers, phone kept as text and unique; only the admin edits, deletes and sets departments", () => {
+  const { call, props, SpreadsheetApp } = load();
+  const me = { first: "ธนกฤต", last: "อริยะ", nick: "กันต์", phone: "081-234-5678", plant: "คลองตัน", dept: "ผลิต", pos: "ผู้จัดการฝ่ายผลิต" };
+  const r = call({ action: "contactAdd", contact: me });
+  assert.equal(r.ok, true);
+  assert.equal(SpreadsheetApp.sheets.Contacts.data[1][4], "0812345678"); // stored as text, 0 kept
+  assert.equal(call({ action: "contactAdd", contact: { ...me, first: "อื่น" } }).error, "phone_taken");
+  assert.equal(call({ action: "contactAdd", contact: { first: "x" } }).error, "invalid");
+  const list = call({ action: "contacts" });
+  assert.equal(list.people.length, 1);
+  assert.equal(list.people[0].phone, "0812345678");
+  // admin
+  assert.equal(call({ action: "contactDelete", id: r.contact.id, adminKey: "" }).error, "not_admin");
+  props.ADMIN_KEY = "boss";
+  assert.equal(call({ action: "adminCheck", adminKey: "boss" }).ok, true);
+  assert.equal(call({ action: "contactUpdate", adminKey: "boss", contact: { ...r.contact, pos: "ผจก." } }).contact.pos, "ผจก.");
+  call({ action: "contactSettings", adminKey: "boss", settings: { depts: [{ name: "ผลิต", positions: ["ผจก.", "หัวหน้าแพล้น"] }] } });
+  assert.deepEqual(call({ action: "contacts" }).settings.depts[0].positions, ["ผจก.", "หัวหน้าแพล้น"]);
+  assert.equal(call({ action: "contactDelete", adminKey: "boss", id: r.contact.id }).ok, true);
+  assert.equal(call({ action: "contacts" }).people.length, 0);
 });

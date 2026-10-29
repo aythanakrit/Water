@@ -2,7 +2,7 @@
   "name": "mix-design",
   "private": true,
   "scripts": {
-    "test": "node --test test/mixdesign.test.js test/fieldtools.test.js test/coretest.test.js test/fieldreport.test.js test/fieldsync.test.js test/appsscript.test.js test/dashboard.test.js test/volume.test.js test/trialmix.test.js test/numpad.test.js",
+    "test": "node --test test/mixdesign.test.js test/fieldtools.test.js test/coretest.test.js test/fieldreport.test.js test/fieldsync.test.js test/appsscript.test.js test/dashboard.test.js test/volume.test.js test/trialmix.test.js test/numpad.test.js test/contacts.test.js",
     "build:gs": "node tools/build-gs.js"
   }
 }
