@@ -57,6 +57,18 @@
   @media (max-width: 700px) { .scan { grid-template-columns: 1fr 1fr 1fr; } .scan .do, .scan button.b { grid-column: 1 / -1; } }
   .doin { display: flex; gap: 6px; }
   .doin input { font-size: 1.05rem; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+  #live { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; flex-direction: column; }
+  #live[hidden] { display: none; }
+  #live .cam { position: relative; flex: 1; overflow: hidden; }
+  #live video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #live .box { position: absolute; left: 6%; right: 6%; top: 50%; height: 18%; transform: translateY(-50%);
+    border: 3px solid #fff; border-radius: 10px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); }
+  #live .box.hit { border-color: #4ade80; }
+  #live .hint { position: absolute; left: 0; right: 0; top: calc(50% + 12%); text-align: center; color: #fff; font-size: 1rem; padding: 0 16px; }
+  #live .bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 12px 12px max(12px, env(safe-area-inset-bottom, 0px)); background: #000; }
+  #live .bar button { font: inherit; font-size: 1rem; min-height: 48px; padding: 8px 18px; border-radius: 999px; border: 1px solid #555; background: #222; color: #fff; }
+  #live .bar button.on { background: #fff; color: #000; }
+  #live .bar button.x { background: #b42318; border-color: #b42318; }
   .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 6px 12px; font-size: .88rem; margin-top: 8px; }
   .warn ul { margin: 0; padding-left: 18px; }
   .sync { font-size: .85rem; color: var(--muted); margin: -8px 0 12px; }
@@ -169,13 +181,19 @@
         <button class="b" id="addTruck" type="button">บันทึกรถ</button>
       </div>
       <input id="scanFile" type="file" accept="image/*" capture="environment" hidden>
+      <div id="live" hidden>
+        <div class="cam"><video id="liveVideo" playsinline muted></video><div class="box" id="liveBox"></div>
+          <div class="hint" id="liveHint">เล็งบาร์โค้ดใบ D/O ให้อยู่ในกรอบ</div></div>
+        <div class="bar"><span id="liveZoom"></span><button type="button" id="liveTorch" hidden>🔦 ไฟ</button>
+          <button type="button" id="livePhoto">ถ่ายรูปแทน</button><button type="button" class="x" id="liveClose">ปิด</button></div>
+      </div>
       <div id="scanView" hidden style="margin-top:10px">
         <div class="warn">หาบาร์โค้ดเองไม่เจอ — <b>แตะที่บาร์โค้ด</b>ในรูปด้านล่าง</div>
         <canvas id="scanCanvas" style="width:100%;margin-top:8px;border-radius:6px;cursor:crosshair;touch-action:manipulation"></canvas>
         <div class="row" style="margin-top:6px"><button class="g" id="scanCancel" type="button">ยกเลิก</button><span class="note" id="scanMsg"></span></div>
       </div>
       <div id="addWarn"></div>
-      <p class="note" style="margin:8px 0 0">เวลาผสมกรอกตามใบ D/O · เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้ทั้งคู่) · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
+      <p class="note" style="margin:8px 0 0">เวลาผสมกรอกตามใบ D/O · เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้ทั้งคู่) · 📷 สแกน = เปิดกล้องเล็งบาร์โค้ด อ่านเองอัตโนมัติ (อ่านไม่ได้กด "ถ่ายรูปแทน") · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
     </section>
 
     <section class="edit" id="editBox" hidden></section>
@@ -544,7 +562,96 @@
     $("scanView").hidden = true; scanImg = null;
     addWarn(); $("newTruck").focus();
   }
-  $("scanBtn").addEventListener("click", () => $("scanFile").click());
+  // Live camera: decode the framed strip of each video frame until the same number is read twice.
+  let live = null;
+  function decodeCanvas(c) {
+    const z = zxReader(); if (!z) return null;
+    for (const Bin of [ZXing.HybridBinarizer, ZXing.GlobalHistogramBinarizer]) {
+      try { return z.r.decode(new ZXing.BinaryBitmap(new Bin(new ZXing.HTMLCanvasElementLuminanceSource(c))), z.hints).getText(); } catch {}
+    }
+    return null;
+  }
+  function stopLive() {
+    if (!live) return;
+    live.stop = true; clearTimeout(live.timer);
+    live.stream.getTracks().forEach((t) => t.stop());
+    $("liveVideo").srcObject = null; $("live").hidden = true; live = null;
+  }
+  async function startLive() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return $("scanFile").click();
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    } catch {
+      $("addWarn").innerHTML = `<div class="warn">เปิดกล้องไม่ได้ (ยังไม่อนุญาตกล้อง?) — ใช้ถ่ายรูปแทน</div>`;
+      return $("scanFile").click();
+    }
+    const v = $("liveVideo"); v.srcObject = stream; $("live").hidden = false; $("liveBox").classList.remove("hit");
+    $("liveHint").textContent = "เล็งบาร์โค้ดใบ D/O ให้อยู่ในกรอบ";
+    try { await v.play(); } catch {}
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {}
+    // Zoom helps with the small dot-matrix barcode (Android Chrome; iPhone has no zoom control here)
+    $("liveZoom").innerHTML = "";
+    if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+      const steps = [1, 2, 3].filter((z) => z >= caps.zoom.min && z <= caps.zoom.max);
+      steps.forEach((z) => {
+        const b = document.createElement("button"); b.type = "button"; b.textContent = z + "×"; b.dataset.z = z;
+        b.addEventListener("click", async () => {
+          try { await track.applyConstraints({ advanced: [{ zoom: z }] }); } catch {}
+          $("liveZoom").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+        });
+        $("liveZoom").appendChild(b);
+      });
+      const start = steps.includes(2) ? 2 : steps[0];
+      try { await track.applyConstraints({ advanced: [{ zoom: start }] }); } catch {}
+      $("liveZoom").querySelectorAll("button").forEach((x) => x.classList.toggle("on", +x.dataset.z === start));
+    }
+    $("liveTorch").hidden = !caps.torch; $("liveTorch").classList.remove("on");
+    const det = "BarcodeDetector" in window ? (() => { try { return new BarcodeDetector({ formats: ["code_128", "code_39", "ean_13", "itf", "qr_code"] }); } catch { return null; } })() : null;
+    live = { stream, track, stop: false, last: "", timer: 0 };
+    const me = live, c = document.createElement("canvas");
+    const frame = async () => {
+      if (me.stop) return;
+      const W = v.videoWidth, H = v.videoHeight;
+      let text = null;
+      if (W && H) {
+        // A strip around the frame, full visible width so a barcode a little past the frame still reads (video is object-fit: cover)
+        const r = v.getBoundingClientRect(), sc = Math.max(r.width / W, r.height / H);
+        const vw = r.width / sc, vh = r.height / sc, ox = (W - vw) / 2, oy = (H - vh) / 2;
+        const sx = ox, sw = vw, sh = vh * 0.28, sy = oy + vh / 2 - sh / 2;
+        const scale = Math.min(2, 1600 / sw);
+        c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
+        c.getContext("2d").drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+        if (det) { try { const f = await det.detect(c); if (f.length) text = f[0].rawValue; } catch {} }
+        if (!text) text = decodeCanvas(c);
+      }
+      if (me.stop) return;
+      if (text) {
+        const d = text.replace(/\D/g, "");
+        if (d.length >= 10 && d === me.last) {
+          $("liveBox").classList.add("hit");
+          if (navigator.vibrate) navigator.vibrate(80);
+          stopLive(); useBarcode(text); return;
+        }
+        me.last = d.length >= 10 ? d : "";
+        if (d.length >= 10) $("liveHint").textContent = "อ่านได้แล้ว ถือนิ่ง ๆ…";
+      }
+      me.timer = setTimeout(frame, 120);
+    };
+    frame();
+  }
+  $("liveClose").addEventListener("click", stopLive);
+  $("livePhoto").addEventListener("click", () => { stopLive(); $("scanFile").click(); });
+  $("liveTorch").addEventListener("click", async () => {
+    if (!live) return;
+    const on = !$("liveTorch").classList.contains("on");
+    try { await live.track.applyConstraints({ advanced: [{ torch: on }] }); $("liveTorch").classList.toggle("on", on); } catch {}
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopLive(); });
+  $("scanBtn").addEventListener("click", startLive);
   $("scanFile").addEventListener("change", async (e) => {
     const file = e.target.files[0]; e.target.value = "";
     if (!file) return;
