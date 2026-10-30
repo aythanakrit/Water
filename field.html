@@ -60,6 +60,11 @@
   .phrow { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .phrow .b { min-height: 48px; font-size: 1.05rem; }
   .phrow .doin input { flex: 1; min-width: 0; }
+  .pick .pl { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { font: inherit; min-width: 56px; min-height: 44px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .chips button:disabled { opacity: .5; cursor: default; }
   .phtiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
   .phtile { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
   .phtile.has { border-color: var(--ok); }
@@ -761,9 +766,10 @@
   // ---------- edit one truck ----------
   const F_TEXT = [["truck", "Truck No. (หมายเลขรถ)", "numeric"], ["do", "D/O No.", "numeric"], ["volume", "Volume (m³)", "decimal"], ["plant", "หน่วยผลิต", ""]];
   const F_TIME = [["batching", "Batching Time (เวลาผสม)"], ["arrival", "Truck at Site (เวลารถถึง)"], ["start", "Start Pouring (เริ่มเท)"], ["end", "End Pouring (เทเสร็จ)"]];
-  const F_MORE = [["airTemp", "Air Temp. (°C)", "decimal"], ["conTemp", "Con Temp. (°C)", "decimal"], ["slump", "Slump (cm.)", "decimal"],
-    ["sampleType", "Sample Type (ประเภท)", ""], ["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""],
-    ["operator", "พนักงานควบคุมเครื่องจักร", ""], ["remark", "Remark (หมายเหตุ)", ""]];
+  // Air/Con temp., operator and remark are not entered here (the PDF keeps their columns)
+  const F_MORE = [["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""]];
+  // picked with a tap instead of typed
+  const F_PICK = [["slump", "Slump (cm.)", ["5", "7.5", "10", "12.5", "15", "17.5", "20"]], ["sampleType", "Sample Type (ประเภท)", ["CU", "CY", "CY10"]]];
   function renderEdit() {
     const box = $("editBox");
     if (editIdx < 0 || !job.trucks[editIdx]) { box.hidden = true; return; }
@@ -787,8 +793,10 @@
       <div class="times" style="margin-top:12px">${F_TIME.map(([k, l]) => `<label>${l}<span class="tin">
         <input type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
       <div id="timeAlerts"></div>
+      ${F_PICK.map(([k, l, opts]) => `<div class="pick" style="margin-top:12px"><span class="pl">${l}</span><div class="chips">${
+        [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k]) === v ? "on" : ""}" ${ro}>${esc(v)}</button>`).join("")}</div></div>`).join("")}
       <div class="fields" style="margin-top:12px">${F_MORE.map(inp).join("")}</div>
-      <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะต่อท้ายหมายเหตุให้เองในรายการและใน PDF (ไม่ต้องพิมพ์เอง)</p>
+      <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะใส่ในช่องหมายเหตุของรายการและ PDF ให้เอง</p>
       ${SP ? `<div id="editPhotos" style="margin-top:14px"></div>` : ""}
       <div class="row" style="margin-top:12px;justify-content:space-between">
         <span class="note">แก้แล้วบันทึกอัตโนมัติ</span>
@@ -809,6 +817,14 @@
     if ($("editNo")) $("editNo").textContent = editIdx + 1;
   }
   let rmArmed = false;
+  // slump / sample type: tap to choose, tap again to clear
+  $("editBox").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pick]"); if (!b || b.disabled) return;
+    const t = job.trucks[editIdx], k = b.dataset.pick;
+    t[k] = String(t[k]) === b.dataset.v ? "" : b.dataset.v; t.updated = Date.now();
+    b.parentNode.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b && t[k] !== ""));
+    touch(); renderList();
+  });
   $("editBox").addEventListener("input", (e) => {
     const k = e.target.dataset.t; if (!k || k === "do") return;
     const t = job.trucks[editIdx];
