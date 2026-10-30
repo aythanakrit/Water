@@ -538,6 +538,7 @@
         const al = FieldReport.timeAlerts(t), lv = al.some((x) => x.level === "bad") ? " t-bad" : al.length ? " t-warn" : "";
         return `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}${lv}">${COLS.map(([k]) =>
           k === "remark" ? `<td class="rm">${esc(FieldReport.remarkWithAlerts(t))}</td>`
+          : k === "slump" ? `<td>${esc(FieldReport.slumpText(t.slump))}</td>`
           : `<td>${k === "no" ? i + 1 : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`;
       }).join("")
         : `<tr><td colspan="${COLS.length}" class="note">ยังไม่มีรถ — สแกนหรือพิมพ์ D/O ด้านบน</td></tr>`) + "</tbody>";
@@ -794,7 +795,7 @@
         <input type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
       <div id="timeAlerts"></div>
       ${F_PICK.map(([k, l, opts]) => `<div class="pick" style="margin-top:12px"><span class="pl">${l}</span><div class="chips">${
-        [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k]) === v ? "on" : ""}" ${ro}>${esc(v)}</button>`).join("")}</div></div>`).join("")}
+        [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k]) === v ? "on" : ""}" ${ro}>${esc(k === "slump" ? FieldReport.slumpText(v) : v)}</button>`).join("")}</div></div>`).join("")}
       <div class="fields" style="margin-top:12px">${F_MORE.map(inp).join("")}</div>
       <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะใส่ในช่องหมายเหตุของรายการและ PDF ให้เอง</p>
       ${SP ? `<div id="editPhotos" style="margin-top:14px"></div>` : ""}
@@ -887,7 +888,7 @@
       const t = p.rows[r], v = (k) => (t ? e(t[k] || "-") : "");
       return `<tr>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
         ${td("d", v("batching"))}${td("d", v("arrival"))}${td("d", v("start"))}${td("d", v("end"))}${td("d", v("airTemp"))}${td("d", v("conTemp"))}
-        ${td("d", v("slump"))}${td("d", v("sampleType"))}${td("d", v("sampleQty"))}${td("d", v("label"))}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
+        ${td("d", t ? e(FieldReport.slumpText(t.slump) || "-") : "")}${td("d", v("sampleType"))}${td("d", v("sampleQty"))}${td("d", v("label"))}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
     }).join("");
     return `<div class="pg"><table><colgroup>${col}</colgroup>
       <tr><td class="fl ft logo" colspan="3" rowspan="3"><img src="${LOGO}" alt=""></td>${td("ft", "บริษัท เอ็มคอนกรีต จำกัด", 16)}${td("ft fr")}</tr>

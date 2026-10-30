@@ -160,6 +160,13 @@
     return [String(t.remark || "").trim()].concat(timeAlerts(t, lim).map((x) => x.text)).filter(Boolean).join(" · ");
   }
 
+  /** Slump as shown and printed: "12.5" → "12.5±2.5" (the tolerance is always ±2.5 cm). */
+  const SLUMP_TOL = 2.5;
+  const slumpText = (v) => {
+    const s = String(v == null ? "" : v).trim();
+    return !s || s.includes("±") ? s : `${s}±${SLUMP_TOL}`;
+  };
+
   function newTruck(prev) {
     return {
       truck: "", do: "", volume: prev ? prev.volume : 7, plant: "",
@@ -180,5 +187,5 @@
     };
   }
 
-  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
+  return { SLUMP_TOL, slumpText, PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
 });

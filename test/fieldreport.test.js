@@ -90,3 +90,11 @@ test("remark keeps what was typed and adds the alerts", () => {
   assert.equal(F.remarkWithAlerts({ remark: "ปั๊มเสีย", batching: "10:00", arrival: "11:15" }), "ปั๊มเสีย · เดินทาง 75 นาที");
   assert.equal(F.remarkWithAlerts({ remark: "", batching: "10:00", arrival: "10:30" }), "");
 });
+
+test("slump is shown and printed with ±2.5", () => {
+  const FR = require("../fieldreport.js");
+  assert.equal(FR.slumpText("12.5"), "12.5±2.5");
+  assert.equal(FR.slumpText(10), "10±2.5");
+  assert.equal(FR.slumpText(""), "");
+  assert.equal(FR.slumpText("10±2.5"), "10±2.5");
+});
