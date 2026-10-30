@@ -8,171 +8,216 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Production">
 <title>ปริมาตรคอนกรีต</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
-    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00;
+    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00; --sel: #e8eefa; --bad: #b42318;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
-            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; color-scheme: dark; }
+      --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; --sel: #23314a; --bad: #ff8a80; color-scheme: dark; }
   }
   :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
-            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; color-scheme: dark; }
+    --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; --sel: #23314a; --bad: #ff8a80; color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
-  main { max-width: 900px; margin: 0 auto; padding-block: 20px 48px;
-         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  h1 { font-size: 1.4rem; margin: 0 0 4px; }
-  h2 { font-size: 1.05rem; margin: 0 0 12px; }
-  .sub { color: var(--muted); margin: 0 0 20px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding-block: 16px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 2px; }
+  h2 { font-size: 1rem; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: .9rem; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
   .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
-  .back:hover, .back:focus-visible { text-decoration: underline; }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; margin-bottom: 16px; }
-  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
-          border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
-  input { text-align: right; font-variant-numeric: tabular-nums; }
-  input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  label { display: flex; flex-direction: column; gap: 2px; font-size: .8rem; color: var(--muted); min-width: 0; }
-  .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
-  .item .top { display: flex; gap: 8px; align-items: end; margin-bottom: 8px; }
-  .item .top label:first-child { flex: 1; }
-  .dims { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
-  .res { margin-top: 8px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+
+  /* result */
+  .total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .total b { font-size: 2.4rem; line-height: 1.1; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .total span { font-size: 1.1rem; }
+  .trips { font-size: 1.05rem; margin-top: 2px; }
+  .breakdown { color: var(--muted); font-size: .88rem; margin-top: 6px; }
+  .empty { color: var(--muted); }
+
+  /* type tiles */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  @media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tiles button { font: inherit; min-height: 56px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer; padding: 6px 8px; line-height: 1.25; }
+  .tiles button:active { background: var(--sel); }
+  .tiles small { display: block; color: var(--muted); font-size: .75rem; }
+
+  /* items */
+  .item { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: var(--bg); }
+  .item .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .item .hd b { font-size: 1rem; }
+  .del { font: inherit; border: 0; background: none; color: var(--bad); cursor: pointer; font-size: .9rem; padding: 4px 6px; }
+  .dims { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  @media (max-width: 520px) { .dims { grid-template-columns: repeat(2, 1fr); } }
+  label { display: flex; flex-direction: column; font-size: .8rem; color: var(--muted); gap: 2px; min-width: 0; }
+  input { font: inherit; font-size: 1.05rem; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0; }
+  .res { margin-top: 8px; font-size: .92rem; }
   .res b { color: var(--accent); }
-  .why { margin: 6px 0 0; padding-left: 1.2em; font-size: .85rem; color: var(--muted); }
-  button.b { font: inherit; border-radius: 6px; padding: 6px 14px; cursor: pointer; background: transparent; color: var(--accent); border: 1px solid var(--line); }
-  button.del { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
-  th:first-child, td:first-child { text-align: left; }
-  .big td { font-weight: 700; font-size: 1.1rem; color: var(--accent); border-bottom: none; }
-  .note { font-size: .82rem; color: var(--muted); margin-top: 12px; }
-  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: .9rem; margin: 12px 0 0; }
-  #reasons h3 { font-size: .95rem; margin: 12px 0 2px; }
-  #reasons ul { margin: 0; padding-left: 1.2em; }
+  .waste { display: inline-flex; align-items: center; gap: 4px; }
+  .waste input { width: 64px; font-size: .9rem; padding: 3px 6px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { font: inherit; min-height: 42px; min-width: 64px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+  .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 8px; }
+  .row label { flex: 1 1 140px; }
+  details { margin-top: 4px; } details summary { cursor: pointer; color: var(--accent); font-size: .92rem; }
+  details ul { margin: 6px 0; padding-left: 20px; font-size: .9rem; } details h3 { font-size: .92rem; margin: 10px 0 2px; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: .9rem; }
+  .note { font-size: .8rem; color: var(--muted); }
+  #mini { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 10px max(16px, env(safe-area-inset-left, 0px)) max(10px, env(safe-area-inset-bottom, 0px));
+    background: var(--accent); color: #fff; font-size: 1.05rem; text-align: center; box-shadow: 0 -2px 10px #0003; cursor: pointer; }
+  #mini b { font-size: 1.3rem; }
+  .btn { font: inherit; border-radius: 8px; padding: 6px 12px; border: 1px solid var(--line); background: var(--card); color: var(--accent); cursor: pointer; }
 </style>
 </head>
 <body>
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
   <h1>ปริมาตรคอนกรีต</h1>
-  <p class="sub">กรอกขนาดชิ้นงานเป็นเมตร (m) ได้ปริมาตรสุทธิ ปริมาตรที่เผื่อพร้อมเหตุผล ยอดสั่ง และจำนวนเที่ยวรถโม่</p>
+  <p class="sub">แตะชนิดงาน → ใส่ขนาด → ได้ยอดสั่งพร้อมเผื่อ และจำนวนเที่ยวรถ</p>
+
+  <section id="result"></section>
 
   <section>
-    <h2>ชิ้นงาน</h2>
+    <h2>1. แตะชนิดงานที่จะเท</h2>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="itemsBox" hidden>
+    <div class="row" style="justify-content:space-between;margin:0"><h2 style="margin:0">2. ใส่ขนาด</h2>
+      <button class="btn" id="clear" type="button">ล้างทั้งหมด</button></div>
     <div id="items"></div>
-    <button class="b" id="add" type="button">+ เพิ่มชิ้นงาน</button>
   </section>
 
   <section>
-    <h2>การสั่ง</h2>
-    <div class="opts">
-      <label>ความจุรถโม่ (m³/เที่ยว)<input id="cap" type="number" step="0.5" min="0" value="5"></label>
-      <label>ปัดยอดสั่งขึ้นทีละ (m³)<input id="step" type="number" step="0.5" min="0" value="0.5"></label>
-      <label>ไล่ท่อปั๊ม / ค้างในท่อ (m³)<input id="pump" type="number" step="0.1" min="0" value="0"></label>
-    </div>
-    <table style="margin-top:12px"><tbody id="sum"></tbody></table>
-    <div id="msg"></div>
+    <h2>3. รถโม่ (คิว/เที่ยว)</h2>
+    <div class="chips" id="capChips"></div>
+    <div class="row"><label>หรือพิมพ์ความจุรถ (คิว)<input id="cap" type="number" step="0.5"></label></div>
+    <details style="margin-top:10px"><summary>ตั้งค่าเพิ่มเติม (ปัดยอดสั่ง · ไล่ท่อปั๊ม)</summary>
+      <div class="row">
+        <label>ปัดยอดสั่งขึ้นทีละ (คิว)<input id="step" type="number" step="0.5" placeholder="ไม่ใส่ = 0.5"></label>
+        <label>ไล่ท่อปั๊ม / ค้างในท่อ (คิว)<input id="pump" type="number" step="0.1" placeholder="ไม่ใช้ปั๊มเว้นว่าง"></label>
+      </div>
+    </details>
   </section>
 
-  <section id="reasons"><h2>เหตุผลที่ต้องเผื่อ</h2><div id="why"></div></section>
+  <section>
+    <details><summary>ทำไมต้องเผื่อ และเผื่อเท่าไร</summary><div id="why"></div></details>
+  </section>
 
-  <p class="note">% เผื่อเริ่มต้นเป็นค่าที่ใช้กันในทางปฏิบัติ ไม่มีมาตรฐาน (ว.ส.ท., ACI, ASTM C94) กำหนดตายตัว ควรปรับตามข้อมูลจริงของหน้างานและบริษัท · ค่าไล่ท่อปั๊มขึ้นกับความยาวและขนาดท่อ ให้ใช้ค่าจากทีมปั๊ม · เสาเข็มเจาะขึ้นกับชั้นดินมาก ควรใช้ข้อมูลเข็มต้นที่เทไปแล้วปรับ % · ปริมาตรสุทธิไม่ได้หักปริมาตรเหล็กเสริม (โดยทั่วไป ~1–2%) จึงเป็นค่าที่ปลอดภัยฝั่งไม่ขาด</p>
+  <p class="note">% เผื่อเริ่มต้นเป็นค่าที่ใช้กันในทางปฏิบัติ ไม่มีมาตรฐาน (ว.ส.ท., ACI, ASTM C94) กำหนดตายตัว แก้ได้ที่ "เผื่อ __%" ของแต่ละชิ้น ·
+    ปริมาตรสุทธิไม่ได้หักเหล็กเสริม (ราว 1–2%) จึงเป็นค่าฝั่งไม่ขาด · เข็มเจาะขึ้นกับชั้นดินมาก ใช้ข้อมูลต้นที่เทไปแล้วปรับ % · ค่าไล่ท่อปั๊มให้ใช้ค่าจากทีมปั๊ม</p>
 </main>
 
+<div id="mini" hidden></div>
 <script src="volume.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
   const T = Volume.TYPES;
   const f = (x, d = 2) => isFinite(x) ? x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–";
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const KEY = "volume-items";
+  const KEY = "volume-items-v2";
   const DIM_KEYS = ["a", "b", "h"];
+  // Units people use on site: section sizes and thickness in cm, lengths in m (the engine works in m)
+  const UNITS = {
+    slab: ["m", "m", "cm"], ground: ["m", "m", "cm"], beam: ["cm", "cm", "m"], column: ["cm", "cm", "m"],
+    roundColumn: ["cm", "m"], wall: ["m", "m", "cm"], footing: ["m", "m", "cm"], pile: ["cm", "m"], other: ["m³"],
+  };
+  const HINT = { slab: "เช่น หนา 10 ซม.", ground: "เช่น หนา 10 ซม.", beam: "เช่น 20×50 ซม.", column: "เช่น 25×25 ซม.", roundColumn: "Ø ซม. × สูง ม.",
+    wall: "เช่น หนา 20 ซม.", footing: "กว้าง × ยาว ม. หนา ซม.", pile: "Ø ซม. × ลึก ม.", other: "ใส่เป็นคิว" };
+  const CAPS = [5, 6, 7];
+  const toM = (v, u) => (u === "cm" ? v / 100 : v);
 
-  let items;
-  try { items = JSON.parse(localStorage.getItem(KEY)); } catch (e) { items = null; }
-  if (!Array.isArray(items) || !items.length) items = [{ type: "slab", a: 10, b: 10, h: 0.1, n: 1, waste: T.slab.waste }];
+  let items = [];
+  try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { /* storage blocked */ } };
 
+  $("tiles").innerHTML = Object.entries(T).map(([k, t]) => `<button type="button" data-add="${k}">${esc(t.name.replace(" (กรอก m³)", ""))}<small>${HINT[k] || ""}</small></button>`).join("");
+  $("capChips").innerHTML = CAPS.map((c) => `<button type="button" data-cap="${c}">${c} คิว</button>`).join("");
+
   function renderItems() {
+    $("itemsBox").hidden = !items.length;
     $("items").innerHTML = items.map((it, i) => {
-      const t = T[it.type];
-      const unit = t.shape === "direct" ? "m³" : "m";
-      const dims = t.dims.map((d, j) =>
-        `<label>${esc(d)} (${unit})<input type="number" step="0.01" min="0" data-i="${i}" data-k="${DIM_KEYS[j]}" value="${it[DIM_KEYS[j]] ?? ""}"></label>`).join("");
-      const count = t.shape === "direct" ? "" :
-        `<label>จำนวน (ชิ้น)<input type="number" step="1" min="0" data-i="${i}" data-k="n" value="${it.n ?? 1}"></label>`;
-      return `<div class="item">
-        <div class="top">
-          <label>ชนิดงาน<select data-i="${i}" data-k="type">${Object.entries(T).map(([k, v]) =>
-            `<option value="${k}"${k === it.type ? " selected" : ""}>${esc(v.name)}</option>`).join("")}</select></label>
-          <button class="del" type="button" data-del="${i}" aria-label="ลบชิ้นงานที่ ${i + 1}">✕</button>
-        </div>
-        <div class="dims">${dims}${count}
-          <label>เผื่อ (%)<input type="number" step="0.5" min="0" data-i="${i}" data-k="waste" value="${it.waste}"></label>
-        </div>
-        <div class="res" id="res${i}"></div>
-        <ul class="why">${t.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
-      </div>`;
+      const t = T[it.type], u = UNITS[it.type];
+      const dims = t.dims.map((d, j) => `<label>${esc(d)} (${u[j] === "m³" ? "คิว" : u[j] === "cm" ? "ซม." : "ม."})<input type="number" step="${u[j] === "cm" ? 1 : 0.01}" data-i="${i}" data-k="${DIM_KEYS[j]}" value="${it[DIM_KEYS[j]] ?? ""}"></label>`).join("");
+      const count = t.shape === "direct" ? "" : `<label>จำนวน (ชิ้น)<input type="number" step="1" data-i="${i}" data-k="n" value="${it.n ?? ""}" placeholder="1"></label>`;
+      return `<div class="item"><div class="hd"><b>${i + 1}. ${esc(t.name)}</b><button class="del" type="button" data-del="${i}">✕ ลบ</button></div>
+        <div class="dims">${dims}${count}</div>
+        <div class="res" id="res${i}"></div></div>`;
     }).join("");
   }
 
+  // the engine wants metres; the page keeps what was typed (cm / m) so it can be shown back as is
+  const asMetres = (it) => {
+    const u = UNITS[it.type], o = { type: it.type, n: it.n === "" || it.n == null ? 1 : Number(it.n), waste: it.waste };
+    DIM_KEYS.forEach((k, j) => { o[k] = toM(Number(it[k]) || 0, u[j]); });
+    return o;
+  };
+
   function run() {
-    const r = Volume.order(items.map((it) => ({ ...it, waste: Number(it.waste) || 0 })), {
-      cap: Number($("cap").value), step: Number($("step").value), pump: Number($("pump").value) || 0,
-    });
+    const cap = Number($("cap").value) || 0, step = $("step").value === "" ? 0.5 : Number($("step").value), pump = Number($("pump").value) || 0;
+    $("capChips").querySelectorAll("button").forEach((b) => b.classList.toggle("on", Number(b.dataset.cap) === cap));
+    const r = Volume.order(items.map(asMetres), { cap, step, pump });
     r.rows.forEach((row, i) => {
-      $("res" + i).innerHTML = `สุทธิ ${f(row.net)} m³ + เผื่อ ${f(row.waste, 1)}% = ${f(row.extra)} m³ → <b>${f(row.total)} m³</b>`;
+      const el = $("res" + i); if (!el) return;
+      el.innerHTML = row.net > 0
+        ? `= ${f(row.net)} คิว + <span class="waste">เผื่อ <input type="number" step="0.5" data-i="${i}" data-k="waste" value="${row.waste}">%</span> → <b>${f(row.total)} คิว</b>`
+        : `<span class="note">ใส่ขนาดให้ครบ · <span class="waste">เผื่อ <input type="number" step="0.5" data-i="${i}" data-k="waste" value="${row.waste}">%</span></span>`;
     });
-    const cap = Number($("cap").value);
-    $("sum").innerHTML = `
-      <tr><td>ปริมาตรสุทธิตามแบบ</td><td>${f(r.net)} m³</td></tr>
-      <tr><td>เผื่อสูญเสียรวม</td><td>${f(r.extra)} m³</td></tr>
-      ${r.pump ? `<tr><td>ไล่ท่อปั๊ม / ค้างในท่อ</td><td>${f(r.pump)} m³</td></tr>` : ""}
-      <tr><td>ปริมาตรที่ต้องใช้ (เผื่อรวม ${f(r.wastePct, 1)}%)</td><td>${f(r.need)} m³</td></tr>
-      <tr class="big"><td>ยอดสั่ง</td><td>${f(r.ordered)} m³</td></tr>
-      <tr><td>จำนวนเที่ยว</td><td>${r.trips} เที่ยว${r.trips > 1 && r.last < cap - 1e-9 ? ` (เต็ม ${r.trips - 1} เที่ยว + เที่ยวสุดท้าย ${f(r.last)} m³)` : ""}</td></tr>`;
-    $("msg").innerHTML = r.trips > 1 && r.last < cap * 0.5
-      ? `<p class="warn">เที่ยวสุดท้ายเหลือ ${f(r.last)} m³ ต่ำกว่าครึ่งคัน อาจเข้าเงื่อนไขค่า short load และรอนาน แนะนำให้หน้างานวัดจริงก่อนสั่งเที่ยวสุดท้าย หรือเฉลี่ยปริมาตรต่อเที่ยวใหม่</p>` : "";
+    if (!items.length || !(r.net > 0)) {
+      $("result").innerHTML = `<div class="empty">ยังไม่มีชิ้นงาน — แตะชนิดงานด้านล่างเพื่อเริ่ม</div>`;
+    } else {
+      $("result").innerHTML = `<div class="note">ยอดสั่ง</div>
+        <div class="total"><b>${f(r.ordered, 1)}</b><span>คิว</span></div>
+        <div class="trips">${cap > 0 ? `🚚 ${r.trips} เที่ยว (รถ ${f(cap, 1)} คิว)${r.trips > 1 && r.last < cap - 1e-9 ? ` · เที่ยวสุดท้าย ${f(r.last, 1)} คิว` : ""}` : `<span class="note">เลือกขนาดรถในข้อ 3 เพื่อดูจำนวนเที่ยว</span>`}</div>
+        <div class="breakdown">ตามแบบ ${f(r.net)} + เผื่อ ${f(r.extra)}${r.pump ? ` + ไล่ท่อปั๊ม ${f(r.pump)}` : ""} = ${f(r.need)} คิว (เผื่อรวม ${f(r.wastePct, 1)}%) · ปัดขึ้นทีละ ${f(step, 1)}</div>
+        ${cap > 0 && r.trips > 1 && r.last < cap * 0.5 ? `<div class="warn">เที่ยวสุดท้ายเหลือ ${f(r.last, 1)} คิว ต่ำกว่าครึ่งคัน อาจเข้าเงื่อนไขค่า short load และรอนาน — ให้หน้างานวัดจริงก่อนสั่งเที่ยวสุดท้าย</div>` : ""}`;
+    }
+    // small bar at the bottom while the result card is scrolled away
+    miniText = items.length && r.net > 0 ? `ยอดสั่ง <b>${f(r.ordered, 1)}</b> คิว${cap > 0 ? ` · ${r.trips} เที่ยว` : ""}` : "";
+    showMini();
     const used = [...new Set(items.map((it) => it.type))];
-    $("why").innerHTML = used.map((k) =>
-      `<h3>${esc(T[k].name)} (ค่าเริ่มต้น ${T[k].waste}%)</h3><ul>${T[k].reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`).join("") +
-      `<h3>ทำไมไม่ควรเผื่อน้อยหรือมากเกินไป</h3><ul>
-        <li>เผื่อน้อย: เที่ยวสุดท้ายขาด ต้องสั่งเพิ่มเที่ยวเล็ก รอนาน เสี่ยงเกิด cold joint ซึ่งมีผลต่อคุณภาพโครงสร้าง</li>
-        <li>เผื่อมาก: คอนกรีตเหลือตีกลับ เป็นต้นทุนที่เสียไปเปล่า ๆ</li>
-        <li>ปริมาตรที่ผลิตจริงต่อเที่ยวขึ้นกับ yield ของสูตร ถ้า yield ต่ำกว่า 1.00 จะดูเหมือนคิวขาด ตรวจได้ด้วย unit weight (ASTM C138)</li>
-      </ul>`;
+    $("why").innerHTML = (used.length ? used : Object.keys(T)).map((k) =>
+      `<h3>${esc(T[k].name)} — เริ่มต้น ${T[k].waste}%</h3><ul>${T[k].reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`).join("") +
+      `<h3>ไม่ควรเผื่อน้อยหรือมากเกินไป</h3><ul>
+        <li>เผื่อน้อย: เที่ยวสุดท้ายขาด ต้องสั่งเพิ่ม รอนาน เสี่ยง cold joint ซึ่งมีผลต่อคุณภาพโครงสร้าง</li>
+        <li>เผื่อมาก: คอนกรีตเหลือตีกลับ เป็นต้นทุนที่เสียเปล่า</li>
+        <li>ถ้า yield ของสูตรต่ำกว่า 1.00 จะดูเหมือนคิวขาด ตรวจได้ด้วย unit weight (ASTM C138)</li></ul>`;
     save();
   }
 
-  $("items").addEventListener("input", (e) => {
+  $("tiles").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-add]"); if (!b) return;
+    const k = b.dataset.add;
+    items.push({ type: k, waste: T[k].waste });
+    renderItems(); run();
+    const first = $("items").querySelector(`.item:last-child input`);
+    if (first) { first.scrollIntoView({ behavior: "smooth", block: "center" }); first.focus(); }
+  });
+  const onEdit = (e) => {
     const { i, k } = e.target.dataset;
     if (i === undefined) return;
-    if (k === "type") {
-      items[i] = { type: e.target.value, n: 1, waste: T[e.target.value].waste };
-      renderItems();
-    } else {
-      items[i][k] = e.target.value === "" ? 0 : Number(e.target.value);
-    }
-    run();
-  });
+    items[i][k] = e.target.value === "" ? "" : Number(e.target.value);
+    if (k === "waste") { const pos = e.target.selectionStart; run(); const el = document.querySelector(`[data-i="${i}"][data-k="waste"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (x) {} } }
+    else run();
+  };
+  $("items").addEventListener("input", onEdit);
   $("items").addEventListener("click", (e) => {
-    const i = e.target.dataset.del;
-    if (i === undefined) return;
-    items.splice(Number(i), 1);
-    if (!items.length) items.push({ type: "slab", n: 1, waste: T.slab.waste });
-    renderItems(); run();
+    const i = e.target.dataset.del; if (i === undefined) return;
+    items.splice(Number(i), 1); renderItems(); run();
   });
-  $("add").addEventListener("click", () => {
-    items.push({ type: "slab", n: 1, waste: T.slab.waste });
-    renderItems(); run();
+  $("clear").addEventListener("click", (e) => {
+    if (e.target.dataset.armed !== "1") { e.target.dataset.armed = "1"; e.target.textContent = "แตะอีกครั้งเพื่อล้าง"; setTimeout(() => { e.target.dataset.armed = ""; e.target.textContent = "ล้างทั้งหมด"; }, 3000); return; }
+    items = []; e.target.dataset.armed = ""; e.target.textContent = "ล้างทั้งหมด"; renderItems(); run();
   });
+  $("capChips").addEventListener("click", (e) => { const b = e.target.closest("[data-cap]"); if (b) { $("cap").value = b.dataset.cap; run(); } });
   ["cap", "step", "pump"].forEach((id) => $(id).addEventListener("input", run));
+  let miniText = "", resultVisible = true;
+  function showMini() { $("mini").innerHTML = miniText; $("mini").hidden = !miniText || resultVisible; }
+  if ("IntersectionObserver" in window) new IntersectionObserver(([e]) => { resultVisible = e.isIntersecting; showMini(); }).observe($("result"));
+  $("mini").addEventListener("click", () => $("result").scrollIntoView({ behavior: "smooth", block: "start" }));
   renderItems(); run();
 </script>
 <script src="numpad.js"></script>
