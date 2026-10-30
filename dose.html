@@ -54,6 +54,14 @@
   table.fc th, table.fc td { padding: 6px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
   table.fc th:first-child, table.fc td:first-child { text-align: left; white-space: normal; }
   table.fc th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+  .fccs { display: none; }
+  .fcc { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .fcc .h { font-weight: 600; margin-bottom: 6px; }
+  .fcc .k { display: flex; gap: 18px; }
+  .fcc .k b { font-size: 1.35rem; color: var(--accent); }
+  .fcc .k small { display: block; color: var(--muted); font-size: .75rem; }
+  .fcc .m { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+  @media (max-width: 640px) { #fcBox .scroll { display: none; } .fccs { display: block; } }
 </style>
 </head>
 <body>
@@ -166,7 +174,10 @@
     const row = (label, cem, water) => {
       const wc = water / (cem + fa), s = MixDesign.strengthFromWc(wc), ksc = FieldTools.mpaToKsc(s.mpa);
       const mark = s.outside === "high" ? "≥ " : s.outside === "low" ? "≤ " : "≈ ";
-      return { html: `<tr><td>${label}</td><td>${f(cem, 0)} + ${f(fa, 0)}</td><td>${f(water, 0)}</td><td>${f(wc, 3)}</td><td>${mark}${f(s.mpa, 1)}</td><td><b>${mark}${f(ksc, 0)}</b></td><td>${mark}${f(ksc / CYL_TO_CUBE, 0)}</td></tr>`, ksc, s };
+      return { html: `<tr><td>${label}</td><td>${f(cem, 0)} + ${f(fa, 0)}</td><td>${f(water, 0)}</td><td>${f(wc, 3)}</td><td>${mark}${f(s.mpa, 1)}</td><td><b>${mark}${f(ksc, 0)}</b></td><td>${mark}${f(ksc / CYL_TO_CUBE, 0)}</td></tr>`,
+        // phone: one card per row, ksc first
+        card: `<div class="fcc"><div class="h">${label}</div><div class="k"><span><b>${mark}${f(ksc, 0)}</b> ksc<small>ทรงกระบอก</small></span><span><b>${mark}${f(ksc / CYL_TO_CUBE, 0)}</b> ksc<small>ลูกบาศก์</small></span></div>
+          <div class="m">w/(c+p) ${f(wc, 3)} · ${mark}${f(s.mpa, 1)} MPa · ปูน+แอช ${f(cem, 0)}+${f(fa, 0)} · น้ำ ${f(water, 0)} kg</div></div>`, ksc, s };
     };
     const rows = [row("ก่อนโดฟ (Mix เดิม)", c0, w)];
     if (dose > 0) {
@@ -178,6 +189,7 @@
     if (fa / (c0 + fa) > 0.25) warn.push(`ไฟแอช ${f(fa / (c0 + fa) * 100, 0)}% ของวัสดุประสาน — ตาราง ACI เป็นของปูนล้วน กำลัง 28 วันจริงมักต่ำกว่าค่าที่ประมาณ`);
     $("fcBox").innerHTML = `<div class="scroll"><table class="fc"><thead><tr><th></th><th>ปูน + แอช (kg)</th><th>น้ำ (kg)</th><th>w/(c+p)</th><th>MPa ทรงกระบอก</th><th>ksc ทรงกระบอก</th><th>ksc ลูกบาศก์</th></tr></thead>
       <tbody>${rows.map((x) => x.html).join("")}</tbody></table></div>
+      <div class="fccs">${rows.map((x) => x.card).join("")}</div>
       ${dose > 0 ? `<p style="margin:8px 0 0">โดฟปูนพร้อมเติมน้ำตามสัดส่วน w/cm เท่าเดิม → กำลังโดยประมาณ<b>ไม่ลดลง</b> · ถ้าเติมน้ำเท่ากันแต่ไม่โดฟปูน กำลังจะลดลงประมาณ <b>${f(rows[0].ksc - rows[2].ksc, 0)} ksc</b> (ทรงกระบอก)</p>` : ""}
       ${warn.map((x) => `<div class="warn" style="margin-top:8px">${x}</div>`).join("")}
       <p class="note" style="margin:8px 0 0">วิธีคิด: w/(c+p) = น้ำ ÷ (ปูน + ไฟแอช) → กำลังทรงกระบอก 28 วัน จาก ACI 211.1 ตาราง 6.3.4(a) (ไม่กักกระจายฟองอากาศ) · 1 MPa = 10.19 ksc ·
