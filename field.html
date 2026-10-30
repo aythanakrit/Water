@@ -767,9 +767,9 @@
   const F_TEXT = [["truck", "Truck No. (หมายเลขรถ)", "numeric"], ["do", "D/O No.", "numeric"], ["volume", "Volume (m³)", "decimal"], ["plant", "หน่วยผลิต", ""]];
   const F_TIME = [["batching", "Batching Time (เวลาผสม)"], ["arrival", "Truck at Site (เวลารถถึง)"], ["start", "Start Pouring (เริ่มเท)"], ["end", "End Pouring (เทเสร็จ)"]];
   // Air/Con temp., operator and remark are not entered here (the PDF keeps their columns)
-  const F_MORE = [["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""]];
+  const F_MORE = [["slump", "Slump (cm.)", "decimal"], ["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""]];
   // picked with a tap instead of typed
-  const F_PICK = [["slump", "Slump (cm.)", ["5", "7.5", "10", "12.5", "15", "17.5", "20"]], ["sampleType", "Sample Type (ประเภท)", ["CU", "CY", "CY10"]]];
+  const F_PICK = [["sampleType", "Sample Type (ประเภท)", ["CU", "CY", "CY10"]]];
   function renderEdit() {
     const box = $("editBox");
     if (editIdx < 0 || !job.trucks[editIdx]) { box.hidden = true; return; }
@@ -817,7 +817,7 @@
     if ($("editNo")) $("editNo").textContent = editIdx + 1;
   }
   let rmArmed = false;
-  // slump / sample type: tap to choose, tap again to clear
+  // sample type: tap to choose, tap again to clear
   $("editBox").addEventListener("click", (e) => {
     const b = e.target.closest("[data-pick]"); if (!b || b.disabled) return;
     const t = job.trucks[editIdx], k = b.dataset.pick;
