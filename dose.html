@@ -150,7 +150,10 @@
     $("lCem").textContent = f(r.load.cement); $("lFa").textContent = f(r.load.flyAsh); $("lW").textContent = f(w1 * cap);
     $("lBinder").textContent = f(r.loadBinder);
     KEYS.forEach(([k]) => { $("l" + k).textContent = f(r.load.admix[k]); });
-    $("lAdd").textContent = `ปูน ${f(dose * cap)} kg${isFinite(addW) ? ` · น้ำ ${f(addW * cap)} kg` : ""}`;
+    // what goes in on top of the original mix: cement, water and each admixture (its cc/kg × the dosed cement)
+    const add = [`ปูน ${f(dose * cap)} kg`, ...(isFinite(addW) ? [`น้ำ ${f(addW * cap)} kg`] : []),
+      ...KEYS.filter(([k]) => r.dose[k] > 0).map(([k, n]) => `${n} ${f(r.dose[k] * dose * cap)} cc`)];
+    $("lAdd").innerHTML = add.join("<br>");
   }
 
   // Rough 28-day strength from w/(c+p): ACI 211.1 Table 6.3.4(a), non-air-entrained, cylinder.
