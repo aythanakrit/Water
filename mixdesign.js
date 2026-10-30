@@ -116,6 +116,16 @@
   }
 
   /**
+   * The other way round: 28-day cylinder strength (MPa) for a w/(c+p) by mass, non-air-entrained,
+   * from Table 6.3.4(a). Outside the table the end value is returned with { outside: "high" | "low" }.
+   */
+  function strengthFromWc(wc) {
+    const xs = [...WC_TABLE.nonAE].reverse(), ys = [...WC_TABLE.strength].reverse();
+    const outside = wc < xs[0] ? "high" : wc > xs[xs.length - 1] ? "low" : "";
+    return { mpa: interp(xs, ys, wc), outside };
+  }
+
+  /**
    * @param {object} p
    * fc            specified 28-day cylinder strength (MPa)
    * sd, nTests    plant standard deviation (MPa) and number of tests (optional)
@@ -229,5 +239,5 @@
     };
   }
 
-  return { SIZES, requiredStrength, wcFromStrength, mixingWater, design, interp };
+  return { SIZES, requiredStrength, wcFromStrength, strengthFromWc, mixingWater, design, interp };
 });

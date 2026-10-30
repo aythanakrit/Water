@@ -98,3 +98,11 @@ test("slump interpolation between Table 6.3.3 range midpoints", () => {
   assert.equal(r20.waterTable, 202);
   assert.ok(r20.warnings.some((w) => /เกินช่วง ACI 211.1/.test(w)));
 });
+
+test("strength from w/(c+p): Table 6.3.4(a) the other way round, clamped outside the table", () => {
+  const M = require("../mixdesign.js");
+  assert.equal(M.strengthFromWc(0.54).mpa, 30);
+  assert.ok(Math.abs(M.strengthFromWc(0.575).mpa - 27.5) < 1e-9); // half way between 0.61 → 25 and 0.54 → 30
+  assert.deepEqual(M.strengthFromWc(0.35), { mpa: 40, outside: "high" });
+  assert.deepEqual(M.strengthFromWc(0.9), { mpa: 15, outside: "low" });
+});
