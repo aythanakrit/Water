@@ -106,3 +106,10 @@ test("strength from w/(c+p): Table 6.3.4(a) the other way round, clamped outside
   assert.deepEqual(M.strengthFromWc(0.35), { mpa: 40, outside: "high" });
   assert.deepEqual(M.strengthFromWc(0.9), { mpa: 15, outside: "low" });
 });
+
+test("ACI 209R age factor (Type I, moist cured): 7 d ≈ 0.70, 14 d ≈ 0.88, 28 d ≈ 1.007 as the formula gives", () => {
+  const M = require("../mixdesign.js");
+  assert.ok(Math.abs(M.ageFactor(7) - 0.7035) < 1e-3);
+  assert.ok(Math.abs(M.ageFactor(14) - 0.8805) < 1e-3);
+  assert.ok(Math.abs(M.ageFactor(28) - 28 / 27.8) < 1e-12);
+});

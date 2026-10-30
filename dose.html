@@ -55,6 +55,9 @@
   table.fc th:first-child, table.fc td:first-child { text-align: left; white-space: normal; }
   table.fc th { font-size: .8rem; color: var(--muted); font-weight: 600; }
   .fccs { display: none; }
+  details.ref { margin-top: 12px; font-size: .88rem; border-top: 1px solid var(--line); padding-top: 10px; }
+  details.ref summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  details.ref ul { margin: 4px 0 8px; padding-left: 20px; } details.ref p { margin: 8px 0 2px; }
   .wcspec { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 10px; font-size: .9rem; }
   .wcspec label { display: flex; align-items: center; gap: 6px; }
   .wcspec input { width: 84px; }
@@ -124,6 +127,17 @@
       <label>ต่ำสุด <input id="wcMin" type="number" step="0.01"></label>
       <label>สูงสุด <input id="wcMax" type="number" step="0.01"></label></div>
     <div id="fcBox"></div>
+    <details class="ref"><summary>ทำไมสูตรที่มีไฟแอช กำลังช่วง 7–14 วันจึงต่ำกว่า</summary>
+      <p><b>หลักการ</b></p>
+      <ul><li><b>ปูนซีเมนต์:</b> ทำปฏิกิริยากับน้ำได้เร็ว กำลังขึ้นเร็วในช่วงแรก</li>
+        <li><b>ไฟแอช:</b> ทำปฏิกิริยาปอซโซลาน ต้องรอแคลเซียมไฮดรอกไซด์ที่ได้จากปูนทำปฏิกิริยาก่อน จึงช้ากว่ามาก กำลังช่วง 7–14 วันต่ำกว่า แต่จะไล่ขึ้นต่อเนื่องจนถึง 56–90 วัน</li></ul>
+      <p><b>ตัวเลขอ้างอิง</b></p>
+      <ul><li><b>ปูนล้วน Type I บ่มชื้น</b> ตาม ACI 209R: f(t) = t ÷ (4.0 + 0.85t) × f₂₈ → 7 วัน = 7 ÷ (4 + 5.95) ≈ 70% ของ 28 วัน · 14 วัน = 14 ÷ (4 + 11.9) ≈ 88%</li>
+        <li><b>มีไฟแอช:</b> ACI 209R ไม่มีค่าสัมประสิทธิ์ให้ ตัวเลขต่อไปนี้เป็นช่วงที่พบทั่วไป ไม่ใช่ค่าจากมาตรฐาน และขึ้นกับชนิดไฟแอช ปูน และอุณหภูมิ
+          <ul><li>ไฟแอช ~20–30%: 7 วันราว 50–60%, 14 วันราว 70–80% ของ 28 วัน</li>
+            <li>ไฟแอช ~50% (เช่น 150/150): ช่วงแรกช้ากว่านี้อีกมาก ไม่มีตัวเลขที่เชื่อถือได้ ต้องดูจากผลกดจริงของแพล้น</li></ul></li></ul>
+      <p><b>ผลต่อการโดฟ:</b> โดฟ<b>ปูน</b> ทำให้สัดส่วนปูนในวัสดุประสานสูงขึ้น กำลังช่วง 7–14 วันจึงเพิ่มมากกว่าสัดส่วนที่ 28 วัน</p>
+    </details>
   </section>
   <p class="note">โดฟเฉพาะปูน ไม่เติมน้ำ (w/cm ลดลง slump จะลดลงด้วย) ·
     น้ำยาหน้างาน = (ปูน + ไฟแอช หน้างาน) × น้ำยา Mix เดิม ÷ (ปูน + ไฟแอช Mix เดิม) ·
@@ -172,18 +186,23 @@
   // Rough 28-day strength from w/(c+p): ACI 211.1 Table 6.3.4(a), non-air-entrained, cylinder.
   // Cube ≈ cylinder ÷ 0.8 (rule of thumb for normal-strength concrete).
   const CYL_TO_CUBE = 0.8;
+  const EARLY_FA_MAX = 0.25; // above this fly-ash share the 7/14-day figures are not shown
   function strength() {
     const w = v("oW"), c0 = v("oCem"), fa = v("oFa"), dose = v("nDose");
     if (!has("oW") || !(w > 0) || !(c0 + fa > 0)) { $("fcBox").innerHTML = `<p class="note" style="margin:0">ใส่ ปูน ไฟแอช และ <b>น้ำ</b> ของ Mix เดิม เพื่อประมาณกำลังอัด</p>`; return; }
     const row = (label, cem, water) => {
       const wc = water / (cem + fa), s = MixDesign.strengthFromWc(wc), ksc = FieldTools.mpaToKsc(s.mpa);
+      // 7 / 14 days: ACI 209R (portland cement) — shown only while fly ash is at most 25 % of the binder
+      const faShare = fa / (cem + fa), early = faShare <= EARLY_FA_MAX + 1e-9;
+      const at = (t) => early ? `${f(ksc * MixDesign.ageFactor(t), 0)}` : "–";
       const mark = s.outside === "high" ? "≥ " : s.outside === "low" ? "≤ " : "≈ ";
       const bad = (has("wcMax") && wc > v("wcMax") + 1e-9) ? `เกิน ${f(v("wcMax"), 2)}` : (has("wcMin") && wc < v("wcMin") - 1e-9) ? `ต่ำกว่า ${f(v("wcMin"), 2)}` : "";
       const chk = has("wcMax") || has("wcMin") ? (bad ? `<span class="badge bad">⛔ ${bad}</span>` : `<span class="badge ok">✅ ในเกณฑ์</span>`) : "";
-      return { bad, html: `<tr><td>${label} ${chk}</td><td>${f(cem, 0)} + ${f(fa, 0)}</td><td>${f(water, 0)}</td><td>${f(wc, 3)}</td><td>${mark}${f(s.mpa, 1)}</td><td><b>${mark}${f(ksc, 0)}</b></td><td>${mark}${f(ksc / CYL_TO_CUBE, 0)}</td></tr>`,
+      return { bad, html: `<tr><td>${label} ${chk}</td><td>${f(cem, 0)} + ${f(fa, 0)}</td><td>${f(water, 0)}</td><td>${f(wc, 3)}</td><td>${at(7)}</td><td>${at(14)}</td><td>${mark}${f(s.mpa, 1)}</td><td><b>${mark}${f(ksc, 0)}</b></td><td>${mark}${f(ksc / CYL_TO_CUBE, 0)}</td></tr>`,
         // phone: one card per row, ksc first
         card: `<div class="fcc${bad ? " out" : ""}"><div class="h">${label} ${chk}</div><div class="k"><span><b>${mark}${f(ksc, 0)}</b> ksc<small>ทรงกระบอก</small></span><span><b>${mark}${f(ksc / CYL_TO_CUBE, 0)}</b> ksc<small>ลูกบาศก์</small></span></div>
-          <div class="m">w/(c+p) ${f(wc, 3)} · ${mark}${f(s.mpa, 1)} MPa · ปูน+แอช ${f(cem, 0)}+${f(fa, 0)} · น้ำ ${f(water, 0)} kg</div></div>`, ksc, s };
+          <div class="m">${early ? `7 วัน ≈ ${at(7)} · 14 วัน ≈ ${at(14)} ksc (ทรงกระบอก)` : `7/14 วัน: ไฟแอช ${f(faShare * 100, 0)}% — ดูผลกดจริง`}</div>
+          <div class="m">w/(c+p) ${f(wc, 3)} · ${mark}${f(s.mpa, 1)} MPa · ปูน+แอช ${f(cem, 0)}+${f(fa, 0)} · น้ำ ${f(water, 0)} kg</div></div>`, ksc, s, faShare, early };
     };
     const rows = [row("ก่อนโดฟ (Mix เดิม)", c0, w)];
     if (dose > 0) rows.push(row(`หลังโดฟปูน ${f(dose, 0)} kg (น้ำเท่าเดิม)`, c0 + dose, w));
@@ -199,14 +218,15 @@
     if (isFinite(most) && most >= 0 && dose > most) out.push(`โดฟได้ไม่เกิน <b>${f(Math.floor(most), 0)} kg/คิว</b> ไม่ให้ต่ำกว่า ${f(v("wcMin"), 2)}`);
     warn.unshift(...out);
     if (rows.some((x) => x.s.outside)) warn.push("w/(c+p) อยู่นอกช่วงตาราง ACI (0.42–0.79) — แสดงค่าปลายตาราง (≥ / ≤)");
-    if (fa / (c0 + fa) > 0.25) warn.push(`ไฟแอช ${f(fa / (c0 + fa) * 100, 0)}% ของวัสดุประสาน — ตาราง ACI เป็นของปูนล้วน กำลัง 28 วันจริงมักต่ำกว่าค่าที่ประมาณ`);
-    $("fcBox").innerHTML = `<div class="scroll"><table class="fc"><thead><tr><th></th><th>ปูน + แอช (kg)</th><th>น้ำ (kg)</th><th>w/(c+p)</th><th>MPa ทรงกระบอก</th><th>ksc ทรงกระบอก</th><th>ksc ลูกบาศก์</th></tr></thead>
+    if (fa / (c0 + fa) > EARLY_FA_MAX) warn.push(`ไฟแอช ${f(fa / (c0 + fa) * 100, 0)}% ของวัสดุประสาน — ตาราง ACI เป็นของปูนล้วน กำลัง 28 วันจริงมักต่ำกว่าค่าที่ประมาณ · กำลัง 7/14 วันไม่แสดง เพราะไม่มีค่าอ้างอิงที่เชื่อถือได้ ต้องดูจากผลกดจริงของแพล้น${rows.some((x) => x.early) ? " (แถวที่โดฟแล้วไฟแอชไม่เกิน 25% แสดงค่าให้)" : ""}`);
+    else if (fa > 0) warn.push(`มีไฟแอช ${f(fa / (c0 + fa) * 100, 0)}% — กำลัง 7/14 วันคิดแบบปูนล้วน (ACI 209R) ค่าจริงมักต่ำกว่า (ไฟแอช 20–30% มักได้ราว 50–60% / 70–80% ของ 28 วัน)`);
+    $("fcBox").innerHTML = `<div class="scroll"><table class="fc"><thead><tr><th></th><th>ปูน + แอช (kg)</th><th>น้ำ (kg)</th><th>w/(c+p)</th><th>7 วัน ksc</th><th>14 วัน ksc</th><th>28 วัน MPa</th><th>28 วัน ksc ทรงกระบอก</th><th>28 วัน ksc ลูกบาศก์</th></tr></thead>
       <tbody>${rows.map((x) => x.html).join("")}</tbody></table></div>
       <div class="fccs">${rows.map((x) => x.card).join("")}</div>
       ${dose > 0 ? `<p style="margin:8px 0 0">โดฟปูน ${f(dose, 0)} kg/คิว ไม่เติมน้ำ → w/(c+p) ลดจาก ${f(w / (c0 + fa), 3)} เป็น ${f(w / (c0 + dose + fa), 3)} · กำลังเพิ่มประมาณ <b>${f(rows[1].ksc - rows[0].ksc, 0)} ksc</b> (ทรงกระบอก)</p>` : ""}
       ${warn.map((x) => `<div class="warn" style="margin-top:8px">${x}</div>`).join("")}
       <p class="note" style="margin:8px 0 0">วิธีคิด: w/(c+p) = น้ำ ÷ (ปูน + ไฟแอช) → กำลังทรงกระบอก 28 วัน จาก ACI 211.1 ตาราง 6.3.4(a) (ไม่กักกระจายฟองอากาศ) · 1 MPa = 10.19 ksc ·
-        ลูกบาศก์ ≈ ทรงกระบอก ÷ 0.8 (ค่าประมาณทั่วไป) · ถือว่าโดฟเฉพาะปูน ไม่เติมน้ำ
+        ลูกบาศก์ ≈ ทรงกระบอก ÷ 0.8 (ค่าประมาณทั่วไป) · 7/14 วัน = 28 วัน × t ÷ (4.0 + 0.85t) ตาม ACI 209R (ปูน Type I บ่มชื้น: 7 วัน ≈ 70%, 14 วัน ≈ 88%) · ถือว่าโดฟเฉพาะปูน ไม่เติมน้ำ
         · ค่าประมาณเพื่อเทียบเท่านั้น ไม่ใช่ผลทดสอบ — ต้องให้วิศวกรผู้รับผิดชอบตรวจสอบ และยืนยันด้วยผลกดจริง</p>`;
   }
   document.querySelectorAll("input").forEach((el) => el.addEventListener("input", run));

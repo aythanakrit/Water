@@ -119,6 +119,12 @@
    * The other way round: 28-day cylinder strength (MPa) for a w/(c+p) by mass, non-air-entrained,
    * from Table 6.3.4(a). Outside the table the end value is returned with { outside: "high" | "low" }.
    */
+  /**
+   * Strength at t days as a share of 28-day strength, ACI 209R-92: f(t) = t / (a + b·t),
+   * moist-cured Type I cement a = 4.0, b = 0.85 (7 d ≈ 0.70, 14 d ≈ 0.88). Portland cement only.
+   */
+  const ageFactor = (t) => t / (4.0 + 0.85 * t);
+
   function strengthFromWc(wc) {
     const xs = [...WC_TABLE.nonAE].reverse(), ys = [...WC_TABLE.strength].reverse();
     const outside = wc < xs[0] ? "high" : wc > xs[xs.length - 1] ? "low" : "";
@@ -239,5 +245,5 @@
     };
   }
 
-  return { SIZES, requiredStrength, wcFromStrength, strengthFromWc, mixingWater, design, interp };
+  return { SIZES, requiredStrength, wcFromStrength, strengthFromWc, ageFactor, mixingWater, design, interp };
 });
