@@ -46,7 +46,30 @@
     return (trucks || []).map((t, i) => (digits(t.do) && !have.has(digits(t.do)) ? i + 1 : 0)).filter(Boolean);
   }
 
+  /**
+   * One report page per truck: trucks in report order (those with at least one photo), then photos whose
+   * D/O is not in the report, one page per D/O. Returns [{ no, truck, do, photos: { kind: [photo…] } }].
+   */
+  function byTruck(photos, trucks) {
+    const pages = [], seen = new Set();
+    const group = (d) => {
+      const out = {};
+      KINDS.forEach((k) => { out[k.key] = photos.filter((p) => p.kind === k.key && digits(p.do) === d).sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0)); });
+      return out;
+    };
+    (trucks || []).forEach((t, i) => {
+      const d = digits(t.do);
+      if (!d || seen.has(d)) return;
+      seen.add(d);
+      const g = group(d);
+      if (KINDS.some((k) => g[k.key].length)) pages.push({ no: i + 1, truck: t.truck || "", do: t.do, photos: g });
+    });
+    [...new Set(photos.map((p) => digits(p.do)))].filter((d) => d && !seen.has(d)).sort()
+      .forEach((d) => pages.push({ no: "", truck: "", do: d, photos: group(d) }));
+    return pages;
+  }
+
   const chunk = (list, n = PER_PAGE) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
 
-  return { KINDS, PER_PAGE, stampText, forReport, missing, chunk };
+  return { KINDS, PER_PAGE, stampText, forReport, missing, byTruck, chunk };
 });

@@ -84,10 +84,12 @@
   .phit .del { float: right; font: inherit; font-size: .8rem; color: var(--bad); background: none; border: 0; cursor: pointer; padding: 0 0 0 6px; }
   .phit.pending { outline: 2px dashed var(--warn); }
   .pg.ph .phh { display: flex; justify-content: space-between; font-size: 15px; border-bottom: 1.5px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
-  .pg.ph .phg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .pg.ph .phc { border: 1px solid #000; height: 330px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px; }
-  .pg.ph .phc .im { width: 100%; height: 300px; background: center / contain no-repeat; }
-  .pg.ph .phc .cap { font-size: 12px; text-align: center; }
+  .pg.ph .ph3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pg.ph .phcol { border: 1px solid #000; height: 670px; display: flex; flex-direction: column; padding: 6px; }
+  .pg.ph .phcol .kt { font-weight: 700; font-size: 14px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 6px; }
+  .pg.ph .phcol .im { flex: 1; min-height: 0; width: 100%; background: center / contain no-repeat; }
+  .pg.ph .phcol .cap { font-size: 12px; text-align: center; padding: 2px 0 4px; }
+  .pg.ph .phcol .none { flex: 1; display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; }
   #live { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; flex-direction: column; }
   #live[hidden] { display: none; }
   #live .cam { position: relative; flex: 1; overflow: hidden; }
@@ -1255,7 +1257,7 @@
     await PDB.put({ ...p, data: r.data, synced: true, created: Date.now() });
     return (p.data = r.data);
   }
-  // pages after the field report: Printout, slump at plant, slump on site (4 a page)
+  // pages after the field report: one per truck with its Printout, slump at plant and slump on site
   async function photoPagesHTML(msg) {
     const date = job.header.date, project = (job.header.project || "").trim();
     let list = [];
@@ -1275,13 +1277,14 @@
       }
     }));
     const ok = list.filter((p) => p.data);
-    const html = PK.map((k) => {
-      const pages = ReportPhotos.chunk(ReportPhotos.forReport(ok, job.trucks, k.key));
-      return pages.map((items, i) => `<div class="pg ph"><div class="phh"><b>${esc(k.title)}</b>
-          <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${pages.length}</span></div>
-        <div class="phg">${items.map(({ photo: p, no, truck }) => `<div class="phc"><div class="im" style="background-image:url(data:image/jpeg;base64,${p.data})"></div>
-          <div class="cap">${no ? `ลำดับ ${no} · ` : ""}${truck ? `รถ ${esc(truck)} · ` : ""}D/O ${esc(p.do)}${p.takenAt && k.stamp ? " · " + ReportPhotos.stampText(p.takenAt) : ""}</div></div>`).join("")}</div></div>`).join("");
-    }).join("");
+    // one page per truck: Printout · slump at plant · slump on site side by side
+    const pages = ReportPhotos.byTruck(ok, job.trucks);
+    const html = pages.map((pg, i) => `<div class="pg ph"><div class="phh">
+        <b>${pg.no ? `ลำดับ ${pg.no} · ` : ""}${pg.truck ? `รถ ${esc(pg.truck)} · ` : ""}D/O ${esc(pg.do)}${pg.no ? "" : " (ไม่อยู่ในใบรายงาน)"}</b>
+        <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${pages.length}</span></div>
+      <div class="ph3">${PK.map((k) => `<div class="phcol"><div class="kt">${esc(k.title)}</div>${pg.photos[k.key].length
+        ? pg.photos[k.key].map((p) => `<div class="im" style="background-image:url(data:image/jpeg;base64,${p.data})"></div>${k.stamp && p.takenAt ? `<div class="cap">${ReportPhotos.stampText(p.takenAt)}</div>` : ""}`).join("")
+        : `<div class="none">ไม่มีภาพ</div>`}</div>`).join("")}</div></div>`).join("");
     msg.textContent = failed ? `⚠️ โหลดภาพไม่ได้ ${failed} ภาพ — PDF จะไม่มีภาพเหล่านั้น` : "กำลังสร้าง PDF…";
     return html;
   }

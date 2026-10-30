@@ -32,3 +32,13 @@ test("pages of four", () => {
   assert.deepEqual(P.chunk([1, 2, 3, 4, 5, 6, 7, 8, 9]).map((p) => p.length), [4, 4, 1]);
   assert.deepEqual(P.chunk([]), []);
 });
+
+test("one page per truck: report order, three kinds each, unknown D/O after", () => {
+  const photos = [ph("a", "site", "0372610040132"), ph("b", "plant", "0372610040130", 2), ph("c", "printout", "0372610040130"),
+    ph("d", "plant", "0372610040130", 1), ph("e", "plant", "9999")];
+  const pages = P.byTruck(photos, trucks);
+  assert.deepEqual(pages.map((p) => [p.no, p.truck, p.do]), [[1, "7101", "0372610040130"], [3, "7103", "0372610040132"], ["", "", "9999"]]);
+  assert.deepEqual(pages[0].photos.plant.map((p) => p.id), ["d", "b"]);
+  assert.deepEqual(pages[0].photos.printout.map((p) => p.id), ["c"]);
+  assert.deepEqual(pages[1].photos.printout, []);
+});
