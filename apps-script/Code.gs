@@ -60,7 +60,8 @@ function doPost(e) {
       case "checkDO": return json({ ok: true, hit: checkDO(req.do, req.jobId) });
       case "delete": deleteJob(req.id); return json({ ok: true });
       case "report": return json({ ok: true, jobs: reportJobs(req.from, req.to) });
-      case "mailTrial": return json(mailTrial(req));
+      case "mailTrial": return json(mailPdf(req, "TRIAL_MAIL_TO", "Trial Mix"));
+      case "mailReport": return json(mailPdf(req, "REPORT_MAIL_TO", "รายงานโครงการ"));
       case "contacts": return json({ ok: true, people: listContacts(), settings: contactSettings() });
       case "contactAdd": return json(addContact(req.contact));
       case "adminCheck": return json(isAdmin(req.adminKey) ? { ok: true } : { ok: false, error: "not_admin" });
@@ -401,14 +402,15 @@ function deleteContact(id) {
   return { ok: true };
 }
 
-// ---------- Trial Mix PDF by email ----------
+// ---------- PDF by email (Trial Mix, project reports) ----------
 // Goes only to the address(es) in Script property TRIAL_MAIL_TO (comma-separated), never to one sent by the page,
 // and at most MAIL_PER_DAY a day, so the web app cannot be used to mail anyone else.
 const MAIL_PER_DAY = 30;
 const MAIL_MAX_BYTES = 20 * 1024 * 1024;
-function mailTrial(req) {
+// Trial Mix → TRIAL_MAIL_TO, special-project daily report → REPORT_MAIL_TO (the daily count is shared)
+function mailPdf(req, toProperty, defaultSubject) {
   const props = PropertiesService.getScriptProperties();
-  const to = props.getProperty("TRIAL_MAIL_TO");
+  const to = props.getProperty(toProperty);
   if (!to) return { ok: false, error: "no_recipient" };
   if (!req.pdf || !req.name) return { ok: false, error: "bad_request" };
   const bytes = Utilities.base64Decode(req.pdf);
@@ -418,7 +420,7 @@ function mailTrial(req) {
   if (count >= MAIL_PER_DAY) return { ok: false, error: "daily_limit" };
   const name = String(req.name).replace(/[\\/:*?"<>|]+/g, "-").slice(0, 120);
   MailApp.sendEmail({
-    to, subject: String(req.subject || "Trial Mix").slice(0, 200), body: String(req.body || "").slice(0, 2000),
+    to, subject: String(req.subject || defaultSubject).slice(0, 200), body: String(req.body || "").slice(0, 2000),
     attachments: [Utilities.newBlob(bytes, "application/pdf", /\.pdf$/i.test(name) ? name : name + ".pdf")],
   });
   props.setProperty("mailDay", day);

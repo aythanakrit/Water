@@ -334,3 +334,16 @@ test("photos: upload to Drive, list by project and date, get, delete; retry with
   assert.equal(up({ do: "" }).error, "bad_request");
   assert.equal(up({ date: "30/10/2569" }).error, "bad_request");
 });
+
+test("project report PDF is mailed only to REPORT_MAIL_TO", () => {
+  const { call, props, mail } = load();
+  const pdf = Buffer.from("%PDF-1.4 test").toString("base64");
+  assert.equal(call({ action: "mailReport", name: "r.pdf", pdf }).error, "no_recipient");
+  props.REPORT_MAIL_TO = "report@example.com";
+  props.TRIAL_MAIL_TO = "qc@example.com";
+  const r = call({ action: "mailReport", name: "รายงาน_A.pdf", pdf, subject: "รายงาน A", to: "someone@else.com" });
+  assert.equal(r.ok, true);
+  assert.equal(mail.at(-1).to, "report@example.com");
+  assert.equal(mail.at(-1).subject, "รายงาน A");
+  assert.equal(mail.at(-1).attachments[0].type, "application/pdf");
+});

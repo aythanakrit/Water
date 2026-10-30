@@ -240,6 +240,7 @@
       <div class="row">
         <button class="b" id="finish" type="button">จบงาน</button>
         <button class="g" id="pdf" type="button">Export PDF</button>
+        <button class="b" id="mail" type="button" hidden>📧 ส่งอีเมลรายงาน</button>
         <span class="saved" id="pdfMsg"></span>
       </div>
     </section>
@@ -882,11 +883,27 @@
       <tr>${td("fl fb", "", 16)}${td("fr fb fm", "FM-PQ-10 Rev.01 09/07/64", 4)}</tr>
     </table></div>`;
   }
-  $("pdf").addEventListener("click", async () => {
+  const b64 = (blob) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(blob); });
+  // Special-project report by email, to the address set in Apps Script (REPORT_MAIL_TO)
+  async function mailReport(name, blob, msg) {
+    msg.textContent = "กำลังส่งอีเมล…";
+    const h = job.header, s = FieldReport.summary(job);
+    const out = await api("mailReport", { name, pdf: await b64(blob),
+      subject: ["รายงานประจำวัน", h.project, thaiDate(h.date)].filter(Boolean).join(" · "),
+      body: [`Project: ${h.project || "-"}`, `Customer: ${h.customer || "-"}`, `Date: ${thaiDate(h.date) || "-"}`,
+        `Structure: ${[h.structure, h.structureNo].filter(Boolean).join(" ") || "-"}`, `Trucks: ${s.trucks}`, `Received: ${fmt(s.received)} m3`].join("\n") });
+    if (!out.ok) throw new Error({ no_recipient: "ยังไม่ได้ตั้งอีเมลผู้รับใน Apps Script (REPORT_MAIL_TO)", too_large: "ไฟล์ใหญ่เกินส่งอีเมล (เกิน 20 MB)",
+      daily_limit: "ส่งอีเมลครบจำนวนต่อวันแล้ว — ลองใหม่พรุ่งนี้", unknown_action: "Apps Script ยังเป็นเวอร์ชันเก่า — อัปเดตแล้ว Deploy เวอร์ชันใหม่" }[out.error] || "ส่งอีเมลไม่สำเร็จ");
+    job.mailedAt = Date.now(); persist();
+  }
+  if (SP && SYNC) $("mail").hidden = false;
+  $("pdf").addEventListener("click", () => runPdf(false));
+  $("mail").addEventListener("click", () => runPdf(true));
+  async function runPdf(withMail) {
     const msg = $("pdfMsg");
     if (blockedByDuplicates()) return;
     if (!window.html2canvas || !window.jspdf) { msg.textContent = "โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่"; return; }
-    $("pdf").disabled = true; msg.textContent = "กำลังสร้าง PDF…";
+    $("pdf").disabled = $("mail").disabled = true; msg.textContent = "กำลังสร้าง PDF…";
     try {
       const ps = FieldReport.pages(job.trucks);
       const host = $("print");
@@ -898,16 +915,20 @@
       for (let i = 0; i < els.length; i++) {
         const c = await html2canvas(els[i], { scale: 2, backgroundColor: "#ffffff" });
         if (i) pdf.addPage("a4", "landscape");
-        pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 297, 210);
+        // photo pages a little lighter, so a day's report stays small enough to email
+        pdf.addImage(c.toDataURL("image/jpeg", els[i].classList.contains("ph") ? 0.8 : 0.92), "JPEG", 0, 0, 297, 210);
       }
       host.innerHTML = "";
       const h = job.header;
       const name = ["ใบรายงานสนาม", h.project, h.structure, h.date].filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "-") + ".pdf";
-      await saveFile(name, pdf.output("blob"), msg);
+      const blob = pdf.output("blob");
+      await saveFile(name, blob, msg);
+      if (withMail) { const saved = msg.textContent; await mailReport(name, blob, msg); msg.textContent = `${saved} · ส่งอีเมลแล้ว ✓ ${FieldReport.nowHHMM()}`; }
     } catch (e) {
-      msg.textContent = "สร้าง PDF ไม่สำเร็จ — ลองใหม่อีกครั้ง";
-    } finally { $("pdf").disabled = false; }
-  });
+      msg.textContent = withMail && e && e.message && !/fetch|NetworkError|Load failed/i.test(e.message) ? e.message
+        : withMail ? "ส่งอีเมลไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่" : "สร้าง PDF ไม่สำเร็จ — ลองใหม่อีกครั้ง";
+    } finally { $("pdf").disabled = $("mail").disabled = false; }
+  }
 
   // ---------- backup / restore ----------
   $("backupBtn").addEventListener("click", () => {
