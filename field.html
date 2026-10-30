@@ -367,12 +367,25 @@
     msgEl.textContent = `บันทึก ${filename} แล้ว`;
   }
 
+  // ---------- project mode (field.html?project=…): one project, one report per day ----------
+  const PROJ = (new URLSearchParams(location.search).get("project") || "").trim();
+  const inProj = (j) => !PROJ || (j.header.project || "").trim() === PROJ;
+  if (PROJ) {
+    document.title = `รายงาน โครงการ${PROJ}`;
+    document.querySelector("#vList h1").textContent = document.title;
+    document.querySelector("#vList .sub").textContent = "รายงานประจำวัน 1 วัน = 1 ใบ (แบบเดียวกับใบรายงานสนาม FM-PQ-10) · บันทึกอัตโนมัติในเครื่องนี้";
+    $("newJob").textContent = "+ รายงานวันนี้";
+    document.querySelector('[data-h="project"]').readOnly = true;
+  }
+
   // ---------- job list ----------
   function showList() {
     job = null; editIdx = -1;
     $("vJob").hidden = true; $("vList").hidden = false;
     showSync();
-    const jobs = [...db.jobs].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
+    const jobs = PROJ
+      ? db.jobs.filter(inProj).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
+      : [...db.jobs].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
       return `<section class="job">
@@ -384,7 +397,7 @@
         <div class="row"><button class="b" data-open="${j.id}" type="button">${j.status === "done" ? "เปิดดู" : "บันทึกต่อ"}</button>
           <button class="g d" data-del="${j.id}" type="button">ลบ</button></div>
       </section>`;
-    }).join("") : `<section><p class="note" style="margin:0">ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม</p></section>`;
+    }).join("") : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
   }
   let delArmed = null;
   $("jobs").addEventListener("click", (e) => {
@@ -399,6 +412,17 @@
     }
   });
   $("newJob").addEventListener("click", () => {
+    if (PROJ) {
+      // today's report already started → open it; otherwise start one with the fixed details of the last report
+      const mine = db.jobs.filter(inProj);
+      const t = mine.find((x) => x.header.date === today());
+      if (t) return openJob(t.id);
+      const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
+      const last = mine.sort((a, b) => (b.header.date || "").localeCompare(a.header.date || ""))[0];
+      j.header.project = PROJ;
+      if (last && !last.stub) ["customer", "tech", "phone", "productCode"].forEach((k) => { j.header[k] = last.header[k] || ""; });
+      db.jobs.push(j); persist(); markDirty(j.id); return openJob(j.id, true);
+    }
     const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
     db.jobs.push(j); persist(); markDirty(j.id); openJob(j.id, true);
   });
@@ -867,7 +891,7 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
   showList();
   if (SYNC) syncNow().then(pull);
-  const open = db.jobs.filter((j) => j.status === "open");
+  const open = db.jobs.filter((j) => j.status === "open" && inProj(j));
   if (open.length === 1) $("listMsg").textContent = `มีงานที่ยังบันทึกไม่จบ: ${open[0].header.project || "(ไม่มีชื่อ)"}`;
 </script>
 <script src="topbar.js"></script>
