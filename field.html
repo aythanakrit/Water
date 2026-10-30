@@ -1125,6 +1125,22 @@
 
   // file → JPEG (base64) pages: an image, or each page of a PDF (printout)
   const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  // Cut the empty white margin around a printout page so the printed part fills the report cell
+  function trimWhite(c) {
+    const { width: W, height: H } = c, d = c.getContext("2d").getImageData(0, 0, W, H).data;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+      const i = (y * W + x) * 4;
+      if (d[i] < 235 || d[i + 1] < 235 || d[i + 2] < 235) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    if (x1 < 0) return c;
+    const m = Math.round(Math.max(W, H) * 0.02);
+    x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W, x1 + m); y1 = Math.min(H, y1 + m);
+    const o = document.createElement("canvas"); o.width = x1 - x0; o.height = y1 - y0;
+    const g = o.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, o.width, o.height);
+    g.drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+    return o;
+  }
   async function pdfCanvases(file) {
     if (!window.pdfjsLib) {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
@@ -1138,7 +1154,7 @@
       const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
       const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
       await page.render({ canvasContext: g, viewport: vp }).promise;
-      out.push(c);
+      out.push(trimWhite(c));
     }
     return out;
   }
