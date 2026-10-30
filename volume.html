@@ -32,7 +32,6 @@
   .total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .total b { font-size: 2.4rem; line-height: 1.1; color: var(--accent); font-variant-numeric: tabular-nums; }
   .total span { font-size: 1.1rem; }
-  .trips { font-size: 1.05rem; margin-top: 2px; }
   .breakdown { color: var(--muted); font-size: .88rem; margin-top: 6px; }
   .empty { color: var(--muted); }
 
@@ -76,7 +75,7 @@
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
   <h1>ปริมาตรคอนกรีต</h1>
-  <p class="sub">แตะชนิดงาน → ใส่ขนาด → ได้ยอดสั่งพร้อมเผื่อ และจำนวนเที่ยวรถ</p>
+  <p class="sub">แตะชนิดงาน → ใส่ขนาด → ได้ยอดสั่งพร้อมเผื่อ</p>
 
   <section id="result"></section>
 
@@ -92,10 +91,7 @@
   </section>
 
   <section>
-    <h2>3. รถโม่ (คิว/เที่ยว)</h2>
-    <div class="chips" id="capChips"></div>
-    <div class="row"><label>หรือพิมพ์ความจุรถ (คิว)<input id="cap" type="number" step="0.5"></label></div>
-    <details style="margin-top:10px"><summary>ตั้งค่าเพิ่มเติม (ปัดยอดสั่ง · ไล่ท่อปั๊ม)</summary>
+    <details><summary>ตั้งค่าเพิ่มเติม (ปัดยอดสั่ง · ไล่ท่อปั๊ม)</summary>
       <div class="row">
         <label>ปัดยอดสั่งขึ้นทีละ (คิว)<input id="step" type="number" step="0.5" placeholder="ไม่ใส่ = 0.5"></label>
         <label>ไล่ท่อปั๊ม / ค้างในท่อ (คิว)<input id="pump" type="number" step="0.1" placeholder="ไม่ใช้ปั๊มเว้นว่าง"></label>
@@ -127,7 +123,6 @@
   };
   const HINT = { slab: "เช่น หนา 10 ซม.", ground: "เช่น หนา 10 ซม.", beam: "เช่น 20×50 ซม.", column: "เช่น 25×25 ซม.", roundColumn: "Ø ซม. × สูง ม.",
     wall: "เช่น หนา 20 ซม.", footing: "กว้าง × ยาว ม. หนา ซม.", pile: "Ø ซม. × ลึก ม.", other: "ใส่เป็นคิว" };
-  const CAPS = [5, 6, 7];
   const toM = (v, u) => (u === "cm" ? v / 100 : v);
 
   let items = [];
@@ -135,7 +130,6 @@
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { /* storage blocked */ } };
 
   $("tiles").innerHTML = Object.entries(T).map(([k, t]) => `<button type="button" data-add="${k}">${esc(t.name.replace(" (กรอก m³)", ""))}<small>${HINT[k] || ""}</small></button>`).join("");
-  $("capChips").innerHTML = CAPS.map((c) => `<button type="button" data-cap="${c}">${c} คิว</button>`).join("");
 
   function renderItems() {
     $("itemsBox").hidden = !items.length;
@@ -157,9 +151,8 @@
   };
 
   function run() {
-    const cap = Number($("cap").value) || 0, step = $("step").value === "" ? 0.5 : Number($("step").value), pump = Number($("pump").value) || 0;
-    $("capChips").querySelectorAll("button").forEach((b) => b.classList.toggle("on", Number(b.dataset.cap) === cap));
-    const r = Volume.order(items.map(asMetres), { cap, step, pump });
+    const step = $("step").value === "" ? 0.5 : Number($("step").value), pump = Number($("pump").value) || 0;
+    const r = Volume.order(items.map(asMetres), { cap: 0, step, pump });
     r.rows.forEach((row, i) => {
       const el = $("res" + i); if (!el) return;
       el.innerHTML = row.net > 0
@@ -171,12 +164,11 @@
     } else {
       $("result").innerHTML = `<div class="note">ยอดสั่ง</div>
         <div class="total"><b>${f(r.ordered, 1)}</b><span>คิว</span></div>
-        <div class="trips">${cap > 0 ? `🚚 ${r.trips} เที่ยว (รถ ${f(cap, 1)} คิว)${r.trips > 1 && r.last < cap - 1e-9 ? ` · เที่ยวสุดท้าย ${f(r.last, 1)} คิว` : ""}` : `<span class="note">เลือกขนาดรถในข้อ 3 เพื่อดูจำนวนเที่ยว</span>`}</div>
         <div class="breakdown">ตามแบบ ${f(r.net)} + เผื่อ ${f(r.extra)}${r.pump ? ` + ไล่ท่อปั๊ม ${f(r.pump)}` : ""} = ${f(r.need)} คิว (เผื่อรวม ${f(r.wastePct, 1)}%) · ปัดขึ้นทีละ ${f(step, 1)}</div>
-        ${cap > 0 && r.trips > 1 && r.last < cap * 0.5 ? `<div class="warn">เที่ยวสุดท้ายเหลือ ${f(r.last, 1)} คิว ต่ำกว่าครึ่งคัน อาจเข้าเงื่อนไขค่า short load และรอนาน — ให้หน้างานวัดจริงก่อนสั่งเที่ยวสุดท้าย</div>` : ""}`;
+`;
     }
     // small bar at the bottom while the result card is scrolled away
-    miniText = items.length && r.net > 0 ? `ยอดสั่ง <b>${f(r.ordered, 1)}</b> คิว${cap > 0 ? ` · ${r.trips} เที่ยว` : ""}` : "";
+    miniText = items.length && r.net > 0 ? `ยอดสั่ง <b>${f(r.ordered, 1)}</b> คิว` : "";
     showMini();
     const used = [...new Set(items.map((it) => it.type))];
     $("why").innerHTML = (used.length ? used : Object.keys(T)).map((k) =>
@@ -212,8 +204,7 @@
     if (e.target.dataset.armed !== "1") { e.target.dataset.armed = "1"; e.target.textContent = "แตะอีกครั้งเพื่อล้าง"; setTimeout(() => { e.target.dataset.armed = ""; e.target.textContent = "ล้างทั้งหมด"; }, 3000); return; }
     items = []; e.target.dataset.armed = ""; e.target.textContent = "ล้างทั้งหมด"; renderItems(); run();
   });
-  $("capChips").addEventListener("click", (e) => { const b = e.target.closest("[data-cap]"); if (b) { $("cap").value = b.dataset.cap; run(); } });
-  ["cap", "step", "pump"].forEach((id) => $(id).addEventListener("input", run));
+  ["step", "pump"].forEach((id) => $(id).addEventListener("input", run));
   let miniText = "", resultVisible = true;
   function showMini() { $("mini").innerHTML = miniText; $("mini").hidden = !miniText || resultVisible; }
   if ("IntersectionObserver" in window) new IntersectionObserver(([e]) => { resultVisible = e.isIntersecting; showMini(); }).observe($("result"));
