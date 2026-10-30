@@ -170,7 +170,6 @@
         <div class="row"><label style="max-width:220px">วันที่ของรายงาน<input id="phDate" class="dth" type="text"></label>
           <button class="g" id="phReload" type="button">↻ โหลดใหม่</button></div>
         <p class="note" id="phNote" style="margin:8px 0 0"></p>
-        <div id="phAdminBox" style="margin-top:10px"></div>
       </section>
       <div id="phKinds"></div>
       <input id="phFile" type="file" hidden>
@@ -256,6 +255,8 @@
         <button class="g" id="pdf" type="button">Export PDF</button>
         <button class="b" id="mail" type="button" hidden>📧 ส่งอีเมลรายงาน</button>
         <span class="saved" id="pdfMsg"></span>
+      </div>
+      <div id="phAdminBox" style="margin-top:10px">
       </div>
     </section>
   </div>
@@ -1269,7 +1270,8 @@
     return html;
   }
   if (SP) {
-    $("photoBox").hidden = false;
+    // photos are attached per truck (tap the truck in the report); the list page shows only the reports
+    // (#photoBox stays hidden: it holds the photo state used by the truck panel and the PDF)
     renderAdmin();
     $("phDate").value = ph.date;
     const onDate = () => { const v = $("phDate").value; if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v !== ph.date) { ph.date = v; ph.server = null; ph.at = 0; phRefresh(true); } };
