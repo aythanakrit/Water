@@ -55,6 +55,12 @@
   table.fc th:first-child, table.fc td:first-child { text-align: left; white-space: normal; }
   table.fc th { font-size: .8rem; color: var(--muted); font-weight: 600; }
   .fccs { display: none; }
+  .wcspec { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 10px; font-size: .9rem; }
+  .wcspec label { display: flex; align-items: center; gap: 6px; }
+  .wcspec input { width: 84px; }
+  .badge { display: inline-block; font-size: .78rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; margin-left: 4px; white-space: nowrap; }
+  .badge.ok { background: #e3f6e8; color: #1d7a3e; } .badge.bad { background: #fde4e1; color: #b42318; }
+  .fcc.out { border-color: #b42318; }
   .fcc { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
   .fcc .h { font-weight: 600; margin-bottom: 6px; }
   .fcc .k { display: flex; gap: 18px; }
@@ -114,6 +120,9 @@
 
   <section style="margin-top:16px">
     <h2>กำลังอัดโดยประมาณ (28 วัน)</h2>
+    <div class="wcspec"><span>เกณฑ์ w/(c+p) ตามสเปก</span>
+      <label>ต่ำสุด <input id="wcMin" type="number" step="0.01"></label>
+      <label>สูงสุด <input id="wcMax" type="number" step="0.01"></label></div>
     <div id="fcBox"></div>
   </section>
   <p class="note">โดฟเฉพาะปูน ไม่เติมน้ำ (w/cm ลดลง slump จะลดลงด้วย) ·
@@ -169,14 +178,26 @@
     const row = (label, cem, water) => {
       const wc = water / (cem + fa), s = MixDesign.strengthFromWc(wc), ksc = FieldTools.mpaToKsc(s.mpa);
       const mark = s.outside === "high" ? "≥ " : s.outside === "low" ? "≤ " : "≈ ";
-      return { html: `<tr><td>${label}</td><td>${f(cem, 0)} + ${f(fa, 0)}</td><td>${f(water, 0)}</td><td>${f(wc, 3)}</td><td>${mark}${f(s.mpa, 1)}</td><td><b>${mark}${f(ksc, 0)}</b></td><td>${mark}${f(ksc / CYL_TO_CUBE, 0)}</td></tr>`,
+      const bad = (has("wcMax") && wc > v("wcMax") + 1e-9) ? `เกิน ${f(v("wcMax"), 2)}` : (has("wcMin") && wc < v("wcMin") - 1e-9) ? `ต่ำกว่า ${f(v("wcMin"), 2)}` : "";
+      const chk = has("wcMax") || has("wcMin") ? (bad ? `<span class="badge bad">⛔ ${bad}</span>` : `<span class="badge ok">✅ ในเกณฑ์</span>`) : "";
+      return { bad, html: `<tr><td>${label} ${chk}</td><td>${f(cem, 0)} + ${f(fa, 0)}</td><td>${f(water, 0)}</td><td>${f(wc, 3)}</td><td>${mark}${f(s.mpa, 1)}</td><td><b>${mark}${f(ksc, 0)}</b></td><td>${mark}${f(ksc / CYL_TO_CUBE, 0)}</td></tr>`,
         // phone: one card per row, ksc first
-        card: `<div class="fcc"><div class="h">${label}</div><div class="k"><span><b>${mark}${f(ksc, 0)}</b> ksc<small>ทรงกระบอก</small></span><span><b>${mark}${f(ksc / CYL_TO_CUBE, 0)}</b> ksc<small>ลูกบาศก์</small></span></div>
+        card: `<div class="fcc${bad ? " out" : ""}"><div class="h">${label} ${chk}</div><div class="k"><span><b>${mark}${f(ksc, 0)}</b> ksc<small>ทรงกระบอก</small></span><span><b>${mark}${f(ksc / CYL_TO_CUBE, 0)}</b> ksc<small>ลูกบาศก์</small></span></div>
           <div class="m">w/(c+p) ${f(wc, 3)} · ${mark}${f(s.mpa, 1)} MPa · ปูน+แอช ${f(cem, 0)}+${f(fa, 0)} · น้ำ ${f(water, 0)} kg</div></div>`, ksc, s };
     };
     const rows = [row("ก่อนโดฟ (Mix เดิม)", c0, w)];
     if (dose > 0) rows.push(row(`หลังโดฟปูน ${f(dose, 0)} kg (น้ำเท่าเดิม)`, c0 + dose, w));
     const warn = [];
+    // spec limits for w/(c+p)
+    if (!has("wcMax") && !has("wcMin")) warn.push("ยังไม่ได้ใส่เกณฑ์ w/(c+p) ตามสเปก — ใส่ค่าสูงสุด/ต่ำสุด เพื่อให้ระบบเช็กก่อนและหลังโดฟ");
+    else if (has("wcMax") && has("wcMin") && v("wcMin") > v("wcMax")) warn.push("เกณฑ์ต่ำสุดมากกว่าสูงสุด — ตรวจตัวเลขอีกครั้ง");
+    const out = rows.map((x, i) => x.bad ? `⛔ w/(c+p) ${i ? "หลังโดฟ" : "ก่อนโดฟ"} ${x.bad} ตามสเปก${i ? "" : (rows[1] && !rows[1].bad ? " — โดฟแล้วกลับเข้าเกณฑ์" : "")}` : "").filter(Boolean);
+    // cement to dose (kg/m³, water unchanged) so that w/(c+p) lands inside the limits: w ÷ limit − (cement + fly ash)
+    const need = has("wcMax") && v("wcMax") > 0 ? w / v("wcMax") - (c0 + fa) : -Infinity;
+    const most = has("wcMin") && v("wcMin") > 0 ? w / v("wcMin") - (c0 + fa) : Infinity;
+    if (need > 0 && need <= most) out.push(`ต้องโดฟปูนอย่างน้อย <b>${f(Math.ceil(need), 0)} kg/คิว</b> จึงจะไม่เกิน ${f(v("wcMax"), 2)}`);
+    if (isFinite(most) && most >= 0 && dose > most) out.push(`โดฟได้ไม่เกิน <b>${f(Math.floor(most), 0)} kg/คิว</b> ไม่ให้ต่ำกว่า ${f(v("wcMin"), 2)}`);
+    warn.unshift(...out);
     if (rows.some((x) => x.s.outside)) warn.push("w/(c+p) อยู่นอกช่วงตาราง ACI (0.42–0.79) — แสดงค่าปลายตาราง (≥ / ≤)");
     if (fa / (c0 + fa) > 0.25) warn.push(`ไฟแอช ${f(fa / (c0 + fa) * 100, 0)}% ของวัสดุประสาน — ตาราง ACI เป็นของปูนล้วน กำลัง 28 วันจริงมักต่ำกว่าค่าที่ประมาณ`);
     $("fcBox").innerHTML = `<div class="scroll"><table class="fc"><thead><tr><th></th><th>ปูน + แอช (kg)</th><th>น้ำ (kg)</th><th>w/(c+p)</th><th>MPa ทรงกระบอก</th><th>ksc ทรงกระบอก</th><th>ksc ลูกบาศก์</th></tr></thead>
