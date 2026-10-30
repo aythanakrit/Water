@@ -8,261 +8,329 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Production">
 <title>Mix Design ACI 211.1</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
-    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00;
+    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00; --bad: #b42318; --ok: #1d7a3e; --sel: #e8eefa;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
-            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d;  color-scheme: dark; }
+      --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; --bad: #ff8a80; --ok: #5cc98a; --sel: #23314a; color-scheme: dark; }
   }
   :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d;
-            --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d;  color-scheme: dark; }
+    --accent: #6fa3ff; --warn-bg: #3a2f14; --warn: #f2c66d; --bad: #ff8a80; --ok: #5cc98a; --sel: #23314a; color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
   main { max-width: 1080px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   h1 { font-size: 1.4rem; margin: 0 0 4px; }
-  h2 { font-size: 1.05rem; margin: 0 0 12px; }
-  .sub { color: var(--muted); margin: 0 0 20px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; display: flex; gap: 8px; align-items: center; }
+  h2 .n { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .85rem; align-items: center; justify-content: center; flex: none; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
   .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .fields .w2 { grid-column: 1 / -1; }
   label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: 3px; }
-  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
-                  border-radius: 6px; padding: 6px 8px; width: 100%; }
-  .admix { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 6px; font-size: .8rem; color: var(--muted); }
-  .admix input, .admix select { min-width: 0; }
-  .admix .hint { grid-column: 1 / -1; margin: -2px 0 4px; font-size: .78rem; }
-  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0 0; padding: 10px 12px; }
-  legend { font-size: .85rem; font-weight: 600; padding: 0 4px; }
+  label .req { color: var(--bad); }
+  .pair { flex-wrap: wrap; } .pair input { flex: 1 1 140px; } .pair select { flex: 1 1 90px; }
+  label small { font-size: .75rem; }
+  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; width: 100%; min-width: 0; }
+  input.miss, select.miss { border-color: var(--bad); }
+  .pair { display: flex; gap: 6px; }
+  .opt { margin-top: 10px; font-size: .85rem; } .opt summary { cursor: pointer; color: var(--accent); }
+  .admix { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
+  .admix .hint { grid-column: 1 / -1; font-size: .78rem; color: var(--muted); margin: -2px 0 6px; }
+  @media (max-width: 480px) { .admix { grid-template-columns: 1fr 1fr; } .admix select { grid-column: 1 / -1; } }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
-  th:first-child, td:first-child { text-align: left; }
-  thead th { font-size: .8rem; color: var(--muted); font-weight: 600; }
-  tfoot td { font-weight: 600; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
-  @media (max-width: 480px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  thead th { font-size: .78rem; color: var(--muted); font-weight: 600; white-space: normal; }
+  tfoot td { font-weight: 700; }
+  .scroll { overflow-x: auto; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 520px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
   .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-  .kpi b { display: block; font-size: 1.2rem; color: var(--accent); }
+  .kpi b { display: block; font-size: 1.25rem; color: var(--accent); }
   .kpi span { font-size: .78rem; color: var(--muted); }
-  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin: 12px 0 0; font-size: .88rem; }
+  .warn { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin: 10px 0 0; font-size: .88rem; }
   .warn ul { margin: 0; padding-left: 18px; }
-  .note { font-size: .82rem; color: var(--muted); margin-top: 12px; }
-  .steps { font-size: .85rem; color: var(--muted); margin: 12px 0 0; padding-left: 18px; }
-  .row { display: flex; gap: 8px; align-items: end; margin-top: 14px; }
-  .row label { flex: 1; }
-  .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
-  .back:hover, .back:focus-visible { text-decoration: underline; }
-  section { min-width: 0; } #out, #trial { overflow-x: auto; }
-  @media print { .no-print { display: none; } body { background: #fff; } section { border: 0; } }
+  .missing { border: 1px dashed var(--bad); border-radius: 10px; padding: 12px 14px; color: var(--bad); }
+  .missing ul { margin: 6px 0 0; padding-left: 20px; }
+  .note { font-size: .82rem; color: var(--muted); margin-top: 10px; }
+  ol.steps { margin: 8px 0 0; padding-left: 22px; font-size: .9rem; } ol.steps li { margin-bottom: 6px; } ol.steps small { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+  .chips button { font: inherit; min-height: 40px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+  .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .guide { margin-bottom: 14px; } .guide summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  .guide ol, .guide ul { margin: 6px 0; padding-left: 22px; font-size: .9rem; } .guide p { margin: 8px 0 4px; font-size: .9rem; }
+  .btn { font: inherit; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--line); background: var(--card); color: var(--accent); cursor: pointer; }
+  h3 { font-size: .95rem; margin: 16px 0 6px; }
+  @media print { .no-print, .topbar { display: none !important; } body { background: #fff; } section { border: 0; padding: 0; } .grid { display: block; } }
 </style>
 </head>
 <body>
 <main>
-  <a class="back no-print" href="index.html">← หน้าหลัก</a>
-  <h1>คำนวณ Mix Design คอนกรีต</h1>
-  <p class="sub">ACI 211.1-91 วิธี absolute volume · หน่วย SI · f'cr ตาม ACI 318-19 §26.4.3</p>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+  <h1>Mix Design คอนกรีต</h1>
+  <p class="sub">ACI 211.1-91 (วิธี absolute volume) · f'cr ตาม ACI 318-19 §26.4.3 · กรอกตามขั้นที่ 1–6 แล้วผลจะขึ้นด้านล่าง ช่องที่มี <span style="color:var(--bad)">*</span> ต้องกรอก</p>
+
+  <section class="guide no-print">
+    <details><summary>📘 วิธีใช้ (อ่านครั้งแรก)</summary>
+      <ol>
+        <li><b>ขั้น 1 กำลังและ slump</b> — ใส่กำลังอัดตามสเปก (เลือกหน่วยและรูปทรงก้อน) และ slump ที่ต้องการตอนเท</li>
+        <li><b>ขั้น 2 สภาพแวดล้อม</b> — งานทั่วไปในไทยเลือก "ไม่กักฟองอากาศ" · ถ้าสเปกกำหนด w/c สูงสุดหรือปูนขั้นต่ำ ใส่ในช่องเพิ่มเติม</li>
+        <li><b>ขั้น 3 วัสดุประสาน</b> — ถ.พ. ปูน (ดูจากใบรับรองผู้ผลิต) และสัดส่วนไฟแอช ถ้าใช้</li>
+        <li><b>ขั้น 4–5 หิน / ทราย</b> — ใช้ผลทดสอบล่าสุดของกองวัสดุที่จะใช้จริง (ดูตารางด้านล่างว่าแต่ละค่ามาจากการทดสอบอะไร)</li>
+        <li><b>ขั้น 6 น้ำยา</b> — เลือกผลิตภัณฑ์ ใส่ dose (cc ต่อ kg วัสดุประสาน) และ % ลดน้ำตามที่ผู้ผลิตระบุ (ไม่ใช้เว้นว่าง)</li>
+        <li><b>อ่านผล</b> — ตาราง "ชั่งจริง" คือค่าที่ใส่เครื่องชั่ง (ปรับความชื้นแล้ว) · เลือก Cap เพื่อดูต่อเที่ยว · ใส่ปริมาตร trial batch เพื่อผสมทดลอง</li>
+        <li><b>ทำ trial batch ก่อนใช้จริงทุกครั้ง</b> — วัด slump หน่วยน้ำหนัก อุณหภูมิ แล้วเก็บก้อนกดที่ 7 / 28 วัน ปรับสูตรตามผล</li>
+      </ol>
+      <p><b>ค่าวัสดุมาจากการทดสอบอะไร</b></p>
+      <ul>
+        <li>ถ.พ. (SSD) และ % ดูดซึมน้ำของหิน — ASTM C127 · ของทราย — ASTM C128</li>
+        <li>หน่วยน้ำหนักอัดแน่นแห้งของหิน (dry-rodded) — ASTM C29</li>
+        <li>Fineness modulus ของทราย — ASTM C136 (ร่อนตะแกรง)</li>
+        <li>ความชื้นรวมของหิน/ทราย — ASTM C566 (อบแห้ง) วัดวันที่ผสม เพราะเปลี่ยนทุกวัน</li>
+      </ul>
+    </details>
+  </section>
 
   <div class="grid">
-    <section class="no-print">
-      <h2>ข้อมูลออกแบบ</h2>
+    <section>
+      <h2><span class="n">1</span>กำลังอัดและ slump</h2>
       <div class="fields">
-        <label>f'c ทรงกระบอก 28 วัน
-          <span style="display:flex;gap:6px"><input id="fc" type="number" step="0.5" value="28">
-          <select id="fcUnit" style="width:auto"><option value="MPa">MPa</option><option value="ksc">ksc</option></select></span></label>
-        <label>Slump (cm)
-          <span style="display:flex;gap:6px;align-items:center">
-            <select id="slump"><option>5</option><option selected>7.5</option><option>10</option><option>12.5</option><option>15</option><option>17.5</option><option>20</option></select>
-            ±<input id="slumpTol" type="number" step="0.5" value="2.5" style="width:5em"></span></label>
-        <label>ขนาดโตสุดหิน NMAS (mm)
-          <select id="nmas"></select></label>
-        <label>สภาพแวดล้อม / กักฟองอากาศ
-          <select id="exposure">
-            <option value="none" selected>ไม่กักฟองอากาศ (non-AE)</option>
-            <option value="mild">AE – mild</option>
-            <option value="moderate">AE – moderate</option>
-            <option value="severe">AE – severe</option>
-          </select></label>
-        <label>ถ.พ. ปูนซีเมนต์
-          <input id="sgCement" type="number" step="0.01" value="3.15"></label>
+        <label class="w2"><span>กำลังอัดที่ต้องการ (f'c) 28 วัน <b class="req">*</b></span>
+          <span class="pair"><input id="fc" type="number" step="5">
+            <select id="fcUnit"><option value="ksc">ksc</option><option value="MPa">MPa</option></select>
+            <select id="fcShape"><option value="cyl">ทรงกระบอก</option><option value="cube">ลูกบาศก์</option></select></span></label>
+        <label><span>Slump ที่ต้องการ (cm) <b class="req">*</b></span><input id="slump" type="number" step="2.5"></label>
       </div>
-
-      <fieldset><legend>Fly ash แทนที่ปูน (% โดยน้ำหนัก binder)</legend>
-        <div class="fields">
-          <label>Fly ash (%)<input id="faPct" type="number" step="5" min="0" value="20"></label>
-          <label>ถ.พ. fly ash<input id="faSg" type="number" step="0.01" value="2.20"></label>
+      <details class="opt"><summary>มีข้อมูล SD ของแพล้น (ไม่บังคับ)</summary>
+        <div class="fields" style="margin-top:8px">
+          <label>SD (หน่วยเดียวกับ f'c)<input id="sd" type="number" step="0.5"></label>
+          <label>จำนวนผลกด (ก้อน)<input id="nTests" type="number" step="1"></label>
         </div>
-      </fieldset>
-      <fieldset><legend>สารผสมเพิ่ม (dose = cc ต่อ binder 1 kg)</legend>
-        <div class="admix">
-          <span>ผลิตภัณฑ์</span><span>Dose</span><span>ถ.พ.</span><span>เนื้อสาร %</span>
-          <select id="a1Name"></select><input id="a1Dose" type="number" step="0.1" value="5">
-          <input id="a1Sg" type="number" step="0.001"><input id="a1Sol" type="number" step="1" value="100">
-          <span class="hint" id="a1Hint"></span>
-          <select id="a2Name"></select><input id="a2Dose" type="number" step="0.1" value="0">
-          <input id="a2Sg" type="number" step="0.001"><input id="a2Sol" type="number" step="1" value="100">
-          <span class="hint" id="a2Hint"></span>
-        </div>
-        <p class="note" style="margin:8px 0 0">เช่น binder 100 kg × dose 3 = 300 cc · ถ.พ. ใช้ค่ากลางจากเอกสาร PDS ของ Sika ·
-          เอกสาร PDS ไม่ระบุเนื้อสาร (solid content) จึงตั้งไว้ 100% คือไม่หักน้ำในสารผสม ถ้าทราบค่าจริงให้แก้</p>
-      </fieldset>
-
-      <fieldset><legend>หิน (coarse aggregate)</legend>
-        <div class="fields">
-          <label>ถ.พ. (SSD)<input id="cSg" type="number" step="0.01" value="2.68"></label>
-          <label>หน่วยน้ำหนักอัดแน่น (kg/m³)<input id="druw" type="number" step="10" value="1600"></label>
-        </div>
-      </fieldset>
-      <fieldset><legend>ทราย (fine aggregate)</legend>
-        <div class="fields">
-          <label>ถ.พ. (SSD)<input id="fSg" type="number" step="0.01" value="2.64"></label>
-          <label>Fineness modulus<input id="fm" type="number" step="0.05" value="2.80"></label>
-          <label>ความชื้นผิว (% เกินสภาพ SSD)<input id="fMc" type="number" step="0.1" value="4.0"></label>
-        </div>
-      </fieldset>
+        <p class="note" style="margin-top:6px">ใช้ได้เมื่อมีผลกด ≥ 15 ผลของสูตรใกล้เคียง · ไม่มีข้อมูลระบบเผื่อกำลังตาม ACI 318 ให้เอง</p>
+      </details>
     </section>
 
     <section>
-      <h2>ผลการออกแบบ</h2>
-      <div id="out"></div>
-      <div class="row no-print">
-        <label>ปริมาตร trial batch (m³)<input id="trialVol" type="number" step="0.005" value="0.03"></label>
+      <h2><span class="n">2</span>สภาพแวดล้อม / ความคงทน</h2>
+      <div class="fields">
+        <label class="w2"><span>ฟองอากาศ <b class="req">*</b></span>
+          <select id="exposure"><option value="">— เลือก —</option>
+            <option value="none">ไม่กักฟองอากาศ (งานทั่วไป)</option>
+            <option value="mild">กักฟองอากาศ · สภาพไม่รุนแรง</option>
+            <option value="moderate">กักฟองอากาศ · สภาพปานกลาง</option>
+            <option value="severe">กักฟองอากาศ · สภาพรุนแรง</option></select></label>
       </div>
-      <div id="trial"></div>
-      <p class="note">⚠️ ผลนี้เป็นค่าเริ่มต้นสำหรับ trial batch เท่านั้น ต้องทดลองผสมจริง วัด slump / หน่วยน้ำหนัก / ปริมาณอากาศ / กำลังอัด
-        แล้วปรับสัดส่วน และให้วิศวกรผู้รับผิดชอบตรวจสอบอนุมัติก่อนใช้ผลิตจริง<br>
-        หินถือว่าอยู่สภาพ SSD (ไม่ปรับน้ำ) · ความชื้นทรายที่กรอกคือส่วนที่เกิน SSD ทั้งหมดจะถูกหักจากน้ำ<br>
-        การแปลง ksc → MPa ใช้ 1 ksc = 0.0981 MPa (ทรงกระบอก) — โปรแกรมนี้ไม่แปลงกำลังลูกบาศก์เป็นทรงกระบอก</p>
+      <details class="opt"><summary>ข้อกำหนดเพิ่มตามสเปก (ไม่บังคับ)</summary>
+        <div class="fields" style="margin-top:8px">
+          <label>w/cm สูงสุด<input id="wcMax" type="number" step="0.01"></label>
+          <label>วัสดุประสานขั้นต่ำ (kg/m³)<input id="cementMin" type="number" step="5"></label>
+        </div>
+      </details>
+    </section>
+
+    <section>
+      <h2><span class="n">3</span>วัสดุประสาน</h2>
+      <div class="fields">
+        <label><span>ถ.พ. ปูนซีเมนต์ <b class="req">*</b></span><input id="sgCement" type="number" step="0.01" placeholder="ปกติ ≈ 3.15"></label>
+        <label>ไฟแอช (% ของวัสดุประสาน)<input id="faPct" type="number" step="5" placeholder="ไม่ใช้เว้นว่าง"></label>
+        <label>ถ.พ. ไฟแอช<small>ต้องกรอกเมื่อใช้ไฟแอช</small><input id="faSg" type="number" step="0.01" placeholder="ปกติ ≈ 2.2–2.4"></label>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">4</span>หิน (มวลรวมหยาบ)</h2>
+      <div class="fields">
+        <label><span>ขนาดโตสุด NMAS (mm) <b class="req">*</b></span><select id="nmas"></select></label>
+        <label><span>ถ.พ. (SSD) <b class="req">*</b></span><input id="cSg" type="number" step="0.01"></label>
+        <label><span>ดูดซึมน้ำ (%) <b class="req">*</b></span><input id="cAbs" type="number" step="0.1"></label>
+        <label><span>หน่วยน้ำหนักอัดแน่น (kg/m³) <b class="req">*</b></span><input id="druw" type="number" step="10"></label>
+        <label><span>ความชื้นรวมวันนี้ (%) <b class="req">*</b></span><input id="cMc" type="number" step="0.1"></label>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">5</span>ทราย (มวลรวมละเอียด)</h2>
+      <div class="fields">
+        <label><span>ถ.พ. (SSD) <b class="req">*</b></span><input id="fSg" type="number" step="0.01"></label>
+        <label><span>Fineness modulus <b class="req">*</b></span><input id="fm" type="number" step="0.05"></label>
+        <label><span>ดูดซึมน้ำ (%) <b class="req">*</b></span><input id="fAbs" type="number" step="0.1"></label>
+        <label><span>ความชื้นรวมวันนี้ (%) <b class="req">*</b></span><input id="fMc" type="number" step="0.1"></label>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">6</span>น้ำยา (ไม่บังคับ)</h2>
+      <div class="admix" style="font-size:.78rem;color:var(--muted)"><span>ผลิตภัณฑ์</span><span>dose (cc/kg)</span><span>ถ.พ.</span><span>ของแข็ง %</span></div>
+      <div class="admix"><select id="a1Name"></select><input id="a1Dose" type="number" step="0.1"><input id="a1Sg" type="number" step="0.001"><input id="a1Sol" type="number" step="1"><span class="hint" id="a1Hint"></span></div>
+      <div class="admix"><select id="a2Name"></select><input id="a2Dose" type="number" step="0.1"><input id="a2Sg" type="number" step="0.001"><input id="a2Sol" type="number" step="1"><span class="hint" id="a2Hint"></span></div>
+      <div class="fields" style="margin-top:8px">
+        <label>ลดน้ำด้วยน้ำยา (%)<small>ตามข้อมูลผู้ผลิต / trial</small><input id="waterRed" type="number" step="1"></label>
+      </div>
     </section>
   </div>
+
+  <section style="margin-top:14px">
+    <h2>ผลการออกแบบ (ต่อ 1 m³)</h2>
+    <div id="out"></div>
+  </section>
+
+  <section style="margin-top:14px" id="loadBox" hidden>
+    <h2>ต่อเที่ยวโหลด / trial batch</h2>
+    <div class="chips no-print" id="capChips"></div>
+    <div class="fields">
+      <label>Cap เครื่อง (คิว)<input id="cap" type="number" step="0.01"></label>
+      <label>ปริมาตร trial batch (m³)<small>เช่น 0.03 = 30 ลิตร</small><input id="trialVol" type="number" step="0.005"></label>
+    </div>
+    <div id="load"></div>
+    <div class="row no-print" style="margin-top:12px"><button class="btn" type="button" onclick="print()">🖨 พิมพ์ / บันทึก PDF</button></div>
+  </section>
+
+  <p class="note">⚠️ ผลนี้เป็นค่าเริ่มต้นสำหรับ trial batch เท่านั้น ตาราง ACI เป็นค่าเฉลี่ยของปูนปอร์ตแลนด์ล้วน ต้องผสมทดลองจริง วัด slump / หน่วยน้ำหนัก / อากาศ /
+    กำลังอัด แล้วปรับสัดส่วน และให้วิศวกรผู้รับผิดชอบตรวจสอบอนุมัติก่อนใช้ผลิตจริง</p>
 </main>
 
 <script src="mixdesign.js"></script>
 <script src="admixtures.js"></script>
 <script>
-  const KSC = 0.0980665;
+  const KSC = 0.0980665;          // 1 ksc in MPa
+  const CUBE_TO_CYL = 0.8;        // cylinder ≈ 0.8 × cube (approximate, normal-strength concrete)
+  const CAPS = [1, 1.5, 1.67, 1.75];
   const $ = (id) => document.getElementById(id);
   const num = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
-  const f = (x, d = 0) => x.toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const f = (x, d = 0) => (isFinite(x) ? x : 0).toLocaleString("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+  // ---------- admixtures (catalog from admixtures.js) ----------
   const mid = (a) => (a[0] + a[1]) / 2;
-  // ViscoCrete is dosed in % by mass of cement: cc/kg = % × 10 ÷ density
-  const doseRange = (a, sg) => a.dose || (a.pct && a.pct.map((x) => x * 10 / sg));
+  const doseRange = (a, sg) => a.dose || (a.pct && a.pct.map((x) => x * 10 / sg)); // % of cement → cc/kg
   const brands = [...new Set(ADMIX.map((a) => a.brand))];
   const admixOpts = `<option value="">— ไม่ใช้ —</option>` +
     brands.map((b) => `<optgroup label="${b}">` + ADMIX.map((a, i) => a.brand === b ? `<option value="${i}">${a.name}</option>` : "").join("") + `</optgroup>`).join("") +
     `<option value="other">อื่นๆ</option>`;
-  [["a1", "0"], ["a2", ""]].forEach(([k, v]) => {
+  ["a1", "a2"].forEach((k) => {
     $(k + "Name").innerHTML = admixOpts;
-    $(k + "Name").value = v;
-    $(k + "Name").addEventListener("change", () => {
-      const a = ADMIX[$(k + "Name").value];
-      if (a) $(k + "Sg").value = a.sg ? mid(a.sg).toFixed(3) : "";
-      run();
-    });
-    const a = ADMIX[v];
-    if (a && a.sg) $(k + "Sg").value = mid(a.sg).toFixed(3);
+    $(k + "Name").addEventListener("change", () => { const a = ADMIX[$(k + "Name").value]; $(k + "Sg").value = a && a.sg ? mid(a.sg).toFixed(3) : ""; run(); });
   });
-
   function admixInfo(k) {
     const sel = $(k + "Name").value;
     if (sel === "") return null;
-    const a = ADMIX[sel];
-    const sg = num(k + "Sg") || 1;
-    const info = { name: a ? a.name : "สารผสมอื่นๆ", dose: num(k + "Dose") || 0, sg, solids: num(k + "Sol") ?? 100 };
-    if (!num(k + "Sg")) {
-      info.hint = `${a && a.type ? a.type + " · " : ""}ยังไม่มีข้อมูล PDS — กรอก ถ.พ. เอง`;
-      if (info.dose > 0) info.warn = `${info.name}: ยังไม่ได้กรอก ถ.พ. ปริมาณ cc ถูกต้อง แต่น้ำหนัก (kg) คิดจาก ถ.พ. = 1`;
-    } else if (a && a.sg) {
+    const a = ADMIX[sel], sg = num(k + "Sg");
+    // solids not given: the admixture's own water is not counted (usual practice; small)
+    const info = { name: a ? a.name : "น้ำยาอื่นๆ", dose: num(k + "Dose") || 0, sg: sg || 1, solids: num(k + "Sol") ?? 100, missSg: !sg };
+    if (a && a.sg && sg) {
       const r = doseRange(a, sg);
-      info.hint = `${a.type} · แนะนำ ${f(r[0], 1)}–${f(r[1], 1)} cc/kg${a.pct ? ` (${a.pct[0]}–${a.pct[1]}% โดยน้ำหนักซีเมนต์)` : ""} · ถ.พ. ${a.sg[0].toFixed(3)}–${a.sg[1].toFixed(3)}`;
-      if (info.dose > 0 && (info.dose < r[0] - 1e-9 || info.dose > r[1] + 1e-9))
-        info.warn = `${a.name} dose ${info.dose} cc/kg อยู่นอกช่วงที่ผู้ผลิตแนะนำ (${f(r[0], 1)}–${f(r[1], 1)} cc/kg)`;
-    }
+      info.hint = `${a.type} · แนะนำ ${f(r[0], 1)}–${f(r[1], 1)} cc/kg · ถ.พ. ${a.sg[0].toFixed(3)}–${a.sg[1].toFixed(3)}`;
+      if (info.dose > 0 && (info.dose < r[0] - 1e-9 || info.dose > r[1] + 1e-9)) info.warn = `${a.name} dose ${info.dose} cc/kg อยู่นอกช่วงที่ผู้ผลิตแนะนำ (${f(r[0], 1)}–${f(r[1], 1)} cc/kg)`;
+    } else info.hint = `${a && a.type ? a.type + " · " : ""}ยังไม่มีข้อมูล PDS — กรอก ถ.พ. เอง`;
     return info;
   }
 
-  $("nmas").innerHTML = MixDesign.SIZES.map((s) => `<option value="${s}"${s === 25 ? " selected" : ""}>${s}</option>`).join("");
+  $("nmas").innerHTML = `<option value="">— เลือก —</option>` + MixDesign.SIZES.map((s) => `<option value="${s}">${s}</option>`).join("");
+  $("capChips").innerHTML = CAPS.map((c) => `<button type="button" data-cap="${c}">${c} คิว</button>`).join("");
+  $("capChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { $("cap").value = b.dataset.cap; load(); } });
 
-  let last = null;
+  // ---------- required inputs ----------
+  const REQ = [["fc", "ขั้น 1: กำลังอัด f'c"], ["slump", "ขั้น 1: slump"], ["exposure", "ขั้น 2: ฟองอากาศ"], ["sgCement", "ขั้น 3: ถ.พ. ปูน"],
+    ["nmas", "ขั้น 4: ขนาดโตสุดหิน"], ["cSg", "ขั้น 4: ถ.พ. หิน"], ["cAbs", "ขั้น 4: ดูดซึมน้ำหิน"], ["druw", "ขั้น 4: หน่วยน้ำหนักอัดแน่นหิน"], ["cMc", "ขั้น 4: ความชื้นหิน"],
+    ["fSg", "ขั้น 5: ถ.พ. ทราย"], ["fm", "ขั้น 5: FM ทราย"], ["fAbs", "ขั้น 5: ดูดซึมน้ำทราย"], ["fMc", "ขั้น 5: ความชื้นทราย"]];
+  let touched = false, last = null, lastP = null;
 
   function run() {
-    const conv = $("fcUnit").value === "ksc" ? KSC : 1;
+    const missing = REQ.filter(([id]) => $(id).value.trim() === "");
+    if ((num("faPct") || 0) > 0 && !num("faSg")) missing.push(["faSg", "ขั้น 3: ถ.พ. ไฟแอช"]);
+    REQ.concat([["faSg"]]).forEach(([id]) => $(id).classList.toggle("miss", touched && missing.some(([m]) => m === id)));
+    last = null;
+    if (missing.length) {
+      $("out").innerHTML = `<div class="missing">ยังขาดข้อมูล ${missing.length} ช่อง:<ul>${missing.map(([, n]) => `<li>${n}</li>`).join("")}</ul></div>`;
+      $("loadBox").hidden = true;
+      return;
+    }
+    // strength → MPa cylinder
+    const unit = $("fcUnit").value === "ksc" ? KSC : 1, shape = $("fcShape").value === "cube" ? CUBE_TO_CYL : 1;
+    const fcIn = num("fc"), fc = fcIn * unit * shape;
+    const sd = num("sd") != null ? num("sd") * unit * shape : null;
+    // aggregates: SSD specific gravity → oven-dry (ASTM C127/C128: SG_OD = SG_SSD ÷ (1 + absorption))
+    const cAbs = num("cAbs"), fAbs = num("fAbs");
     const p = {
-      fc: num("fc") * conv,
-      slump: Number($("slump").value) * 10, nmas: Number($("nmas").value), exposure: $("exposure").value,
+      fc, sd, nTests: num("nTests"), slump: num("slump") * 10, nmas: Number($("nmas").value), exposure: $("exposure").value,
+      wcMax: num("wcMax"), cementMin: num("cementMin"), waterReduction: num("waterRed") || 0,
       sgCement: num("sgCement"), fm: num("fm"), druw: num("druw"),
-      coarse: { sg: num("cSg"), absorption: 0, moisture: 0 },
-      fine: { sg: num("fSg"), absorption: 0, moisture: num("fMc") || 0 },
+      coarse: { sg: num("cSg") / (1 + cAbs / 100), absorption: cAbs, moisture: num("cMc") },
+      fine: { sg: num("fSg") / (1 + fAbs / 100), absorption: fAbs, moisture: num("fMc") },
       flyAsh: { pct: num("faPct") || 0, sg: num("faSg") },
       admixtures: ["a1", "a2"].map(admixInfo).filter(Boolean),
     };
     ["a1", "a2"].forEach((k) => { const i = admixInfo(k); $(k + "Hint").textContent = (i && i.hint) || ""; });
-    try {
-      const r = MixDesign.design(p);
-      p.admixtures.forEach((a) => a.warn && r.warnings.push(a.warn));
-      const used = ["a1", "a2"].map((k) => ADMIX[$(k + "Name").value]).filter(Boolean);
-      if (used.some((a) => a.noPce) && used.some((a) => a.pce))
-        r.warnings.push("DARACEM S21C (naphthalene) ห้ามใช้ร่วมกับสารผสมกลุ่ม polycarboxylate (PCE) ตามข้อมูลผู้ผลิต");
-      last = r;
-      const ksc = conv !== 1 ? ` <span>(${f(r.fcr / KSC)} ksc)</span>` : "";
-      $("out").innerHTML = `
-        <div class="kpis">
-          <div class="kpi"><b>${f(r.fcr, 1)}</b><span>f'cr (MPa)</span>${ksc}</div>
-          <div class="kpi"><b>${f(r.wc, 3)}</b><span>w/cm ใช้จริง</span></div>
-          <div class="kpi"><b>${f(r.air, 1)}%</b><span>อากาศ${r.airEntrained ? " (AE)" : " (entrapped)"}</span></div>
-          <div class="kpi"><b>${$("slump").value} ± ${$("slumpTol").value || 0}</b><span>Slump (cm)</span></div>
-        </div>
-        <table>
-          <thead><tr><th>วัสดุ (ต่อ 1 m³)</th><th>ออกแบบ SSD (kg)</th><th>ชั่งผสมจริง (kg)</th><th>ปริมาตร (m³)</th></tr></thead>
-          <tbody>
-            <tr><td>ปูนซีเมนต์</td><td>${f(r.design.cement)}</td><td>${f(r.batch.cement)}</td><td>${f(r.volumes.cement, 4)}</td></tr>
-            ${r.design.flyAsh ? `<tr><td>Fly ash</td><td>${f(r.design.flyAsh)}</td><td>${f(r.batch.flyAsh)}</td><td>${f(r.volumes.flyAsh, 4)}</td></tr>` : ""}
-            ${r.design.slag ? `<tr><td>Slag</td><td>${f(r.design.slag)}</td><td>${f(r.batch.slag)}</td><td>${f(r.volumes.slag, 4)}</td></tr>` : ""}
-            <tr><td>น้ำ</td><td>${f(r.design.water)}</td><td>${f(r.batch.water)}</td><td>${f(r.volumes.water, 4)}</td></tr>
-            <tr><td>หิน</td><td>${f(r.design.coarse)}</td><td>${f(r.batch.coarse)}</td><td>${f(r.volumes.coarse, 4)}</td></tr>
-            <tr><td>ทราย</td><td>${f(r.design.fine)}</td><td>${f(r.batch.fine)}</td><td>${f(r.volumes.fine, 4)}</td></tr>
-            <tr><td>อากาศ</td><td>–</td><td>–</td><td>${f(r.volumes.air, 4)}</td></tr>
-          </tbody>
-          ${r.admixtures.length ? `<tbody>${r.admixtures.map((a) => `<tr><td>${a.name} (${a.dose} cc/kg)</td><td colspan="2">${f(a.cc)} cc = ${f(a.litre, 2)} ลิตร</td><td>${f(a.kg, 2)} kg</td></tr>`).join("")}</tbody>` : ""}
-          <tfoot><tr><td>รวม / หน่วยน้ำหนัก</td><td>${f(r.designDensity)}</td><td>${f(r.batchDensity)}</td><td>1.0000</td></tr></tfoot>
-        </table>
-        <ol class="steps">
-          <li>f'cr: ${r.fcrMethod}${r.sdUsed ? ` (s = ${f(r.sdUsed, 2)} MPa)` : ""}</li>
-          <li>น้ำจาก Table 6.3.3 ที่ slump ${$("slump").value} cm = ${f(r.waterTable, 1)} kg/m³${r.water !== r.waterTable ? ` → หลังลดน้ำ ${f(r.water, 1)}` : ""}</li>
-          <li>w/cm จากกำลัง = ${f(r.wcStrength, 3)} · ควบคุมโดย: ${r.wcGoverns}</li>
-          <li>Binder = น้ำ ÷ w/cm = ${f(r.water, 1)} ÷ ${f(r.wc, 3)} = ${f(r.binder, 1)} kg/m³
-            → ปูน ${f(r.design.cement, 1)}${r.design.flyAsh ? ` + fly ash ${f(r.design.flyAsh, 1)}` : ""}${r.design.slag ? ` + slag ${f(r.design.slag, 1)}` : ""}</li>
-          <li>หิน = b/b₀ × หน่วยน้ำหนัก = ${f(r.bb0, 3)} × ${p.druw} = ${f(r.design.coarse, 1)} kg/m³</li>
-          <li>ทราย = ปริมาตรที่เหลือ ${f(r.volumes.fine, 4)} m³ × ${p.fine.sg} × 1000 = ${f(r.design.fine, 1)} kg/m³</li>
-          <li>ปรับความชื้น: น้ำผิวจากทราย ${f(r.freeWater.fine, 1)} kg หักออกจากน้ำ</li>
-          ${r.admixtures.map((a) => `<li>${a.name} = binder × dose = ${f(r.binder, 1)} × ${a.dose} = ${f(a.cc)} cc${a.water > 0 ? ` · น้ำในสาร ${f(a.water, 2)} kg` : ""}</li>`).join("")}
-        </ol>
-        ${r.warnings.length ? `<div class="warn"><ul>${r.warnings.map((w) => `<li>${w}</li>`).join("")}</ul></div>` : ""}`;
-    } catch (e) {
-      last = null;
-      $("out").innerHTML = `<div class="warn">${e.message}</div>`;
-    }
-    trial();
+    let r;
+    try { r = MixDesign.design(p); } catch (e) { $("out").innerHTML = `<div class="warn">${esc(e.message)}</div>`; $("loadBox").hidden = true; return; }
+    p.admixtures.forEach((a) => { if (a.warn) r.warnings.push(a.warn); if (a.missSg && a.dose > 0) r.warnings.push(`${a.name}: ยังไม่ได้กรอก ถ.พ. — cc ถูกต้อง แต่น้ำหนักคิดจาก ถ.พ. = 1`); });
+    const used = ["a1", "a2"].map((k) => ADMIX[$(k + "Name").value]).filter(Boolean);
+    if (used.some((a) => a.noPce) && used.some((a) => a.pce)) r.warnings.push("DARACEM S21C (naphthalene) ห้ามใช้ร่วมกับน้ำยากลุ่ม PCE ตามข้อมูลผู้ผลิต");
+    if (shape !== 1) r.warnings.unshift(`กำลังลูกบาศก์ ${f(fcIn)} ${$("fcUnit").value} แปลงเป็นทรงกระบอก × 0.8 = ${f(fc, 1)} MPa (ค่าประมาณทั่วไป — ตรวจตามสเปกงาน)`);
+    if (p.slump < 25 || p.slump > 175) r.warnings.push("Slump นอกช่วงตาราง ACI 211.1 (2.5–17.5 cm) — ต้องยืนยันด้วย trial batch");
+    last = r; lastP = p;
+
+    const ssd = (od, abs) => od * (1 + abs / 100);
+    const D = r.design, B = r.batch, V = r.volumes;
+    const rowsM = [
+      ["ปูนซีเมนต์", D.cement, D.cement, B.cement, V.cement],
+      ...(D.flyAsh ? [["ไฟแอช", D.flyAsh, D.flyAsh, B.flyAsh, V.flyAsh]] : []),
+      // with saturated-surface-dry aggregates the batch water is exactly the design water
+      ["น้ำ", D.water, D.water, B.water, V.water],
+      ["หิน", D.coarse, ssd(D.coarse, cAbs), B.coarse, V.coarse],
+      ["ทราย", D.fine, ssd(D.fine, fAbs), B.fine, V.fine],
+    ];
+    const fcKsc = (mpa) => mpa / KSC;
+    $("out").innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><b>${f(r.fcr, 1)}</b><span>f'cr MPa ทรงกระบอก (≈ ${f(fcKsc(r.fcr))} ksc)</span></div>
+        <div class="kpi"><b>${f(r.wc, 3)}</b><span>w/cm ที่ใช้</span></div>
+        <div class="kpi"><b>${f(r.binder)}</b><span>วัสดุประสาน kg/m³</span></div>
+        <div class="kpi"><b>${f(r.air, 1)}%</b><span>อากาศ${r.airEntrained ? " (กักฟอง)" : " (ติดค้าง)"}</span></div>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>วัสดุ (ต่อ 1 m³)</th><th>แห้ง OD (kg)<br><small>ตาม ACI</small></th><th>SSD (kg)</th><th><b>ชั่งจริง (kg)</b><br><small>ความชื้นวันนี้</small></th><th>ปริมาตร (m³)</th></tr></thead>
+        <tbody>${rowsM.map(([n, od, s, b, v]) => `<tr><td>${n}</td><td>${f(od)}</td><td>${f(s)}</td><td><b>${f(b)}</b></td><td>${f(v, 4)}</td></tr>`).join("")}
+          <tr><td>อากาศ</td><td>–</td><td>–</td><td>–</td><td>${f(V.air, 4)}</td></tr></tbody>
+        ${r.admixtures.length ? `<tbody>${r.admixtures.map((a) => `<tr><td>${esc(a.name)} (${a.dose} cc/kg)</td><td colspan="3">${f(a.cc)} cc = ${f(a.litre, 2)} ลิตร</td><td>${f(a.kg, 2)} kg</td></tr>`).join("")}</tbody>` : ""}
+        <tfoot><tr><td>หน่วยน้ำหนักคอนกรีต</td><td>${f(r.designDensity)}</td><td></td><td>${f(r.batchDensity)}</td><td>${f(Object.values(V).reduce((a, b) => a + b, 0), 4)}</td></tr></tfoot>
+      </table></div>
+      <h3>วิธีคิดทีละขั้น (ACI 211.1)</h3>
+      <ol class="steps">
+        <li><b>กำลังเป้าหมาย f'cr</b> = ${esc(r.fcrMethod)}${r.sdUsed ? ` (s = ${f(r.sdUsed, 2)} MPa)` : ""} → <b>${f(r.fcr, 1)} MPa</b><br><small>ต้องผสมให้กำลังเฉลี่ยสูงกว่า f'c เผื่อความแปรปรวน (ACI 318-19 §26.4.3)</small></li>
+        <li><b>น้ำ</b> จาก Table 6.3.3 (slump ${num("slump")} cm, หิน ${$("nmas").value} mm) = ${f(r.waterTable, 1)} kg/m³${r.water !== r.waterTable ? ` → ลดน้ำ ${num("waterRed")}% เหลือ <b>${f(r.water, 1)}</b>` : ""}<br><small>น้ำขึ้นกับความเหลวและขนาดหิน ไม่ขึ้นกับปริมาณปูน · อากาศ ${f(r.air, 1)}% จากตารางเดียวกัน</small></li>
+        <li><b>w/cm</b> จาก Table 6.3.4(a) ที่ f'cr ${f(r.fcr, 1)} MPa = ${f(r.wcStrength, 3)} · ใช้ <b>${f(r.wc, 3)}</b> (ควบคุมโดย ${esc(r.wcGoverns)})<br><small>w/cm ต่ำ → กำลังสูง · ถ้าสเปกกำหนด w/cm สูงสุดต่ำกว่า จะใช้ค่าตามสเปก</small></li>
+        <li><b>วัสดุประสาน</b> = น้ำ ÷ w/cm = ${f(r.water, 1)} ÷ ${f(r.wc, 3)} = <b>${f(r.binder, 1)} kg</b> → ปูน ${f(D.cement, 1)}${D.flyAsh ? ` + ไฟแอช ${f(D.flyAsh, 1)} (${num("faPct")}%)` : ""}</li>
+        <li><b>หิน</b> = (b/b₀ จาก Table 6.3.6 ที่ FM ${num("fm")}) × หน่วยน้ำหนักอัดแน่น = ${f(r.bb0, 3)} × ${f(num("druw"))} = <b>${f(D.coarse, 1)} kg</b> (แห้ง)</li>
+        <li><b>ทราย</b> = ปริมาตรที่เหลือจาก 1 m³ = 1 − (น้ำ + ปูน${D.flyAsh ? " + ไฟแอช" : ""} + หิน + อากาศ) = ${f(V.fine, 4)} m³ × ถ.พ. แห้ง ${f(p.fine.sg, 3)} × 1000 = <b>${f(D.fine, 1)} kg</b><br><small>ถ.พ. แห้ง = ถ.พ. SSD ÷ (1 + ดูดซึม) — หิน ${f(p.coarse.sg, 3)}, ทราย ${f(p.fine.sg, 3)}</small></li>
+        <li><b>ปรับความชื้น</b> (§6.3.10): หินชั่ง = ${f(D.coarse)} × (1 + ${num("cMc")}%) = ${f(B.coarse)} · ทรายชั่ง = ${f(D.fine)} × (1 + ${num("fMc")}%) = ${f(B.fine)}<br>
+          น้ำอิสระที่มากับวัสดุ: หิน ${f(r.freeWater.coarse, 1)} + ทราย ${f(r.freeWater.fine, 1)} kg → น้ำที่ชั่ง = ${f(r.water, 1)} − ${f(r.freeWater.coarse + r.freeWater.fine, 1)}${r.admixWater ? ` − น้ำในน้ำยา ${f(r.admixWater, 1)}` : ""} = <b>${f(B.water, 1)} kg</b><br><small>ความชื้น > ดูดซึม = วัสดุมีน้ำเกิน หักออกจากน้ำ · ความชื้น < ดูดซึม = วัสดุจะดูดน้ำ ต้องเติมน้ำเพิ่ม</small></li>
+        ${r.admixtures.map((a) => `<li><b>${esc(a.name)}</b> = วัสดุประสาน × dose = ${f(r.binder, 1)} × ${a.dose} = <b>${f(a.cc)} cc</b></li>`).join("")}
+      </ol>
+      ${r.warnings.length ? `<div class="warn"><ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}`;
+    $("loadBox").hidden = false;
+    load();
   }
 
-  function trial() {
-    const v = num("trialVol");
-    if (!last || !v) { $("trial").innerHTML = ""; return; }
-    const b = last.batch;
-    $("trial").innerHTML = `<table style="margin-top:10px">
-      <thead><tr><th>Trial batch ${v} m³</th><th>ปริมาณ</th></tr></thead>
-      <tbody>${[["ปูนซีเมนต์", b.cement], ["Fly ash", b.flyAsh], ["Slag", b.slag], ["น้ำ", b.water], ["หิน (SSD)", b.coarse], ["ทราย (เปียก)", b.fine]]
-        .filter(([, x]) => x > 0)
-        .map(([n, x]) => `<tr><td>${n}</td><td>${f(x * v, 2)} kg</td></tr>`).join("")}
-      ${last.admixtures.map((a) => `<tr><td>${a.name}</td><td>${f(a.cc * v, 1)} cc</td></tr>`).join("")}</tbody></table>`;
+  // ---------- per load / trial batch (moisture-adjusted batch weights) ----------
+  function load() {
+    $("capChips").querySelectorAll("button").forEach((b) => b.classList.toggle("on", $("cap").value !== "" && Number(b.dataset.cap) === num("cap")));
+    if (!last) return;
+    const B = last.batch, cols = [["cap", "ต่อเที่ยว " + ($("cap").value || "–") + " คิว"], ["trialVol", "Trial " + ($("trialVol").value || "–") + " m³"]].filter(([id]) => num(id) > 0);
+    if (!cols.length) { $("load").innerHTML = `<p class="note">เลือก Cap หรือใส่ปริมาตร trial batch</p>`; return; }
+    const items = [["ปูนซีเมนต์", B.cement, "kg", 1], ["ไฟแอช", B.flyAsh, "kg", 1], ["น้ำ", B.water, "kg", 1], ["หิน", B.coarse, "kg", 1], ["ทราย", B.fine, "kg", 1]]
+      .filter(([, x]) => x > 0).concat(last.admixtures.map((a) => [a.name, a.cc, "cc", 1]));
+    $("load").innerHTML = `<div class="scroll"><table><thead><tr><th>ชั่งจริง (ปรับความชื้นแล้ว)</th>${cols.map(([, h]) => `<th>${h}</th>`).join("")}</tr></thead>
+      <tbody>${items.map(([n, x, u]) => `<tr><td>${esc(n)}</td>${cols.map(([id]) => `<td>${f(x * num(id), id === "trialVol" ? 2 : 1)} ${u}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
   }
 
-  document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", el.id === "trialVol" ? trial : run));
+  document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", () => { if (!["cap", "trialVol"].includes(el.id)) { touched = true; run(); } else load(); }));
+  document.querySelectorAll("select").forEach((el) => el.addEventListener("change", () => { touched = true; run(); }));
   run();
 </script>
 <script src="numpad.js"></script>
