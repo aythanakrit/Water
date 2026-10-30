@@ -57,6 +57,24 @@
   @media (max-width: 700px) { .scan { grid-template-columns: 1fr 1fr 1fr; } .scan .do, .scan button.b { grid-column: 1 / -1; } }
   .doin { display: flex; gap: 6px; }
   .doin input { font-size: 1.05rem; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+  .phrow { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .phrow .b { min-height: 48px; font-size: 1.05rem; }
+  .phrow .doin input { flex: 1; min-width: 0; }
+  .phmiss { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .phmiss button { font: inherit; font-size: .85rem; border-radius: 999px; padding: 4px 12px; border: 1px solid var(--line); background: var(--sel); color: var(--accent); cursor: pointer; }
+  .phgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
+  .phit { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: .8rem; background: var(--bg); }
+  .phit img, .phit .noimg { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0002; }
+  .phit .noimg { display: flex; align-items: center; justify-content: center; border: 0; color: var(--accent); font: inherit; cursor: pointer; }
+  .phit .cap { padding: 4px 6px; line-height: 1.3; }
+  .phit .cap b { font-variant-numeric: tabular-nums; }
+  .phit .del { float: right; font: inherit; font-size: .8rem; color: var(--bad); background: none; border: 0; cursor: pointer; padding: 0 0 0 6px; }
+  .phit.pending { outline: 2px dashed var(--warn); }
+  .pg.ph .phh { display: flex; justify-content: space-between; font-size: 15px; border-bottom: 1.5px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+  .pg.ph .phg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pg.ph .phc { border: 1px solid #000; height: 330px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px; }
+  .pg.ph .phc .im { width: 100%; height: 300px; background: center / contain no-repeat; }
+  .pg.ph .phc .cap { font-size: 12px; text-align: center; }
   #live { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; flex-direction: column; }
   #live[hidden] { display: none; }
   #live .cam { position: relative; flex: 1; overflow: hidden; }
@@ -131,6 +149,18 @@
     </div>
     <p class="sync" id="syncList"></p>
     <div class="jobs" id="jobs"></div>
+
+    <!-- Special project: photos per truck (slump at plant, slump on site, printout) -->
+    <div id="photoBox" hidden>
+      <h2 style="margin:22px 0 8px">ภาพประกอบรายงาน</h2>
+      <section>
+        <div class="row"><label style="max-width:220px">วันที่ของรายงาน<input id="phDate" class="dth" type="text"></label>
+          <button class="g" id="phReload" type="button">↻ โหลดใหม่</button></div>
+        <p class="note" id="phNote" style="margin:8px 0 0"></p>
+      </section>
+      <div id="phKinds"></div>
+      <input id="phFile" type="file" hidden>
+    </div>
   </div>
 
   <!-- One job -->
@@ -223,6 +253,7 @@
 <script src="numpad.js"></script>
 <script src="fieldreport.js"></script>
 <script src="fieldsync.js"></script>
+<script src="photos.js"></script>
 <script src="config.js"></script>
 <script>
   NumPad.bind(document);
@@ -391,6 +422,7 @@
     const jobs = PROJ
       ? db.jobs.filter(inProj).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
       : [...db.jobs].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
+    if (SP && typeof phRefresh === "function" && ph) phRefresh();
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
       return `<section class="job">
@@ -585,10 +617,14 @@
         }
     return null;
   }
+  // Where a scanned number goes: the truck entry, or a photo section's D/O field (scanTo)
+  let scanTo = null;
   function useBarcode(text) {
     const digits = text.replace(/\D/g, "");
-    $("newDO").value = digits.length >= 10 ? digits : text.trim();
+    const v = digits.length >= 10 ? digits : text.trim();
     $("scanView").hidden = true; scanImg = null;
+    if (scanTo) { const el = scanTo; scanTo = null; el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); return; }
+    $("newDO").value = v;
     addWarn(); $("newTruck").focus();
   }
   // Live camera: decode the framed strip of each video frame until the same number is read twice.
@@ -672,7 +708,8 @@
     };
     frame();
   }
-  $("liveClose").addEventListener("click", stopLive);
+  $("liveClose").addEventListener("click", () => { scanTo = null; stopLive(); });
+  document.body.appendChild($("live")); // usable from the list page too
   $("livePhoto").addEventListener("click", () => { stopLive(); $("scanFile").click(); });
   $("liveTorch").addEventListener("click", async () => {
     if (!live) return;
@@ -691,6 +728,7 @@
       const text = await autoBarcode(img);
       $("addWarn").innerHTML = "";
       if (text) return useBarcode(text);
+      if (scanTo) { phMsg(scanTo, "อ่านบาร์โค้ดจากรูปไม่ได้ — พิมพ์เลข D/O เอง"); scanTo = null; return; }
       scanImg = img;
       const c = $("scanCanvas"); c.width = img.width; c.height = img.height; c.getContext("2d").drawImage(img, 0, 0);
       $("scanMsg").textContent = ""; $("scanView").hidden = false;
@@ -852,7 +890,7 @@
     try {
       const ps = FieldReport.pages(job.trucks);
       const host = $("print");
-      host.innerHTML = ps.map((p) => pageHTML(p)).join("");
+      host.innerHTML = ps.map((p) => pageHTML(p)).join("") + (SP ? await photoPagesHTML(msg) : "");
       await document.fonts.ready;
       await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
       const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -892,6 +930,237 @@
       persist(); showList(); $("listMsg").textContent = `นำเข้า ${added} งาน`; syncNow();
     } catch { $("listMsg").textContent = "ไฟล์ไม่ถูกต้อง — ใช้ไฟล์จาก \"ส่งออกไฟล์สำรอง\""; }
   });
+
+  // ---------- photos of a special-project report ----------
+  // Kept on this device (IndexedDB) until sent; on Google Drive through the web app once sent.
+  const PDB = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open("reportPhotos", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("photos", { keyPath: "id" });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const tx = async (mode, fn) => {
+      const d = await open();
+      return new Promise((res, rej) => {
+        const t = d.transaction("photos", mode), q = fn(t.objectStore("photos"));
+        t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error);
+      });
+    };
+    return { put: (p) => tx("readwrite", (s) => s.put(p)), get: (id) => tx("readonly", (s) => s.get(id)),
+      del: (id) => tx("readwrite", (s) => s.delete(id)), all: () => tx("readonly", (s) => s.getAll()) };
+  })();
+  const PK = ReportPhotos.KINDS;
+  const UI_ORDER = ["plant", "site", "printout"];
+  var ph = { date: today(), server: null, at: 0, local: [], sending: false }; // var: showList may run before this line
+  let phAdmin = false;
+  try { phAdmin = sessionStorage.getItem("phAdmin") === "1"; } catch {}
+  const phOf = (el) => el.closest(".phk");
+  function phMsg(el, html) { const k = phOf(el); if (k) k.querySelector(".phmsg").innerHTML = html ? `<div class="warn">${html}</div>` : ""; }
+  // trucks of the report(s) of the chosen date, in report order
+  const phTrucks = () => db.jobs.filter((j) => inProj(j) && !j.stub && j.header.date === ph.date).flatMap((j) => j.trucks);
+  function phList() {
+    const by = new Map();
+    (ph.server || []).forEach((p) => by.set(p.id, p));
+    ph.local.filter((p) => p.project === PROJ && p.date === ph.date).forEach((p) => by.set(p.id, { ...by.get(p.id), ...p }));
+    return [...by.values()];
+  }
+  async function phRefresh(force) {
+    try { ph.local = await PDB.all(); } catch { ph.local = []; }
+    renderPhotos();
+    if (!SYNC || !navigator.onLine) { ph.server = null; return renderPhotos(); }
+    if (!force && Date.now() - ph.at < 20000) return;
+    ph.at = Date.now();
+    try { const r = await api("photoList", { project: PROJ, date: ph.date }); ph.server = r.ok ? r.photos : null; } catch { ph.server = null; }
+    renderPhotos();
+  }
+  function renderPhotos() {
+    if (!SP) return;
+    const list = phList(), trucks = phTrucks(), pend = ph.local.filter((p) => p.synced === false).length;
+    $("phNote").textContent = [!SYNC ? "ยังไม่ได้ต่อ Google Sheets — ภาพเก็บในเครื่องนี้เท่านั้น"
+      : ph.server == null ? "ออฟไลน์ — แสดงเฉพาะภาพในเครื่องนี้" : "ภาพของทุกเครื่อง (เก็บใน Google Drive)",
+      pend ? `⏳ รอส่ง ${pend} ภาพ` : "", trucks.length ? `รายงานวันนี้มี ${trucks.length} คัน` : "ยังไม่มีรถในใบรายงานของวันนี้ — แนบภาพด้วยเลข D/O ได้เลย"].filter(Boolean).join(" · ");
+    $("phKinds").innerHTML = UI_ORDER.map((key) => {
+      const k = PK.find((x) => x.key === key);
+      const locked = k.locked && !phAdmin;
+      const items = ReportPhotos.forReport(list, trucks, key);
+      const miss = ReportPhotos.missing(list, trucks, key);
+      return `<section class="phk" data-k="${key}">
+        <h2 style="margin:0 0 4px">${esc(k.dept)} — ${esc(k.title)}</h2>
+        ${locked ? `<p class="note" style="margin:0 0 8px">🔒 เฉพาะผู้ดูแล — ใส่รหัสเพื่อแนบ Printout</p>
+          <div class="phrow"><label>รหัสผู้ดูแล<input class="phpass" type="password" autocomplete="off"></label><button class="b phunlock" type="button">เข้า</button></div>
+          <div class="phmsg"></div>` : `
+        <div class="phrow"><label>D/O No. ของรถคันนี้
+          <span class="doin"><input class="phdo npad" data-pad="int" type="text" inputmode="numeric" maxlength="13" autocomplete="off" placeholder="สแกนหรือพิมพ์">
+          <button class="g phscan" type="button">📷 สแกน</button></span></label>
+          <button class="b phadd" type="button">${key === "printout" ? "📎 แนบ PDF/ภาพ" : "📸 ถ่าย/แนบภาพ"}</button></div>
+        <div class="phmsg"></div>
+        ${trucks.length ? `<p class="note" style="margin:8px 0 0">แนบแล้ว ${trucks.length - miss.length}/${trucks.length} คัน${miss.length ? " · ยังขาด (แตะเพื่อเลือก):" : " ✅"}</p>
+          <div class="phmiss">${miss.map((n) => `<button type="button" data-do="${esc(trucks[n - 1].do)}">ลำดับ ${n}${trucks[n - 1].truck ? " · รถ " + esc(trucks[n - 1].truck) : ""}</button>`).join("")}</div>` : ""}`}
+        <div class="phgrid">${items.map(({ photo: p, no, truck }) => `<div class="phit${p.synced === false ? " pending" : ""}">
+          ${p.data ? `<img src="data:image/jpeg;base64,${p.data}" alt="">` : `<button class="noimg" type="button" data-load="${esc(p.id)}">แตะเพื่อดูภาพ</button>`}
+          <div class="cap">${locked ? "" : `<button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>`}
+            ${no ? `<b>ลำดับ ${no}</b>${truck ? " · รถ " + esc(truck) : ""}<br>` : ""}D/O <b>${esc(p.do)}</b><br>${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}</div>
+      </section>`;
+    }).join("");
+  }
+
+  // file → JPEG (base64) pages: an image, or each page of a PDF (printout)
+  const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  async function pdfCanvases(file) {
+    if (!window.pdfjsLib) {
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const out = [];
+    for (let i = 1; i <= Math.min(pdf.numPages, 4); i++) {
+      const page = await pdf.getPage(i), v1 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: Math.min(3, 1600 / Math.max(v1.width, v1.height)) });
+      const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: g, viewport: vp }).promise;
+      out.push(c);
+    }
+    return out;
+  }
+  async function imageCanvas(file, stampAt) {
+    const img = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => createImageBitmap(file));
+    const sc = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    const g = c.getContext("2d"); g.drawImage(img, 0, 0, c.width, c.height);
+    if (stampAt) {
+      // date and time burned into the photo, bottom right, like a camera stamp
+      const t = ReportPhotos.stampText(stampAt), fs = Math.max(18, Math.round(Math.min(c.width, c.height) * 0.06));
+      g.font = `700 ${fs}px "Sarabun", system-ui, sans-serif`; g.textAlign = "right"; g.textBaseline = "bottom";
+      const x = c.width - fs * 0.5, y = c.height - fs * 0.4, w = g.measureText(t).width;
+      g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(x - w - fs * 0.3, y - fs * 1.15, w + fs * 0.6, fs * 1.3);
+      g.lineWidth = Math.max(2, fs / 10); g.strokeStyle = "#000"; g.strokeText(t, x, y);
+      g.fillStyle = "#ffb000"; g.fillText(t, x, y);
+    }
+    return c;
+  }
+  const toB64 = (c) => c.toDataURL("image/jpeg", 0.75).split(",")[1];
+
+  let phPick = null; // { kind, do, el }
+  $("phKinds").addEventListener("click", async (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const sec = phOf(b), key = sec && sec.dataset.k;
+    if (b.classList.contains("phunlock")) {
+      const v = sec.querySelector(".phpass").value;
+      const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      if (h !== ReportPhotos.ADMIN_HASH) return phMsg(b, "รหัสไม่ถูกต้อง");
+      phAdmin = true; try { sessionStorage.setItem("phAdmin", "1"); } catch {}
+      return renderPhotos();
+    }
+    if (b.classList.contains("phscan")) { scanTo = sec.querySelector(".phdo"); return startLive(); }
+    if (b.dataset.do) { const el = sec.querySelector(".phdo"); el.value = b.dataset.do; return phMsg(el, ""); }
+    if (b.classList.contains("phadd")) {
+      const el = sec.querySelector(".phdo"), d = FieldReport.cleanDO(el.value);
+      if (!/^\d{6,20}$/.test(d)) { el.focus(); return phMsg(el, "ใส่เลข D/O ของรถคันนี้ก่อน (สแกนหรือพิมพ์)"); }
+      phPick = { kind: key, do: d, el };
+      $("phFile").accept = key === "printout" ? "application/pdf,image/*" : "image/*";
+      return $("phFile").click();
+    }
+    if (b.dataset.load) {
+      b.textContent = "กำลังโหลด…";
+      try { await phData(phList().find((p) => p.id === b.dataset.load)); renderPhotos(); } catch { b.textContent = "โหลดไม่ได้ — แตะอีกครั้ง"; }
+      return;
+    }
+    if (b.dataset.del) {
+      if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "แตะอีกครั้งเพื่อลบ"; return; }
+      const id = b.dataset.del, local = ph.local.find((p) => p.id === id);
+      try {
+        if (!local || local.synced) { const r = await api("photoDelete", { id }); if (!r.ok) throw new Error("x"); }
+        await PDB.del(id); if (ph.server) ph.server = ph.server.filter((p) => p.id !== id);
+        phRefresh();
+      } catch { phMsg(b, "ลบไม่ได้ — ต้องต่ออินเทอร์เน็ต"); }
+    }
+  });
+  $("phFile").addEventListener("change", async (e) => {
+    const file = e.target.files[0]; e.target.value = "";
+    const pick = phPick; phPick = null;
+    if (!file || !pick) return;
+    const k = PK.find((x) => x.key === pick.kind);
+    phMsg(pick.el, "กำลังเตรียมภาพ…");
+    try {
+      const now = Date.now(), lm = file.lastModified;
+      const takenAt = lm && lm <= now + 60000 ? lm : now;
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      const canvases = isPdf ? await pdfCanvases(file) : [await imageCanvas(file, k.stamp ? takenAt : 0)];
+      for (const c of canvases) {
+        await PDB.put({ id: "p-" + now.toString(36) + "-" + Math.random().toString(36).slice(2, 8), project: PROJ, date: ph.date,
+          kind: pick.kind, do: pick.do, takenAt: isPdf ? now : takenAt, data: toB64(c), synced: !SYNC ? null : false, created: Date.now() });
+      }
+      pick.el.value = ""; phMsg(pick.el, "");
+      await phRefresh(); phSend();
+    } catch { phMsg(pick.el, "เปิดไฟล์ไม่ได้ — ลองใหม่ หรือใช้ไฟล์ภาพ/PDF อื่น"); }
+  });
+  // send what is waiting on this device; kept and retried if it fails
+  async function phSend() {
+    if (!SYNC || ph.sending || !navigator.onLine) return;
+    ph.sending = true;
+    try {
+      for (const p of (await PDB.all()).filter((x) => x.synced === false)) {
+        try {
+          const r = await api("photoUpload", { id: p.id, project: p.project, date: p.date, kind: p.kind, do: p.do, takenAt: p.takenAt, data: p.data });
+          if (r.ok) { p.synced = true; await PDB.put(p); }
+        } catch { break; }
+      }
+    } finally { ph.sending = false; }
+    ph.at = 0; phRefresh();
+  }
+  // a photo's image: from this device, or fetched once from Drive and kept
+  async function phData(p) {
+    if (p.data) return p.data;
+    const mine = await PDB.get(p.id);
+    if (mine && mine.data) return (p.data = mine.data);
+    const r = await api("photoGet", { id: p.id });
+    if (!r.ok) throw new Error("photo");
+    await PDB.put({ ...p, data: r.data, synced: true, created: Date.now() });
+    return (p.data = r.data);
+  }
+  // pages after the field report: Printout, slump at plant, slump on site (4 a page)
+  async function photoPagesHTML(msg) {
+    const date = job.header.date, project = (job.header.project || "").trim();
+    let list = [];
+    try { list = (await PDB.all()).filter((p) => p.project === project && p.date === date); } catch {}
+    if (SYNC && navigator.onLine) {
+      try {
+        const r = await api("photoList", { project, date });
+        if (r.ok) { const by = new Map(r.photos.map((p) => [p.id, p])); list.forEach((p) => by.set(p.id, { ...by.get(p.id), ...p })); list = [...by.values()]; }
+      } catch {}
+    }
+    let failed = 0, done = 0;
+    const queue = [...list];
+    await Promise.all([0, 1, 2, 3].map(async () => {
+      for (let p; (p = queue.shift());) {
+        try { await phData(p); } catch { failed++; }
+        msg.textContent = `กำลังโหลดภาพ ${++done}/${list.length}…`;
+      }
+    }));
+    const ok = list.filter((p) => p.data);
+    const html = PK.map((k) => {
+      const pages = ReportPhotos.chunk(ReportPhotos.forReport(ok, job.trucks, k.key));
+      return pages.map((items, i) => `<div class="pg ph"><div class="phh"><b>${esc(k.title)}</b>
+          <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${pages.length}</span></div>
+        <div class="phg">${items.map(({ photo: p, no, truck }) => `<div class="phc"><div class="im" style="background-image:url(data:image/jpeg;base64,${p.data})"></div>
+          <div class="cap">${no ? `ลำดับ ${no} · ` : ""}${truck ? `รถ ${esc(truck)} · ` : ""}D/O ${esc(p.do)}${p.takenAt && k.stamp ? " · " + ReportPhotos.stampText(p.takenAt) : ""}</div></div>`).join("")}</div></div>`).join("");
+    }).join("");
+    msg.textContent = failed ? `⚠️ โหลดภาพไม่ได้ ${failed} ภาพ — PDF จะไม่มีภาพเหล่านั้น` : "กำลังสร้าง PDF…";
+    return html;
+  }
+  if (SP) {
+    $("photoBox").hidden = false;
+    $("phDate").value = ph.date;
+    const onDate = () => { const v = $("phDate").value; if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v !== ph.date) { ph.date = v; ph.server = null; ph.at = 0; phRefresh(true); } };
+    $("phDate").addEventListener("input", onDate); $("phDate").addEventListener("change", onDate);
+    $("phReload").addEventListener("click", () => { ph.at = 0; phSend(); phRefresh(true); });
+    window.addEventListener("online", phSend);
+    // forget sent photos kept on this device for more than 14 days
+    PDB.all().then((all) => Promise.all(all.filter((p) => p.synced && Date.now() - (p.created || 0) > 14 * 864e5).map((p) => PDB.del(p.id)))).catch(() => {});
+    phRefresh(true); phSend();
+  }
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
   showList();

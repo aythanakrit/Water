@@ -3,6 +3,7 @@
  * Bound to a Google Sheet with sheets "Jobs", "Trucks" and "DO" (index of every D/O ever used).
  * Needs FieldSync (fieldsync.js) and Contacts (contacts.js) in the same project — paste apps-script/paste-into-apps-script.gs.
  * Also keeps the contact list (sheet "Contacts"); its admin actions need Script property ADMIN_KEY.
+ * Photos of special-project reports go to Google Drive (folder "รูปรายงานโครงการ"), indexed in sheet "Photos".
  *
  * Built to stay fast as data grows: rows are found with TextFinder instead of reading whole
  * sheets, the job list only returns recent work, and finished jobs older than ARCHIVE_DAYS
@@ -21,7 +22,10 @@ const TRUCK_COLS = ["jobId", "id", "no", "truck", "do", "volume", "plant", "batc
 const DO_COLS = ["do", "jobId"];
 // Shown as text in the sheet so D/O keeps its leading zeros and times stay HH:MM
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
-const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"] };
+const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"], Photos: ["date", "do"] };
+const PHOTO_COLS = ["id", "project", "date", "kind", "do", "fileId", "takenAt", "created", "removed"];
+const PHOTO_KINDS = ["plant", "site", "printout"];
+const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
 const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated", "email"];
 const DO_DIGITS = 13;
 
@@ -39,6 +43,13 @@ function doPost(e) {
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: "bad_request" }); }
   const key = PropertiesService.getScriptProperties().getProperty("KEY");
   if (!key || req.key !== key) return json({ ok: false, error: "unauthorized" });
+  // Photos: no script lock (Drive writes are slow and rows are only appended or marked)
+  switch (req.action) {
+    case "photoUpload": return json(photoUpload(req));
+    case "photoList": return json({ ok: true, photos: photoList(req.project, req.date) });
+    case "photoGet": return json(photoGet(req.id));
+    case "photoDelete": return json(photoDelete(req.id));
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -459,4 +470,60 @@ function archiveOldJobs() {
   });
   deleteRows(jobs, jobRowsToDelete);
   return old.length;
+}
+
+// ---------- photos (special-project reports) ----------
+function photoSheet() { return setupSheet(SpreadsheetApp.getActiveSpreadsheet(), "Photos", PHOTO_COLS).sh; }
+function photoFolder(project) {
+  const props = PropertiesService.getScriptProperties();
+  let root = null;
+  const id = props.getProperty("photoFolder");
+  if (id) { try { root = DriveApp.getFolderById(id); } catch (e) { root = null; } }
+  if (!root) { root = DriveApp.createFolder("รูปรายงานโครงการ"); props.setProperty("photoFolder", root.getId()); }
+  const name = String(project).replace(/[\\/]+/g, "-").slice(0, 100);
+  const it = root.getFoldersByName(name);
+  return it.hasNext() ? it.next() : root.createFolder(name);
+}
+function photoFromRow(r) {
+  return { id: String(r.id), project: String(r.project), date: String(r.date), kind: String(r.kind), do: doText(r.do),
+    takenAt: Number(r.takenAt) || 0, created: Number(r.created) || 0 };
+}
+function photoUpload(req) {
+  const project = String(req.project || "").trim().slice(0, 100);
+  const doNo = String(req.do || "").replace(/\D/g, "");
+  if (!project || !/^\d{4}-\d{2}-\d{2}$/.test(String(req.date)) || PHOTO_KINDS.indexOf(req.kind) < 0
+    || !doNo || doNo.length > 20 || typeof req.data !== "string") return { ok: false, error: "bad_request" };
+  const id = /^[\w-]{6,60}$/.test(String(req.id || "")) ? String(req.id) : Utilities.getUuid();
+  const sh = photoSheet();
+  // a retry after a lost response: already stored
+  const had = findRows(sh, PHOTO_COLS, "id", id);
+  if (had.length) return { ok: true, photo: photoFromRow(readRow(sh, PHOTO_COLS, had[0])) };
+  const bytes = Utilities.base64Decode(req.data);
+  if (bytes.length > PHOTO_MAX_BYTES) return { ok: false, error: "too_large" };
+  const file = photoFolder(project).createFile(Utilities.newBlob(bytes, "image/jpeg", req.date + "_" + req.kind + "_" + doNo + "_" + id + ".jpg"));
+  const row = { id, project, date: req.date, kind: req.kind, do: doNo, fileId: file.getId(), takenAt: Number(req.takenAt) || "", created: Date.now(), removed: "" };
+  putRow(sh, PHOTO_COLS, PHOTO_COLS.map((c) => row[c]));
+  return { ok: true, photo: photoFromRow(row) };
+}
+function photoList(project, date) {
+  const sh = photoSheet();
+  return findRows(sh, PHOTO_COLS, "date", String(date || "")).map((n) => readRow(sh, PHOTO_COLS, n))
+    .filter((r) => !r.removed && String(r.project) === String(project)).map(photoFromRow);
+}
+function photoRow(id) {
+  const sh = photoSheet();
+  const n = findRows(sh, PHOTO_COLS, "id", String(id || ""))[0];
+  return n ? { sh, n, r: readRow(sh, PHOTO_COLS, n) } : null;
+}
+function photoGet(id) {
+  const p = photoRow(id);
+  if (!p || p.r.removed) return { ok: false, error: "not_found" };
+  return { ok: true, data: Utilities.base64Encode(DriveApp.getFileById(String(p.r.fileId)).getBlob().getBytes()) };
+}
+function photoDelete(id) {
+  const p = photoRow(id);
+  if (!p) return { ok: true };
+  p.sh.getRange(p.n, PHOTO_COLS.indexOf("removed") + 1).setValue(Date.now());
+  try { DriveApp.getFileById(String(p.r.fileId)).setTrashed(true); } catch (e) {}
+  return { ok: true };
 }

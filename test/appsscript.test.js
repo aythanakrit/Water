@@ -69,6 +69,22 @@ function fakeSheets() {
   };
 }
 
+function fakeDrive() {
+  let n = 0;
+  const files = {}, folders = {};
+  const mkFolder = (name) => {
+    const id = "f" + ++n, kids = [];
+    const f = {
+      name, getId: () => id,
+      getFoldersByName: (x) => { const hit = kids.filter((k) => k.name === x); return { hasNext: () => hit.length > 0, next: () => hit.shift() }; },
+      createFolder: (x) => { const k = mkFolder(x); kids.push(k); return k; },
+      createFile: (blob) => { const fid = "d" + ++n; files[fid] = { blob, trashed: false, folder: name, getId: () => fid, getBlob: () => blob, setTrashed(t) { this.trashed = t; } }; return files[fid]; },
+    };
+    return (folders[id] = f);
+  };
+  return { files, createFolder: mkFolder, getFolderById: (id) => { if (!folders[id]) throw new Error("no"); return folders[id]; }, getFileById: (id) => files[id] };
+}
+
 function load() {
   const SpreadsheetApp = fakeSheets();
   const props = { KEY: "secret" };
@@ -77,9 +93,11 @@ function load() {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: (s) => ({ setMimeType: () => JSON.parse(s) }) },
-    Utilities: { formatDate: () => "2026-10-28", base64Decode: (b) => [...Buffer.from(b, "base64")], newBlob: (bytes, type, name) => ({ bytes, type, name }) },
+    Utilities: { formatDate: () => "2026-10-28", base64Decode: (b) => [...Buffer.from(b, "base64")], base64Encode: (b) => Buffer.from(b).toString("base64"),
+      newBlob: (bytes, type, name) => ({ bytes, type, name, getBytes: () => bytes }), getUuid: () => "u" + Math.random().toString(36).slice(2, 10) },
     Session: { getScriptTimeZone: () => "Asia/Bangkok" },
     MailApp: { sent: [], sendEmail(o) { this.sent.push(o); } },
+    DriveApp: fakeDrive(),
     Date, JSON, Math, Map, Set, Array, Object, String, Number, Infinity,
   };
   vm.createContext(ctx);
@@ -291,4 +309,28 @@ test("contacts: admin import from a paste skips repeated phones", () => {
   assert.equal(r.skipped.length, 2);
   const list = call({ action: "contacts" }).people;
   assert.deepEqual(list.map((p) => [p.first, p.dept, p.email]), [["ก", "PQ", "a@x.co"], ["ข", "PQ", ""]]);
+});
+
+test("photos: upload to Drive, list by project and date, get, delete; retry with the same id stores once", () => {
+  const { call, ctx } = load();
+  const data = Buffer.from("jpegbytes").toString("base64");
+  const up = (o) => call({ action: "photoUpload", project: "Langsuan Residence", date: "2026-10-30", kind: "plant", do: "0372610040130", data, ...o });
+  const a = up({ id: "p-aaaaaa", takenAt: 123 });
+  assert.equal(a.ok, true);
+  assert.equal(a.photo.do, "0372610040130");
+  assert.equal(up({ id: "p-aaaaaa" }).ok, true);
+  up({ id: "p-bbbbbb", kind: "printout", do: "0042610040087" });
+  up({ id: "p-cccccc", project: "อื่น" });
+  up({ id: "p-dddddd", date: "2026-10-31" });
+  const list = call({ action: "photoList", project: "Langsuan Residence", date: "2026-10-30" }).photos;
+  assert.deepEqual(list.map((p) => p.id).sort(), ["p-aaaaaa", "p-bbbbbb"]);
+  assert.equal(list.find((p) => p.id === "p-aaaaaa").takenAt, 123);
+  assert.equal(Buffer.from(call({ action: "photoGet", id: "p-aaaaaa" }).data, "base64").toString(), "jpegbytes");
+  assert.equal(Object.values(ctx.DriveApp.files)[0].folder, "Langsuan Residence");
+  assert.equal(call({ action: "photoDelete", id: "p-aaaaaa" }).ok, true);
+  assert.deepEqual(call({ action: "photoList", project: "Langsuan Residence", date: "2026-10-30" }).photos.map((p) => p.id), ["p-bbbbbb"]);
+  assert.equal(call({ action: "photoGet", id: "p-aaaaaa" }).ok, false);
+  assert.equal(up({ kind: "other" }).error, "bad_request");
+  assert.equal(up({ do: "" }).error, "bad_request");
+  assert.equal(up({ date: "30/10/2569" }).error, "bad_request");
 });
