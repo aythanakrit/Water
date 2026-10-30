@@ -141,7 +141,7 @@
   const OUT = ["nCem", "nFa", "lCem", "lFa", "lBinder", "lAdd"].concat(KEYS.flatMap(([k]) => ["n" + k, "l" + k]));
 
   // Cap of the plant's mixers: tap one, or type another in the box
-  const CAPS = [1, 1.25, 1.5, 1.67, 1.75, 2];
+  const CAPS = [1, 1.5, 1.67, 1.75];
   $("capChips").innerHTML = CAPS.map((c) => `<button type="button" data-cap="${c}">${c} คิว</button>`).join("");
   $("capChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("cap").value = b.dataset.cap; run(); });
 
