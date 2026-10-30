@@ -60,8 +60,16 @@
   .phrow { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .phrow .b { min-height: 48px; font-size: 1.05rem; }
   .phrow .doin input { flex: 1; min-width: 0; }
-  .phmiss { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .phmiss button { font: inherit; font-size: .85rem; border-radius: 999px; padding: 4px 12px; border: 1px solid var(--line); background: var(--sel); color: var(--accent); cursor: pointer; }
+  .phtiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
+  .phtile { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
+  .phtile.has { border-color: var(--ok); }
+  .phtile .tt { padding: 6px 8px; font-size: .9rem; line-height: 1.3; }
+  .phtile .tt small { display: block; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+  .phtile .phit { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
+  .phshoot { flex: 1; min-height: 110px; font: inherit; font-size: 1rem; line-height: 1.6; border: 0; border-top: 1px dashed var(--line); background: var(--sel); color: var(--accent); cursor: pointer; }
+  .phshoot:active { filter: brightness(.95); }
+  .phmore { margin: 6px; font-size: .85rem; }
+  .phman { margin-top: 12px; } .phman summary { cursor: pointer; color: var(--accent); font-size: .9rem; }
   .phgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 10px; }
   .phit { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: .8rem; background: var(--bg); }
   .phit img, .phit .noimg { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0002; }
@@ -1006,22 +1014,36 @@
       const locked = k.locked && !phAdmin;
       const items = ReportPhotos.forReport(list, trucks, key);
       const miss = ReportPhotos.missing(list, trucks, key);
+      const digitsOf = (d) => String(d || "").replace(/\D/g, "");
+      const thumb = (p) => `<div class="phit${p.synced === false ? " pending" : ""}">
+          ${p.data ? `<img src="data:image/jpeg;base64,${p.data}" alt="">` : `<button class="noimg" type="button" data-load="${esc(p.id)}">✓ มีภาพแล้ว<br>แตะเพื่อดู</button>`}
+          <div class="cap">${locked ? "" : `<button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>`}
+            ${p.takenAt && k.stamp ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`;
+      // one tile per truck of the report: tap it to take or attach this truck's photo
+      const tiles = trucks.map((t, i) => {
+        const mine = items.filter((x) => digitsOf(x.photo.do) === digitsOf(t.do));
+        const head = `<div class="tt"><b>ลำดับ ${i + 1}</b>${t.truck ? ` · รถ <b>${esc(t.truck)}</b>` : ""}<small>D/O ${esc(t.do)}</small></div>`;
+        if (!digitsOf(t.do)) return "";
+        return `<div class="phtile${mine.length ? " has" : ""}">${head}
+          ${mine.length ? mine.map((x) => thumb(x.photo)).join("") + (locked ? "" : `<button class="g phmore" type="button" data-shoot="${esc(t.do)}">+ ${key === "printout" ? "แนบเพิ่ม" : "ถ่ายเพิ่ม"}</button>`)
+            : locked ? `<div class="note" style="padding:10px">ยังไม่มี</div>` : `<button class="phshoot" type="button" data-shoot="${esc(t.do)}">${key === "printout" ? "📎<br>แนบ Printout" : "📸<br>แตะเพื่อถ่าย/แนบ"}</button>`}</div>`;
+      }).join("");
+      const known = new Set(trucks.map((t) => digitsOf(t.do)));
+      const others = items.filter((x) => !known.has(digitsOf(x.photo.do)));
       return `<section class="phk" data-k="${key}">
         <h2 style="margin:0 0 4px">${esc(k.dept)} — ${esc(k.title)}</h2>
         ${locked ? `<p class="note" style="margin:0 0 8px">🔒 เฉพาะผู้ดูแล — ใส่รหัสเพื่อแนบ Printout</p>
-          <div class="phrow"><label>รหัสผู้ดูแล<input class="phpass" type="password" autocomplete="off"></label><button class="b phunlock" type="button">เข้า</button></div>
-          <div class="phmsg"></div>` : `
-        <div class="phrow"><label>D/O No. ของรถคันนี้
-          <span class="doin"><input class="phdo npad" data-pad="int" type="text" inputmode="numeric" maxlength="13" autocomplete="off" placeholder="สแกนหรือพิมพ์">
-          <button class="g phscan" type="button">📷 สแกน</button></span></label>
-          <button class="b phadd" type="button">${key === "printout" ? "📎 แนบ PDF/ภาพ" : "📸 ถ่าย/แนบภาพ"}</button></div>
+          <div class="phrow"><label>รหัสผู้ดูแล<input class="phpass" type="password" autocomplete="off"></label><button class="b phunlock" type="button">เข้า</button></div>` : ""}
         <div class="phmsg"></div>
-        ${trucks.length ? `<p class="note" style="margin:8px 0 0">แนบแล้ว ${trucks.length - miss.length}/${trucks.length} คัน${miss.length ? " · ยังขาด (แตะเพื่อเลือก):" : " ✅"}</p>
-          <div class="phmiss">${miss.map((n) => `<button type="button" data-do="${esc(trucks[n - 1].do)}">ลำดับ ${n}${trucks[n - 1].truck ? " · รถ " + esc(trucks[n - 1].truck) : ""}</button>`).join("")}</div>` : ""}`}
-        <div class="phgrid">${items.map(({ photo: p, no, truck }) => `<div class="phit${p.synced === false ? " pending" : ""}">
-          ${p.data ? `<img src="data:image/jpeg;base64,${p.data}" alt="">` : `<button class="noimg" type="button" data-load="${esc(p.id)}">แตะเพื่อดูภาพ</button>`}
-          <div class="cap">${locked ? "" : `<button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>`}
-            ${no ? `<b>ลำดับ ${no}</b>${truck ? " · รถ " + esc(truck) : ""}<br>` : ""}D/O <b>${esc(p.do)}</b><br>${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}</div>
+        ${trucks.length ? `<p class="note" style="margin:6px 0 0">แนบแล้ว ${trucks.length - miss.length}/${trucks.length} คัน${miss.length ? "" : " ✅"}</p>
+          <div class="phtiles">${tiles}</div>` : `<p class="note" style="margin:6px 0 0">ยังไม่มีรถในใบรายงานของวันนี้ — บันทึกรถก่อน แล้วรถจะขึ้นให้แตะที่นี่</p>`}
+        ${others.length ? `<p class="note" style="margin:10px 0 0">ภาพที่ D/O ไม่ตรงกับรถในรายการ:</p>
+          <div class="phgrid">${others.map((x) => thumb(x.photo).replace('<div class="cap">', `<div class="cap">D/O <b>${esc(x.photo.do)}</b><br>`)).join("")}</div>` : ""}
+        ${locked ? "" : `<details class="phman"${trucks.length ? "" : " open"}><summary>รถยังไม่อยู่ในรายการ — ใส่ D/O เอง</summary>
+          <div class="phrow" style="margin-top:8px"><label>D/O No.
+            <span class="doin"><input class="phdo npad" data-pad="int" type="text" inputmode="numeric" maxlength="13" autocomplete="off" placeholder="สแกนหรือพิมพ์">
+            <button class="g phscan" type="button">📷 สแกน</button></span></label>
+            <button class="b phadd" type="button">${key === "printout" ? "📎 แนบ PDF/ภาพ" : "📸 ถ่าย/แนบภาพ"}</button></div></details>`}
       </section>`;
     }).join("");
   }
@@ -1075,7 +1097,11 @@
       return renderPhotos();
     }
     if (b.classList.contains("phscan")) { scanTo = sec.querySelector(".phdo"); return startLive(); }
-    if (b.dataset.do) { const el = sec.querySelector(".phdo"); el.value = b.dataset.do; return phMsg(el, ""); }
+    if (b.dataset.shoot) {
+      phPick = { kind: key, do: FieldReport.cleanDO(b.dataset.shoot), el: b };
+      $("phFile").accept = key === "printout" ? "application/pdf,image/*" : "image/*";
+      return $("phFile").click();
+    }
     if (b.classList.contains("phadd")) {
       const el = sec.querySelector(".phdo"), d = FieldReport.cleanDO(el.value);
       if (!/^\d{6,20}$/.test(d)) { el.focus(); return phMsg(el, "ใส่เลข D/O ของรถคันนี้ก่อน (สแกนหรือพิมพ์)"); }
@@ -1113,7 +1139,8 @@
         await PDB.put({ id: "p-" + now.toString(36) + "-" + Math.random().toString(36).slice(2, 8), project: PROJ, date: ph.date,
           kind: pick.kind, do: pick.do, takenAt: isPdf ? now : takenAt, data: toB64(c), synced: !SYNC ? null : false, created: Date.now() });
       }
-      pick.el.value = ""; phMsg(pick.el, "");
+      if (pick.el.classList.contains("phdo")) pick.el.value = "";
+      phMsg(pick.el, "");
       await phRefresh(); phSend();
     } catch { phMsg(pick.el, "เปิดไฟล์ไม่ได้ — ลองใหม่ หรือใช้ไฟล์ภาพ/PDF อื่น"); }
   });
