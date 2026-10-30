@@ -72,17 +72,28 @@ function fakeSheets() {
 function fakeDrive() {
   let n = 0;
   const files = {}, folders = {};
-  const mkFolder = (name) => {
-    const id = "f" + ++n, kids = [];
-    const f = {
+  const iter = (list) => { const l = [...list]; return { hasNext: () => l.length > 0, next: () => l.shift() }; };
+  // every file and folder knows its parent; moveTo changes it
+  const placed = (o, parent) => Object.assign(o, { parent, getParents: () => iter(o.parent ? [o.parent] : []), moveTo(f) { o.parent = f; return o; } });
+  const mkFolder = (name, parent) => {
+    const id = "f" + ++n;
+    const f = placed({
       name, getId: () => id,
-      getFoldersByName: (x) => { const hit = kids.filter((k) => k.name === x); return { hasNext: () => hit.length > 0, next: () => hit.shift() }; },
-      createFolder: (x) => { const k = mkFolder(x); kids.push(k); return k; },
-      createFile: (blob) => { const fid = "d" + ++n; files[fid] = { blob, trashed: false, folder: name, getId: () => fid, getBlob: () => blob, setTrashed(t) { this.trashed = t; } }; return files[fid]; },
-    };
+      getFoldersByName: (x) => iter(Object.values(folders).filter((k) => k.parent === f && k.name === x)),
+      createFolder: (x) => mkFolder(x, f),
+      createFile: (blob) => { const fid = "d" + ++n; files[fid] = placed({ blob, trashed: false, folder: name, getId: () => fid, getBlob: () => blob, setTrashed(t) { this.trashed = t; } }, f); return files[fid]; },
+    }, parent);
     return (folders[id] = f);
   };
-  return { files, createFolder: mkFolder, getFolderById: (id) => { if (!folders[id]) throw new Error("no"); return folders[id]; }, getFileById: (id) => files[id] };
+  const root = mkFolder("My Drive", null);
+  return {
+    files, folders, root,
+    getRootFolder: () => root,
+    createFolder: (name) => mkFolder(name, root),
+    getFolderById: (id) => { if (!folders[id]) throw new Error("no"); return folders[id]; },
+    // spreadsheets are looked up lazily: a new one starts in My Drive
+    getFileById: (id) => files[id] || (files[id] = placed({ getId: () => id }, root)),
+  };
 }
 
 function load() {
@@ -326,7 +337,7 @@ test("photos: upload to Drive, list by project and date, get, delete; retry with
   assert.deepEqual(list.map((p) => p.id).sort(), ["p-aaaaaa", "p-bbbbbb"]);
   assert.equal(list.find((p) => p.id === "p-aaaaaa").takenAt, 123);
   assert.equal(Buffer.from(call({ action: "photoGet", id: "p-aaaaaa" }).data, "base64").toString(), "jpegbytes");
-  assert.equal(Object.values(ctx.DriveApp.files)[0].folder, "Langsuan Residence");
+  assert.equal(Object.values(ctx.DriveApp.files).find((f) => f.blob).folder, "Langsuan Residence");
   assert.equal(call({ action: "photoDelete", id: "p-aaaaaa" }).ok, true);
   assert.deepEqual(call({ action: "photoList", project: "Langsuan Residence", date: "2026-10-30" }).photos.map((p) => p.id), ["p-bbbbbb"]);
   assert.equal(call({ action: "photoGet", id: "p-aaaaaa" }).ok, false);
@@ -346,4 +357,20 @@ test("project report PDF is mailed only to REPORT_MAIL_TO", () => {
   assert.equal(mail.at(-1).to, "report@example.com");
   assert.equal(mail.at(-1).subject, "รายงาน A");
   assert.equal(mail.at(-1).attachments[0].type, "application/pdf");
+});
+
+test("photo folder and archives are kept in the spreadsheet's Drive folder", () => {
+  const { call, ctx, SpreadsheetApp } = load();
+  const drive = ctx.DriveApp, home = drive.root.createFolder("M Concrete - Production");
+  drive.getFileById(SpreadsheetApp.getActiveSpreadsheet().getId()).moveTo(home);
+  const data = Buffer.from("x").toString("base64");
+  call({ action: "photoUpload", id: "p-111111", project: "P", date: "2026-10-30", kind: "plant", do: "0372610040130", data });
+  const photos = Object.values(drive.folders).find((f) => f.name === "รูปรายงานโครงการ");
+  assert.equal(photos.parent, home);
+  // moved away by hand → put back next to the sheet on the next upload
+  photos.moveTo(drive.root);
+  call({ action: "photoUpload", id: "p-222222", project: "P", date: "2026-10-30", kind: "plant", do: "0372610040131", data });
+  assert.equal(photos.parent, home);
+  const arc = ctx.archiveFile(2026);
+  assert.equal(drive.getFileById(arc.getId()).parent, home);
 });

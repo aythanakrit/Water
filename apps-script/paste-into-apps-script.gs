@@ -244,6 +244,7 @@
  * Needs FieldSync (fieldsync.js) and Contacts (contacts.js) in the same project — paste apps-script/paste-into-apps-script.gs.
  * Also keeps the contact list (sheet "Contacts"); its admin actions need Script property ADMIN_KEY.
  * Photos of special-project reports go to Google Drive (folder "รูปรายงานโครงการ"), indexed in sheet "Photos".
+ * The photo folder and the yearly archives are kept in the same Drive folder as this spreadsheet.
  *
  * Built to stay fast as data grows: rows are found with TextFinder instead of reading whole
  * sheets, the job list only returns recent work, and finished jobs older than ARCHIVE_DAYS
@@ -678,12 +679,29 @@ function maybeArchive() {
   archiveOldJobs();
 }
 
+// ---------- Drive: keep our files next to this spreadsheet ----------
+function homeFolder() {
+  const parents = DriveApp.getFileById(SpreadsheetApp.getActiveSpreadsheet().getId()).getParents();
+  return parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+}
+// Move a file or folder into the spreadsheet's folder if it is somewhere else (Drive errors are ignored)
+function keepNextToSheet(item) {
+  try {
+    const home = homeFolder(), parents = item.getParents();
+    if (!parents.hasNext() || parents.next().getId() !== home.getId()) item.moveTo(home);
+  } catch (e) {}
+}
+
 function archiveFile(year) {
   const props = PropertiesService.getScriptProperties();
   const key = "archive_" + year;
   const id = props.getProperty(key);
-  if (id) return SpreadsheetApp.openById(id);
+  if (id) {
+    try { keepNextToSheet(DriveApp.getFileById(id)); } catch (e) {}
+    return SpreadsheetApp.openById(id);
+  }
   const ss = SpreadsheetApp.create("ใบรายงานสนาม - เก็บถาวร " + year);
+  keepNextToSheet(DriveApp.getFileById(ss.getId()));
   setupSheet(ss, "Jobs", JOB_COLS);
   setupSheet(ss, "Trucks", TRUCK_COLS);
   props.setProperty(key, ss.getId());
@@ -721,7 +739,8 @@ function photoFolder(project) {
   let root = null;
   const id = props.getProperty("photoFolder");
   if (id) { try { root = DriveApp.getFolderById(id); } catch (e) { root = null; } }
-  if (!root) { root = DriveApp.createFolder("รูปรายงานโครงการ"); props.setProperty("photoFolder", root.getId()); }
+  if (!root) { root = homeFolder().createFolder("รูปรายงานโครงการ"); props.setProperty("photoFolder", root.getId()); }
+  else keepNextToSheet(root);
   const name = String(project).replace(/[\\/]+/g, "-").slice(0, 100);
   const it = root.getFoldersByName(name);
   return it.hasNext() ? it.next() : root.createFolder(name);
