@@ -313,14 +313,21 @@
 
   // ---------- central storage (Google Sheets), optional ----------
   const SYNC = window.FIELD_SYNC && window.FIELD_SYNC.url ? window.FIELD_SYNC : null;
-  let syncState = SYNC ? "idle" : "local", lastSync = null, syncTimer = null;
+  let syncState = SYNC ? "idle" : "local", lastSync = null, syncTimer = null, syncErr = "";
   // report administrator (printouts, report e-mail): the key is checked by the Apps Script, kept for this browser tab only
   var phKey = "";
   try { phKey = sessionStorage.getItem("phAdminKey") || ""; } catch {}
   async function api(action, body = {}) {
     const res = await fetch(SYNC.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ ...body, action, key: SYNC.key, ...(phKey ? { adminKey: phKey } : {}) }) });
-    const out = await res.json();
+    // Apps Script answers with an HTML page when the script itself fails: report its title
+    const text = await res.text();
+    let out;
+    try { out = JSON.parse(text); } catch {
+      const body = (/<body[^>]*>([\s\S]*)<\/body>/i.exec(text) || [, text])[1];
+      const t = body.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
+      throw new Error("server: " + (t || "HTTP " + res.status));
+    }
     if (out.error === "unauthorized") throw new Error("unauthorized");
     return out;
   }
@@ -333,6 +340,8 @@
     const n = db.dirty.length + db.deleted.length;
     const [cls, txt] = !SYNC ? ["", "💾 เก็บข้อมูลในเครื่องนี้เท่านั้น"]
       : syncState === "busy" ? ["", "⏳ กำลังส่งข้อมูลขึ้น Google Sheets…"]
+      : syncState === "offline" && syncErr && navigator.onLine && !/fetch|network|load failed/i.test(syncErr)
+        ? ["bad", `⚠️ ส่งขึ้น Google Sheets ไม่สำเร็จ (มี ${n} รายการรอส่ง) — สาเหตุ: ${syncErr}`]
       : syncState === "offline" ? ["off", `📴 ออฟไลน์ — มี ${n} รายการรอส่ง จะส่งให้เองเมื่อมีสัญญาณ`]
       : syncState === "auth" ? ["bad", "⛔ เชื่อม Google Sheets ไม่ได้ (รหัส key ไม่ตรง) — แจ้งผู้ดูแล"]
       : n ? ["off", `⏳ รอส่ง ${n} รายการ`] : ["", `☁️ ซิงค์กับ Google Sheets แล้ว${lastSync ? " " + lastSync : ""}`];
@@ -381,9 +390,10 @@
           if (job && job.id === id) job = null;
         }
       }
-      syncState = "idle"; lastSync = FieldReport.nowHHMM();
+      syncState = "idle"; lastSync = FieldReport.nowHHMM(); syncErr = "";
     } catch (e) {
       syncState = e.message === "unauthorized" ? "auth" : "offline";
+      syncErr = String((e && e.message) || e);
     }
     persist(); showSync();
     if (job) refreshOpenJob(); else if (!$("vList").hidden) showList();
