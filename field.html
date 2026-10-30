@@ -538,7 +538,7 @@
         const al = FieldReport.timeAlerts(t), lv = al.some((x) => x.level === "bad") ? " t-bad" : al.length ? " t-warn" : "";
         return `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}${lv}">${COLS.map(([k]) =>
           k === "remark" ? `<td class="rm">${esc(FieldReport.remarkWithAlerts(t))}</td>`
-          : `<td>${k === "no" ? i + 1 : (k === "slump" || k === "sampleQty") && !t.sampleType ? "" : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`;
+          : `<td>${k === "no" ? i + 1 : k === "sampleQty" && !t.sampleType ? "" : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`;
       }).join("")
         : `<tr><td colspan="${COLS.length}" class="note">ยังไม่มีรถ — สแกนหรือพิมพ์ D/O ด้านบน</td></tr>`) + "</tbody>";
   }
@@ -767,9 +767,10 @@
   const F_TEXT = [["truck", "Truck No. (หมายเลขรถ)", "numeric"], ["do", "D/O No.", "numeric"], ["volume", "Volume (m³)", "decimal"], ["plant", "หน่วยผลิต", ""]];
   const F_TIME = [["batching", "Batching Time (เวลาผสม)"], ["arrival", "Truck at Site (เวลารถถึง)"], ["start", "Start Pouring (เริ่มเท)"], ["end", "End Pouring (เทเสร็จ)"]];
   // Air/Con temp., operator and remark are not entered here (the PDF keeps their columns)
-  const F_MORE = [["slump", "Slump (cm.)", "decimal"], ["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""]];
+  const F_SLUMP = [["slump", "Slump (cm.)", "decimal"]];
+  const F_MORE = [["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""]];
   // picked with a tap instead of typed
-  // "" = no sample (the default): slump, sample volume and label are not entered, and stay blank in the report
+  // "" = no sample (the default): sample volume and label are not entered, and the sample columns stay blank in the report
   const F_PICK = [["sampleType", "Sample Type (ประเภท)", ["", "CU", "CY", "CY10"]]];
   const pickLabel = (k, v) => (k === "sampleType" && v === "" ? "ไม่เก็บตัวอย่าง" : v);
   function renderEdit() {
@@ -795,6 +796,7 @@
       <div class="times" style="margin-top:12px">${F_TIME.map(([k, l]) => `<label>${l}<span class="tin">
         <input type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
       <div id="timeAlerts"></div>
+      <div class="fields" style="margin-top:12px">${F_SLUMP.map(inp).join("")}</div>
       ${F_PICK.map(([k, l, opts]) => `<div class="pick" style="margin-top:12px"><span class="pl">${l}</span><div class="chips">${
         [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k] || "") === v ? "on" : ""}" ${ro}>${esc(pickLabel(k, v))}</button>`).join("")}</div></div>`).join("")}
       <div class="fields" style="margin-top:12px">${t.sampleType ? F_MORE.map(inp).join("") : ""}</div>
@@ -824,7 +826,7 @@
     const b = e.target.closest("[data-pick]"); if (!b || b.disabled) return;
     const t = job.trucks[editIdx], k = b.dataset.pick;
     t[k] = String(t[k] || "") === b.dataset.v ? "" : b.dataset.v; t.updated = Date.now();
-    touch(); renderList(); renderEdit(); // slump / sample volume / label show only when a sample is taken
+    touch(); renderList(); renderEdit(); // sample volume / label show only when a sample is taken
   });
   $("editBox").addEventListener("input", (e) => {
     const k = e.target.dataset.t; if (!k || k === "do") return;
@@ -888,7 +890,7 @@
       const t = p.rows[r], v = (k) => (t ? e(t[k] || "-") : "");
       return `<tr>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
         ${td("d", v("batching"))}${td("d", v("arrival"))}${td("d", v("start"))}${td("d", v("end"))}${td("d", v("airTemp"))}${td("d", v("conTemp"))}
-        ${["slump", "sampleType", "sampleQty", "label"].map((k) => td("d", t && !t.sampleType ? "" : v(k))).join("")}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
+        ${td("d", v("slump"))}${["sampleType", "sampleQty", "label"].map((k) => td("d", t && !t.sampleType ? "" : v(k))).join("")}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
     }).join("");
     return `<div class="pg"><table><colgroup>${col}</colgroup>
       <tr><td class="fl ft logo" colspan="3" rowspan="3"><img src="${LOGO}" alt=""></td>${td("ft", "บริษัท เอ็มคอนกรีต จำกัด", 16)}${td("ft fr")}</tr>
