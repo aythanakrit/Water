@@ -419,7 +419,9 @@
   };
   const SP = SPECIAL[new URLSearchParams(location.search).get("p")] || null;
   const PROJ = SP ? SP.project : "";
-  const inProj = (j) => !PROJ || (j.header.project || "").trim() === PROJ;
+  // each card lists only its own reports: a special project's reports are hidden from the normal card
+  const SPECIAL_NAMES = Object.values(SPECIAL).map((x) => x.project);
+  const inProj = (j) => { const n = (j.header.project || "").trim(); return PROJ ? n === PROJ : !SPECIAL_NAMES.includes(n); };
   if (SP) {
     document.title = `รายงาน โครงการ${SP.name}`;
     document.querySelector("#vList h1").textContent = document.title;
@@ -435,7 +437,7 @@
     showSync();
     const jobs = PROJ
       ? db.jobs.filter(inProj).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
-      : [...db.jobs].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
+      : db.jobs.filter(inProj).sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     if (SP && typeof phRefresh === "function" && ph) phRefresh();
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
