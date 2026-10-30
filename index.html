@@ -93,6 +93,7 @@
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
     factory: '<path d="M3 21V10l5 3V10l5 3V5h4v16z"/><path d="M3 21h18M7 17h2M12 17h2"/>',
     loader: '<path d="M3 17h10v-5H7l-2 5M13 12h3l3 3v2h-6"/><circle cx="6" cy="18.5" r="1.5"/><circle cx="16" cy="18.5" r="1.5"/><path d="M19 15l2-6h-3"/>',
+    plan: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 14h4M7 17h7"/>',
   };
   // Add a tool: one entry in its group (no href = still being built, shown greyed in กำลังพัฒนา)
   const GROUPS = [
@@ -108,6 +109,7 @@
       { icon: "truck", title: "ใบรายงานสนาม", desc: "บันทึกรถหน้างาน สแกน D/O ออก PDF", href: "field.html" },
       { icon: "chart", title: "Dashboard การส่งคอนกรีต", desc: "สรุปคิว รถโม่ และปัญหารายโครงการ", href: "dashboard.html" } ] },
     { key: "soon", name: "กำลังพัฒนา", tools: [
+      { icon: "plan", title: "วางแผนการผลิตและจัดส่ง", desc: "วางคิวงานรายวัน จัดรถโม่ตามแพล้นและเวลาเท" },
       { icon: "user", title: "รายชื่อผู้ติดต่อ Demo", desc: "ลงทะเบียนครั้งเดียว ทุกคนเห็น เรียงตามแผนก/ตำแหน่ง" },
       { icon: "factory", title: "Checklist เครื่องจักรประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" },
       { icon: "loader", title: "Checklist รถตักประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" } ] },
