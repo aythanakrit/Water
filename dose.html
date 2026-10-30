@@ -68,7 +68,7 @@
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
   <h1>Mix Rev. Design</h1>
-  <p class="sub">โดฟปูนเพิ่มต่อคิว พร้อมเติมน้ำให้ w/cm เท่าเดิม · ไฟแอชเท่าเดิม · น้ำยาคงสัดส่วน cc ต่อ (ปูน + ไฟแอช) ของ Mix เดิม แล้วคูณ cap เครื่องที่โหลด · ประมาณกำลังอัดก่อน/หลังโดฟ</p>
+  <p class="sub">โดฟปูนเพิ่มต่อคิว (ไม่เติมน้ำ) · ไฟแอชเท่าเดิม · น้ำยาคงสัดส่วน cc ต่อ (ปูน + ไฟแอช) ของ Mix เดิม แล้วคูณ cap เครื่องที่โหลด · ประมาณกำลังอัดก่อน/หลังโดฟ</p>
 
   <div class="warn">** ต้องเอาไป x cap เครื่องที่โหลด **</div>
 
@@ -90,10 +90,8 @@
       <h2>โดฟปูนเพิ่ม (ต่อคิว)</h2>
       <table class="new"><tbody>
         <tr><td>ปูนที่โดฟเพิ่ม</td><td><input id="nDose" type="number" step="5"></td><td class="u">Kg</td></tr>
-        <tr><td>น้ำที่ต้องเติม (w/cm เท่าเดิม)</td><td class="out" id="nAddW"></td><td class="u">Kg</td></tr>
         <tr><td>ปูนรวมหลังโดฟ</td><td class="out" id="nCem"></td><td class="u">Kg</td></tr>
         <tr><td>ไฟแอช</td><td class="out" id="nFa"></td><td class="u">Kg</td></tr>
-        <tr><td>น้ำรวม</td><td class="out" id="nW"></td><td class="u">Kg</td></tr>
         <tr><td>A&amp;D</td><td class="out" id="nAD"></td><td class="u">cc</td></tr>
         <tr><td>Type G</td><td class="out" id="nG"></td><td class="u">cc</td></tr>
         <tr><td>Type F</td><td class="out" id="nF"></td><td class="u">cc</td></tr>
@@ -105,7 +103,6 @@
         <tr><td>Cap เครื่อง</td><td><input id="cap" type="number" step="0.25"></td><td class="u">คิว</td></tr>
         <tr><td>ปูน</td><td class="out" id="lCem"></td><td class="u">Kg</td></tr>
         <tr><td>ไฟแอช</td><td class="out" id="lFa"></td><td class="u">Kg</td></tr>
-        <tr><td>น้ำ</td><td class="out" id="lW"></td><td class="u">Kg</td></tr>
         <tr><td>A&amp;D</td><td class="out" id="lAD"></td><td class="u">cc</td></tr>
         <tr><td>Type G</td><td class="out" id="lG"></td><td class="u">cc</td></tr>
         <tr><td>Type F</td><td class="out" id="lF"></td><td class="u">cc</td></tr>
@@ -119,7 +116,7 @@
     <h2>กำลังอัดโดยประมาณ (28 วัน)</h2>
     <div id="fcBox"></div>
   </section>
-  <p class="note">โดฟปูนแล้วเติมน้ำตามสัดส่วนให้ w/cm เท่าเดิม: น้ำที่เติม = ปูนที่โดฟ × น้ำเดิม ÷ (ปูน + ไฟแอช เดิม) ·
+  <p class="note">โดฟเฉพาะปูน ไม่เติมน้ำ (w/cm ลดลง slump จะลดลงด้วย) ·
     น้ำยาหน้างาน = (ปูน + ไฟแอช หน้างาน) × น้ำยา Mix เดิม ÷ (ปูน + ไฟแอช Mix เดิม) ·
     การเพิ่มปูนหน้างานต้องได้รับอนุมัติจากวิศวกรผู้รับผิดชอบ และตรวจ slump หลังปรับทุกครั้ง</p>
 </main>
@@ -132,7 +129,7 @@
   const v = (id) => Number($(id).value) || 0;
   const has = (id) => $(id).value.trim() !== "";
   const KEYS = [["AD", "A&D"], ["G", "Type G"], ["F", "Type F"]];
-  const OUT = ["nAddW", "nCem", "nFa", "nW", "lCem", "lFa", "lW", "lBinder", "lAdd"].concat(KEYS.flatMap(([k]) => ["n" + k, "l" + k]));
+  const OUT = ["nCem", "nFa", "lCem", "lFa", "lBinder", "lAdd"].concat(KEYS.flatMap(([k]) => ["n" + k, "l" + k]));
 
   // Cap of the plant's mixers: tap one, or type another in the box
   const CAPS = [1, 1.25, 1.5, 1.67, 1.75, 2];
@@ -144,22 +141,21 @@
     $("doseRows").innerHTML = "";
     $("capChips").querySelectorAll("button").forEach((b) => b.classList.toggle("on", has("cap") && Number(b.dataset.cap) === v("cap")));
     strength();
-    const c0 = v("oCem"), fa = v("oFa"), w0 = v("oW"), dose = v("nDose"), cap = v("cap");
+    const c0 = v("oCem"), fa = v("oFa"), dose = v("nDose"), cap = v("cap");
     if (!(c0 + fa > 0)) return; // nothing typed yet
     const r = FieldTools.adjustMix({ cement: c0, flyAsh: fa, admix: { AD: v("oAD"), G: v("oG"), F: v("oF") } }, c0 + dose, cap);
     $("doseRows").innerHTML = KEYS.filter(([k]) => r.dose[k] > 0)
       .map(([k, n]) => `<tr><td>Dose ${n}</td><td>${f(r.dose[k])}</td><td class="u">cc/kg</td></tr>`).join("");
     if (!has("nDose")) return;
-    // w/cm kept: water added in the same ratio as the original mix
-    const addW = has("oW") ? dose * w0 / (c0 + fa) : NaN, w1 = w0 + addW;
-    $("nAddW").textContent = f(addW); $("nCem").textContent = f(r.perM3.cement); $("nFa").textContent = f(r.perM3.flyAsh); $("nW").textContent = f(w1);
+    // cement only: no water is added
+    $("nCem").textContent = f(r.perM3.cement); $("nFa").textContent = f(r.perM3.flyAsh);
     KEYS.forEach(([k]) => { $("n" + k).textContent = f(r.perM3.admix[k]); });
     if (!(cap > 0)) return;
-    $("lCem").textContent = f(r.load.cement); $("lFa").textContent = f(r.load.flyAsh); $("lW").textContent = f(w1 * cap);
+    $("lCem").textContent = f(r.load.cement); $("lFa").textContent = f(r.load.flyAsh);
     $("lBinder").textContent = f(r.loadBinder);
     KEYS.forEach(([k]) => { $("l" + k).textContent = f(r.load.admix[k]); });
-    // what goes in on top of the original mix: cement, water and each admixture (its cc/kg × the dosed cement)
-    const add = [`ปูน ${f(dose * cap)} kg`, ...(isFinite(addW) ? [`น้ำ ${f(addW * cap)} kg`] : []),
+    // what goes in on top of the original mix: cement and each admixture (its cc/kg × the dosed cement)
+    const add = [`ปูน ${f(dose * cap)} kg`,
       ...KEYS.filter(([k]) => r.dose[k] > 0).map(([k, n]) => `${n} ${f(r.dose[k] * dose * cap)} cc`)];
     $("lAdd").innerHTML = add.join("<br>");
   }
@@ -170,7 +166,6 @@
   function strength() {
     const w = v("oW"), c0 = v("oCem"), fa = v("oFa"), dose = v("nDose");
     if (!has("oW") || !(w > 0) || !(c0 + fa > 0)) { $("fcBox").innerHTML = `<p class="note" style="margin:0">ใส่ ปูน ไฟแอช และ <b>น้ำ</b> ของ Mix เดิม เพื่อประมาณกำลังอัด</p>`; return; }
-    const addW = dose * w / (c0 + fa);
     const row = (label, cem, water) => {
       const wc = water / (cem + fa), s = MixDesign.strengthFromWc(wc), ksc = FieldTools.mpaToKsc(s.mpa);
       const mark = s.outside === "high" ? "≥ " : s.outside === "low" ? "≤ " : "≈ ";
@@ -180,20 +175,17 @@
           <div class="m">w/(c+p) ${f(wc, 3)} · ${mark}${f(s.mpa, 1)} MPa · ปูน+แอช ${f(cem, 0)}+${f(fa, 0)} · น้ำ ${f(water, 0)} kg</div></div>`, ksc, s };
     };
     const rows = [row("ก่อนโดฟ (Mix เดิม)", c0, w)];
-    if (dose > 0) {
-      rows.push(row(`หลังโดฟ ${f(dose, 0)} kg + น้ำ ${f(addW, 1)} kg`, c0 + dose, w + addW));
-      rows.push(row(`เทียบ: เติมน้ำ ${f(addW, 1)} kg แต่ไม่โดฟปูน`, c0, w + addW));
-    }
+    if (dose > 0) rows.push(row(`หลังโดฟปูน ${f(dose, 0)} kg (น้ำเท่าเดิม)`, c0 + dose, w));
     const warn = [];
     if (rows.some((x) => x.s.outside)) warn.push("w/(c+p) อยู่นอกช่วงตาราง ACI (0.42–0.79) — แสดงค่าปลายตาราง (≥ / ≤)");
     if (fa / (c0 + fa) > 0.25) warn.push(`ไฟแอช ${f(fa / (c0 + fa) * 100, 0)}% ของวัสดุประสาน — ตาราง ACI เป็นของปูนล้วน กำลัง 28 วันจริงมักต่ำกว่าค่าที่ประมาณ`);
     $("fcBox").innerHTML = `<div class="scroll"><table class="fc"><thead><tr><th></th><th>ปูน + แอช (kg)</th><th>น้ำ (kg)</th><th>w/(c+p)</th><th>MPa ทรงกระบอก</th><th>ksc ทรงกระบอก</th><th>ksc ลูกบาศก์</th></tr></thead>
       <tbody>${rows.map((x) => x.html).join("")}</tbody></table></div>
       <div class="fccs">${rows.map((x) => x.card).join("")}</div>
-      ${dose > 0 ? `<p style="margin:8px 0 0">โดฟปูนพร้อมเติมน้ำตามสัดส่วน w/cm เท่าเดิม → กำลังโดยประมาณ<b>ไม่ลดลง</b> · ถ้าเติมน้ำเท่ากันแต่ไม่โดฟปูน กำลังจะลดลงประมาณ <b>${f(rows[0].ksc - rows[2].ksc, 0)} ksc</b> (ทรงกระบอก)</p>` : ""}
+      ${dose > 0 ? `<p style="margin:8px 0 0">โดฟปูน ${f(dose, 0)} kg/คิว ไม่เติมน้ำ → w/(c+p) ลดจาก ${f(w / (c0 + fa), 3)} เป็น ${f(w / (c0 + dose + fa), 3)} · กำลังเพิ่มประมาณ <b>${f(rows[1].ksc - rows[0].ksc, 0)} ksc</b> (ทรงกระบอก)</p>` : ""}
       ${warn.map((x) => `<div class="warn" style="margin-top:8px">${x}</div>`).join("")}
       <p class="note" style="margin:8px 0 0">วิธีคิด: w/(c+p) = น้ำ ÷ (ปูน + ไฟแอช) → กำลังทรงกระบอก 28 วัน จาก ACI 211.1 ตาราง 6.3.4(a) (ไม่กักกระจายฟองอากาศ) · 1 MPa = 10.19 ksc ·
-        ลูกบาศก์ ≈ ทรงกระบอก ÷ 0.8 (ค่าประมาณทั่วไป) · ตาราง ACI ให้กำลังตาม w/cm เท่านั้น โดฟที่ w/cm เท่าเดิมจึงได้ค่าเท่าเดิม
+        ลูกบาศก์ ≈ ทรงกระบอก ÷ 0.8 (ค่าประมาณทั่วไป) · ถือว่าโดฟเฉพาะปูน ไม่เติมน้ำ
         · ค่าประมาณเพื่อเทียบเท่านั้น ไม่ใช่ผลทดสอบ — ต้องให้วิศวกรผู้รับผิดชอบตรวจสอบ และยืนยันด้วยผลกดจริง</p>`;
   }
   document.querySelectorAll("input").forEach((el) => el.addEventListener("input", run));
