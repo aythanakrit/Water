@@ -769,7 +769,9 @@
   // Air/Con temp., operator and remark are not entered here (the PDF keeps their columns)
   const F_MORE = [["slump", "Slump (cm.)", "decimal"], ["sampleQty", "Sample Volume (ก้อน)", "numeric"], ["label", "Label No. (หมายเลขฉลาก)", ""]];
   // picked with a tap instead of typed
-  const F_PICK = [["sampleType", "Sample Type (ประเภท)", ["CU", "CY", "CY10"]]];
+  // "" = no sample (the default): the sample columns stay blank in the report
+  const F_PICK = [["sampleType", "Sample Type (ประเภท)", ["", "CU", "CY", "CY10"]]];
+  const pickLabel = (k, v) => (k === "sampleType" && v === "" ? "ไม่เก็บตัวอย่าง" : v);
   function renderEdit() {
     const box = $("editBox");
     if (editIdx < 0 || !job.trucks[editIdx]) { box.hidden = true; return; }
@@ -794,8 +796,8 @@
         <input type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off" data-t="${k}" value="${esc(t[k])}" ${ro}><button class="g" data-now="${k}" type="button" ${ro}>ตอนนี้</button></span></label>`).join("")}</div>
       <div id="timeAlerts"></div>
       ${F_PICK.map(([k, l, opts]) => `<div class="pick" style="margin-top:12px"><span class="pl">${l}</span><div class="chips">${
-        [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k]) === v ? "on" : ""}" ${ro}>${esc(v)}</button>`).join("")}</div></div>`).join("")}
-      <div class="fields" style="margin-top:12px">${F_MORE.map(inp).join("")}</div>
+        [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k] || "") === v ? "on" : ""}" ${ro}>${esc(pickLabel(k, v))}</button>`).join("")}</div></div>`).join("")}
+      <div class="fields" style="margin-top:12px">${F_MORE.filter(([k]) => t.sampleType || (k !== "sampleQty" && k !== "label")).map(inp).join("")}</div>
       <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะใส่ในช่องหมายเหตุของรายการและ PDF ให้เอง</p>
       ${SP ? `<div id="editPhotos" style="margin-top:14px"></div>` : ""}
       <div class="row" style="margin-top:12px;justify-content:space-between">
@@ -817,13 +819,12 @@
     if ($("editNo")) $("editNo").textContent = editIdx + 1;
   }
   let rmArmed = false;
-  // sample type: tap to choose, tap again to clear
+  // sample type: tap to choose; tapping the chosen one again goes back to "ไม่เก็บตัวอย่าง"
   $("editBox").addEventListener("click", (e) => {
     const b = e.target.closest("[data-pick]"); if (!b || b.disabled) return;
     const t = job.trucks[editIdx], k = b.dataset.pick;
-    t[k] = String(t[k]) === b.dataset.v ? "" : b.dataset.v; t.updated = Date.now();
-    b.parentNode.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b && t[k] !== ""));
-    touch(); renderList();
+    t[k] = String(t[k] || "") === b.dataset.v ? "" : b.dataset.v; t.updated = Date.now();
+    touch(); renderList(); renderEdit(); // sample volume / label show only when a sample is taken
   });
   $("editBox").addEventListener("input", (e) => {
     const k = e.target.dataset.t; if (!k || k === "do") return;
@@ -887,7 +888,7 @@
       const t = p.rows[r], v = (k) => (t ? e(t[k] || "-") : "");
       return `<tr>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
         ${td("d", v("batching"))}${td("d", v("arrival"))}${td("d", v("start"))}${td("d", v("end"))}${td("d", v("airTemp"))}${td("d", v("conTemp"))}
-        ${td("d", v("slump"))}${td("d", v("sampleType"))}${td("d", v("sampleQty"))}${td("d", v("label"))}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
+        ${td("d", v("slump"))}${["sampleType", "sampleQty", "label"].map((k) => td("d", t && !t.sampleType ? "" : v(k))).join("")}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
     }).join("");
     return `<div class="pg"><table><colgroup>${col}</colgroup>
       <tr><td class="fl ft logo" colspan="3" rowspan="3"><img src="${LOGO}" alt=""></td>${td("ft", "บริษัท เอ็มคอนกรีต จำกัด", 16)}${td("ft fr")}</tr>
