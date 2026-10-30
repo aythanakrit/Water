@@ -15,6 +15,8 @@
     .topbar a.back { display: inline-flex !important; align-items: center; gap: 4px; min-height: 44px; padding: 6px 16px 6px 10px !important;
       margin: 0 !important; border-radius: 999px; background: var(--card, #fff); border: 1px solid var(--line, #dde1e7);
       color: var(--accent, #1f5fbf) !important; font: 600 1.05rem/1 system-ui, "Sarabun", sans-serif !important; text-decoration: none; }
+    /* iPad home-screen app: the iPadOS window buttons (three dots) sit over the top-left corner */
+    .topbar.ipadwin { padding-left: max(92px, env(safe-area-inset-left, 0px)); }
     .topbar a.back .chev { font-size: 1.6rem; line-height: .8; margin-top: -2px; }
     .topbar a.back:active { transform: scale(.97); }
     .topbar a.back:focus-visible { outline: 2px solid var(--accent, #1f5fbf); outline-offset: 2px; }
@@ -23,6 +25,9 @@
   document.head.appendChild(st);
   const bar = document.createElement("div");
   bar.className = "topbar";
+  const iPad = /iPad/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const homeScreen = navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  if (iPad && homeScreen) bar.classList.add("ipadwin");
   back.innerHTML = '<span class="chev" aria-hidden="true">‹</span>หน้าหลัก';
   back.setAttribute("aria-label", "กลับหน้าหลัก");
   bar.appendChild(back);
