@@ -15,6 +15,8 @@
     { key: "plant", title: "ชักสลัมก่อนออกแพล้น", dept: "ส่วนงานผลิต", stamp: true },
     { key: "site", title: "ชักสลัมหน้างาน", dept: "ส่วนงานคิวซี", stamp: true },
   ];
+  // Photos of the whole report (not of one truck): sample cubes/cylinders kept on site
+  const SAMPLES = { key: "samples", title: "ภาพเก็บลูกปูนหน้างาน", dept: "หน้างาน", stamp: true };
   const PER_PAGE = 4;
 
   const digits = (s) => String(s == null ? "" : s).replace(/\D/g, "");
@@ -71,5 +73,5 @@
 
   const chunk = (list, n = PER_PAGE) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
 
-  return { KINDS, PER_PAGE, stampText, forReport, missing, byTruck, chunk };
+  return { KINDS, SAMPLES, PER_PAGE, stampText, forReport, missing, byTruck, chunk };
 });

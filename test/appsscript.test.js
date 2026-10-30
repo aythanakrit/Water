@@ -400,3 +400,12 @@ test("printouts: only the report administrator can add, see, open or delete them
   assert.equal(call({ action: "photoDelete", id: "p-pl0001" }).ok, true);
   assert.equal(call({ action: "photoDelete", id: "p-pr0001", adminKey: "boss" }).ok, true);
 });
+
+test("sample photos belong to the whole report: no D/O needed, anyone can add them", () => {
+  const { call } = load();
+  const data = Buffer.from("x").toString("base64");
+  const r = call({ action: "photoUpload", id: "p-smp001", project: "P", date: "2026-10-30", kind: "samples", do: "", data });
+  assert.equal(r.ok, true);
+  assert.equal(call({ action: "photoUpload", id: "p-smp002", project: "P", date: "2026-10-30", kind: "plant", do: "", data }).error, "bad_request");
+  assert.deepEqual(call({ action: "photoList", project: "P", date: "2026-10-30" }).photos.map((p) => [p.kind, p.do]), [["samples", ""]]);
+});

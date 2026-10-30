@@ -26,7 +26,7 @@ const DO_COLS = ["do", "jobId"];
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
 const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"], Photos: ["date", "do"] };
 const PHOTO_COLS = ["id", "project", "date", "kind", "do", "fileId", "takenAt", "created", "removed"];
-const PHOTO_KINDS = ["plant", "site", "printout"];
+const PHOTO_KINDS = ["plant", "site", "printout", "samples"]; // samples: photos of the whole report, no D/O
 const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
 const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated", "email"];
 const DO_DIGITS = 13;
@@ -516,7 +516,7 @@ function photoUpload(req) {
   const project = String(req.project || "").trim().slice(0, 100);
   const doNo = String(req.do || "").replace(/\D/g, "");
   if (!project || !/^\d{4}-\d{2}-\d{2}$/.test(String(req.date)) || PHOTO_KINDS.indexOf(req.kind) < 0
-    || !doNo || doNo.length > 20 || typeof req.data !== "string") return { ok: false, error: "bad_request" };
+    || (!doNo && req.kind !== "samples") || doNo.length > 20 || typeof req.data !== "string") return { ok: false, error: "bad_request" };
   const id = /^[\w-]{6,60}$/.test(String(req.id || "")) ? String(req.id) : Utilities.getUuid();
   const sh = photoSheet();
   // a retry after a lost response: already stored

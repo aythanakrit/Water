@@ -84,6 +84,10 @@
   .phit .del { float: right; font: inherit; font-size: .8rem; color: var(--bad); background: none; border: 0; cursor: pointer; padding: 0 0 0 6px; }
   .phit.pending { outline: 2px dashed var(--warn); }
   .pg.ph .phh { display: flex; justify-content: space-between; font-size: 15px; border-bottom: 1.5px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+  .pg.ph .ph4 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pg.ph .phc4 { border: 1px solid #000; height: 330px; display: flex; flex-direction: column; padding: 4px; }
+  .pg.ph .phc4 .im { flex: 1; min-height: 0; width: 100%; background: center / contain no-repeat; }
+  .pg.ph .phc4 .cap { font-size: 12px; text-align: center; padding-top: 2px; }
   .pg.ph .ph3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .pg.ph .phcol { border: 1px solid #000; height: 670px; display: flex; flex-direction: column; padding: 6px; }
   .pg.ph .phcol .kt { font-weight: 700; font-size: 14px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 6px; }
@@ -253,11 +257,13 @@
 
     <section>
       <div class="row">
+        <button class="b" id="samplesBtn" type="button" hidden>📸 ภาพเก็บลูกปูนหน้างาน</button>
         <button class="b" id="finish" type="button">จบงาน</button>
         <button class="g" id="pdf" type="button">Export PDF</button>
         <button class="b" id="mail" type="button" hidden>📧 ส่งอีเมลรายงาน</button>
         <span class="saved" id="pdfMsg"></span>
       </div>
+      <div id="phSamples" class="phk" data-k="samples"></div>
       <div id="phAdminBox" style="margin-top:10px">
       </div>
     </section>
@@ -507,6 +513,7 @@
     $("savedMsg").textContent = ""; $("pdfMsg").textContent = "";
     renderJob();
     if (SP && job.header.date && job.header.date !== ph.date) { ph.date = job.header.date; $("phDate").value = ph.date; ph.server = null; ph.at = 0; phRefresh(true); }
+    if (SP) renderSamples();
     window.scrollTo(0, 0);
     pull();
   }
@@ -1103,9 +1110,19 @@
       </section>`;
     }).join("");
     if (job && editIdx >= 0) renderEditPhotos();
+    renderSamples();
   }
 
   // the truck being edited: its photos of each kind, with a button to take/attach
+  // photos of sample cubes/cylinders kept on site: for the whole report, next to "จบงาน"
+  function renderSamples() {
+    const box = $("phSamples"); if (!box || !SP || !job) return;
+    const mine = phList().filter((p) => p.kind === "samples").sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
+    box.innerHTML = mine.length ? `<p class="note" style="margin:10px 0 4px">ภาพเก็บลูกปูนหน้างาน ${mine.length} ภาพ</p><div class="phgrid">${mine.map((p) => `<div class="phit${p.synced === false ? " pending" : ""}">
+        ${p.data ? `<img src="data:image/jpeg;base64,${p.data}" alt="">` : `<button class="noimg" type="button" data-load="${esc(p.id)}">✓ มีภาพแล้ว<br>แตะเพื่อดู</button>`}
+        <div class="cap"><button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}</div>
+      <div class="phmsg"></div>` : `<div class="phmsg"></div>`;
+  }
   function renderEditPhotos() {
     const el = $("editPhotos"), t = job && job.trucks[editIdx];
     if (!el || !t) return;
@@ -1185,7 +1202,7 @@
     if (!sec) return;
     if (b.classList.contains("phscan")) { scanTo = sec.querySelector(".phdo"); return startLive(); }
     if (b.dataset.shoot) {
-      phPick = { kind: key, do: FieldReport.cleanDO(b.dataset.shoot), el: b };
+      phPick = { kind: key, do: key === "samples" ? "" : FieldReport.cleanDO(b.dataset.shoot), el: b };
       $("phFile").accept = key === "printout" ? "application/pdf,image/*" : "image/*";
       return $("phFile").click();
     }
@@ -1213,11 +1230,17 @@
   }
   $("phKinds").addEventListener("click", phClick);
   $("editBox").addEventListener("click", phClick);
+  $("phSamples").addEventListener("click", phClick);
+  $("samplesBtn").addEventListener("click", () => {
+    phPick = { kind: "samples", do: "", el: $("phSamples") };
+    $("phFile").accept = "image/*";
+    $("phFile").click();
+  });
   $("phFile").addEventListener("change", async (e) => {
     const file = e.target.files[0]; e.target.value = "";
     const pick = phPick; phPick = null;
     if (!file || !pick) return;
-    const k = PK.find((x) => x.key === pick.kind);
+    const k = [...PK, ReportPhotos.SAMPLES].find((x) => x.key === pick.kind);
     phMsg(pick.el, "กำลังเตรียมภาพ…");
     try {
       const now = Date.now(), lm = file.lastModified;
@@ -1257,7 +1280,7 @@
     await PDB.put({ ...p, data: r.data, synced: true, created: Date.now() });
     return (p.data = r.data);
   }
-  // pages after the field report: one per truck with its Printout, slump at plant and slump on site
+  // pages after the field report: sample photos (4 a page), then one per truck with its Printout, slump at plant and slump on site
   async function photoPagesHTML(msg) {
     const date = job.header.date, project = (job.header.project || "").trim();
     let list = [];
@@ -1279,7 +1302,13 @@
     const ok = list.filter((p) => p.data);
     // one page per truck: Printout · slump at plant · slump on site side by side
     const pages = ReportPhotos.byTruck(ok, job.trucks);
-    const html = pages.map((pg, i) => `<div class="pg ph"><div class="phh">
+    const samples = ok.filter((p) => p.kind === "samples").sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
+    const sPages = ReportPhotos.chunk(samples);
+    const sHtml = sPages.map((items, i) => `<div class="pg ph"><div class="phh"><b>${esc(ReportPhotos.SAMPLES.title)}</b>
+        <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${sPages.length}</span></div>
+      <div class="ph4">${items.map((p) => `<div class="phc4"><div class="im" style="background-image:url(data:image/jpeg;base64,${p.data})"></div>
+        <div class="cap">${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}</div></div>`).join("")}</div></div>`).join("");
+    const html = sHtml + pages.map((pg, i) => `<div class="pg ph"><div class="phh">
         <b>${pg.no ? `ลำดับ ${pg.no} · ` : ""}${pg.truck ? `รถ ${esc(pg.truck)} · ` : ""}D/O ${esc(pg.do)}${pg.no ? "" : " (ไม่อยู่ในใบรายงาน)"}</b>
         <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${pages.length}</span></div>
       <div class="ph3">${PK.map((k) => `<div class="phcol"><div class="kt">${esc(k.title)}</div>${pg.photos[k.key].length
@@ -1292,6 +1321,7 @@
     // photos are attached per truck (tap the truck in the report); the list page shows only the reports
     // (#photoBox stays hidden: it holds the photo state used by the truck panel and the PDF)
     renderAdmin();
+    $("samplesBtn").hidden = false;
     $("phDate").value = ph.date;
     const onDate = () => { const v = $("phDate").value; if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v !== ph.date) { ph.date = v; ph.server = null; ph.at = 0; phRefresh(true); } };
     $("phDate").addEventListener("input", onDate); $("phDate").addEventListener("change", onDate);
