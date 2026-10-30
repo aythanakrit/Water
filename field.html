@@ -367,11 +367,16 @@
     msgEl.textContent = `บันทึก ${filename} แล้ว`;
   }
 
-  // ---------- project mode (field.html?project=…): one project, one report per day ----------
-  const PROJ = (new URLSearchParams(location.search).get("project") || "").trim();
+  // ---------- special project (field.html?p=key): one project, one report per day ----------
+  // Add a project: one entry here and one card on index.html
+  const SPECIAL = {
+    langsuan: { name: "หลังสวน", project: "2608313 Langsuan Residence", customer: "พ017 บริษัท ไพลอน จำกัด (มหาชน)" },
+  };
+  const SP = SPECIAL[new URLSearchParams(location.search).get("p")] || null;
+  const PROJ = SP ? SP.project : "";
   const inProj = (j) => !PROJ || (j.header.project || "").trim() === PROJ;
-  if (PROJ) {
-    document.title = `รายงาน โครงการ${PROJ}`;
+  if (SP) {
+    document.title = `รายงาน โครงการ${SP.name}`;
     document.querySelector("#vList h1").textContent = document.title;
     document.querySelector("#vList .sub").textContent = "รายงานประจำวัน 1 วัน = 1 ใบ (แบบเดียวกับใบรายงานสนาม FM-PQ-10) · บันทึกอัตโนมัติในเครื่องนี้";
     $("newJob").textContent = "+ รายงานวันนี้";
@@ -419,8 +424,8 @@
       if (t) return openJob(t.id);
       const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
       const last = mine.sort((a, b) => (b.header.date || "").localeCompare(a.header.date || ""))[0];
-      j.header.project = PROJ;
-      if (last && !last.stub) ["customer", "tech", "phone", "productCode"].forEach((k) => { j.header[k] = last.header[k] || ""; });
+      j.header.project = PROJ; j.header.customer = SP.customer;
+      if (last && !last.stub) ["tech", "phone", "productCode"].forEach((k) => { j.header[k] = last.header[k] || ""; });
       db.jobs.push(j); persist(); markDirty(j.id); return openJob(j.id, true);
     }
     const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
