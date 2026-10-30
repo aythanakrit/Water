@@ -323,9 +323,10 @@ test("contacts: admin import from a paste skips repeated phones", () => {
 });
 
 test("photos: upload to Drive, list by project and date, get, delete; retry with the same id stores once", () => {
-  const { call, ctx } = load();
+  const { call, ctx, props: props_ } = load();
   const data = Buffer.from("jpegbytes").toString("base64");
-  const up = (o) => call({ action: "photoUpload", project: "Langsuan Residence", date: "2026-10-30", kind: "plant", do: "0372610040130", data, ...o });
+  props_.REPORT_ADMIN_KEY = "boss";
+  const up = (o) => call({ action: "photoUpload", adminKey: "boss", project: "Langsuan Residence", date: "2026-10-30", kind: "plant", do: "0372610040130", data, ...o });
   const a = up({ id: "p-aaaaaa", takenAt: 123 });
   assert.equal(a.ok, true);
   assert.equal(a.photo.do, "0372610040130");
@@ -333,26 +334,29 @@ test("photos: upload to Drive, list by project and date, get, delete; retry with
   up({ id: "p-bbbbbb", kind: "printout", do: "0042610040087" });
   up({ id: "p-cccccc", project: "อื่น" });
   up({ id: "p-dddddd", date: "2026-10-31" });
-  const list = call({ action: "photoList", project: "Langsuan Residence", date: "2026-10-30" }).photos;
+  const list = call({ action: "photoList", adminKey: "boss", project: "Langsuan Residence", date: "2026-10-30" }).photos;
   assert.deepEqual(list.map((p) => p.id).sort(), ["p-aaaaaa", "p-bbbbbb"]);
   assert.equal(list.find((p) => p.id === "p-aaaaaa").takenAt, 123);
   assert.equal(Buffer.from(call({ action: "photoGet", id: "p-aaaaaa" }).data, "base64").toString(), "jpegbytes");
   assert.equal(Object.values(ctx.DriveApp.files).find((f) => f.blob).folder, "Langsuan Residence");
   assert.equal(call({ action: "photoDelete", id: "p-aaaaaa" }).ok, true);
-  assert.deepEqual(call({ action: "photoList", project: "Langsuan Residence", date: "2026-10-30" }).photos.map((p) => p.id), ["p-bbbbbb"]);
+  assert.deepEqual(call({ action: "photoList", adminKey: "boss", project: "Langsuan Residence", date: "2026-10-30" }).photos.map((p) => p.id), ["p-bbbbbb"]);
   assert.equal(call({ action: "photoGet", id: "p-aaaaaa" }).ok, false);
   assert.equal(up({ kind: "other" }).error, "bad_request");
   assert.equal(up({ do: "" }).error, "bad_request");
   assert.equal(up({ date: "30/10/2569" }).error, "bad_request");
 });
 
-test("project report PDF is mailed only to REPORT_MAIL_TO", () => {
+test("project report PDF is mailed only by the report administrator, only to REPORT_MAIL_TO", () => {
   const { call, props, mail } = load();
   const pdf = Buffer.from("%PDF-1.4 test").toString("base64");
-  assert.equal(call({ action: "mailReport", name: "r.pdf", pdf }).error, "no_recipient");
+  assert.equal(call({ action: "mailReport", name: "r.pdf", pdf }).error, "not_admin");
+  props.REPORT_ADMIN_KEY = "boss";
+  assert.equal(call({ action: "mailReport", adminKey: "secret", name: "r.pdf", pdf }).error, "not_admin");
+  assert.equal(call({ action: "mailReport", adminKey: "boss", name: "r.pdf", pdf }).error, "no_recipient");
   props.REPORT_MAIL_TO = "report@example.com";
   props.TRIAL_MAIL_TO = "qc@example.com";
-  const r = call({ action: "mailReport", name: "รายงาน_A.pdf", pdf, subject: "รายงาน A", to: "someone@else.com" });
+  const r = call({ action: "mailReport", adminKey: "boss", name: "รายงาน_A.pdf", pdf, subject: "รายงาน A", to: "someone@else.com" });
   assert.equal(r.ok, true);
   assert.equal(mail.at(-1).to, "report@example.com");
   assert.equal(mail.at(-1).subject, "รายงาน A");
@@ -373,4 +377,26 @@ test("photo folder and archives are kept in the spreadsheet's Drive folder", () 
   assert.equal(photos.parent, home);
   const arc = ctx.archiveFile(2026);
   assert.equal(drive.getFileById(arc.getId()).parent, home);
+});
+
+test("printouts: only the report administrator can add, see, open or delete them", () => {
+  const { call, props } = load();
+  const data = Buffer.from("x").toString("base64");
+  const base = { project: "P", date: "2026-10-30", do: "0372610040130", data };
+  assert.equal(call({ action: "reportAdminCheck", adminKey: "" }).ok, false);
+  assert.equal(call({ action: "photoUpload", id: "p-pr0001", kind: "printout", ...base }).error, "not_admin");
+  props.REPORT_ADMIN_KEY = "secret"; // same as KEY: nobody is admin
+  assert.equal(call({ action: "reportAdminCheck", adminKey: "secret" }).ok, false);
+  props.REPORT_ADMIN_KEY = "boss";
+  assert.equal(call({ action: "reportAdminCheck", adminKey: "boss" }).ok, true);
+  assert.equal(call({ action: "photoUpload", id: "p-pr0001", kind: "printout", adminKey: "boss", ...base }).ok, true);
+  assert.equal(call({ action: "photoUpload", id: "p-pl0001", kind: "plant", ...base }).ok, true);
+  const list = (k) => call({ action: "photoList", adminKey: k, project: "P", date: "2026-10-30" }).photos.map((p) => p.kind).sort();
+  assert.deepEqual(list(""), ["plant"]);
+  assert.deepEqual(list("boss"), ["plant", "printout"]);
+  assert.equal(call({ action: "photoGet", id: "p-pr0001" }).ok, false);
+  assert.equal(call({ action: "photoGet", id: "p-pr0001", adminKey: "boss" }).ok, true);
+  assert.equal(call({ action: "photoDelete", id: "p-pr0001" }).error, "not_admin");
+  assert.equal(call({ action: "photoDelete", id: "p-pl0001" }).ok, true);
+  assert.equal(call({ action: "photoDelete", id: "p-pr0001", adminKey: "boss" }).ok, true);
 });

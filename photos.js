@@ -11,13 +11,11 @@
 
   // In the order they appear in the report PDF (after the field report pages)
   const KINDS = [
-    { key: "printout", title: "Printout", dept: "ส่วนงานผู้ดูแล", locked: true, stamp: false },
+    { key: "printout", title: "Printout", dept: "ส่วนงานผู้ดูแล", locked: true, stamp: false }, // administrator only
     { key: "plant", title: "ชักสลัมก่อนออกแพล้น", dept: "ส่วนงานผลิต", stamp: true },
     { key: "site", title: "ชักสลัมหน้างาน", dept: "ส่วนงานคิวซี", stamp: true },
   ];
   const PER_PAGE = 4;
-  // SHA-256 of the admin code; checked on the device only (keeps casual users out, not a security boundary)
-  const ADMIN_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
 
   const digits = (s) => String(s == null ? "" : s).replace(/\D/g, "");
   const pad = (n) => String(n).padStart(2, "0");
@@ -50,5 +48,5 @@
 
   const chunk = (list, n = PER_PAGE) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
 
-  return { KINDS, PER_PAGE, ADMIN_HASH, stampText, forReport, missing, chunk };
+  return { KINDS, PER_PAGE, stampText, forReport, missing, chunk };
 });

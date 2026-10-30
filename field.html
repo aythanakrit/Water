@@ -170,6 +170,7 @@
         <div class="row"><label style="max-width:220px">วันที่ของรายงาน<input id="phDate" class="dth" type="text"></label>
           <button class="g" id="phReload" type="button">↻ โหลดใหม่</button></div>
         <p class="note" id="phNote" style="margin:8px 0 0"></p>
+        <div id="phAdminBox" style="margin-top:10px"></div>
       </section>
       <div id="phKinds"></div>
       <input id="phFile" type="file" hidden>
@@ -304,9 +305,12 @@
   // ---------- central storage (Google Sheets), optional ----------
   const SYNC = window.FIELD_SYNC && window.FIELD_SYNC.url ? window.FIELD_SYNC : null;
   let syncState = SYNC ? "idle" : "local", lastSync = null, syncTimer = null;
+  // report administrator (printouts, report e-mail): the key is checked by the Apps Script, kept for this browser tab only
+  var phKey = "";
+  try { phKey = sessionStorage.getItem("phAdminKey") || ""; } catch {}
   async function api(action, body = {}) {
     const res = await fetch(SYNC.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ ...body, action, key: SYNC.key }) });
+      body: JSON.stringify({ ...body, action, key: SYNC.key, ...(phKey ? { adminKey: phKey } : {}) }) });
     const out = await res.json();
     if (out.error === "unauthorized") throw new Error("unauthorized");
     return out;
@@ -928,7 +932,6 @@
       daily_limit: "ส่งอีเมลครบจำนวนต่อวันแล้ว — ลองใหม่พรุ่งนี้", unknown_action: "Apps Script ยังเป็นเวอร์ชันเก่า — อัปเดตแล้ว Deploy เวอร์ชันใหม่" }[out.error] || "ส่งอีเมลไม่สำเร็จ");
     job.mailedAt = Date.now(); persist();
   }
-  if (SP && SYNC) $("mail").hidden = false;
   $("pdf").addEventListener("click", () => runPdf(false));
   $("mail").addEventListener("click", () => runPdf(true));
   async function runPdf(withMail) {
@@ -939,7 +942,8 @@
     try {
       const ps = FieldReport.pages(job.trucks);
       const host = $("print");
-      host.innerHTML = ps.map((p) => pageHTML(p)).join("") + (SP ? await photoPagesHTML(msg) : "");
+      // photo pages (Printout, slump photos) only for the report administrator; everyone else gets the field report
+      host.innerHTML = ps.map((p) => pageHTML(p)).join("") + (SP && phAdmin ? await photoPagesHTML(msg) : "");
       await document.fonts.ready;
       await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
       const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -1006,8 +1010,34 @@
   const PK = ReportPhotos.KINDS;
   const UI_ORDER = ["plant", "site", "printout"];
   var ph = { date: today(), server: null, at: 0, local: [], sending: false }; // var: showList may run before this line
-  let phAdmin = false;
-  try { phAdmin = sessionStorage.getItem("phAdmin") === "1"; } catch {}
+  let phAdmin = !!phKey;
+  // printouts: administrator only (also enforced by the Apps Script)
+  const kindsFor = () => UI_ORDER.filter((k) => k !== "printout" || phAdmin);
+  function renderAdmin() {
+    const box = $("phAdminBox"); if (!box) return;
+    box.innerHTML = phAdmin
+      ? `<span class="note">🔓 โหมดผู้ดูแล — เห็น Printout และส่งอีเมลได้</span> <button class="g" type="button" id="phLogout">ออกจากโหมดผู้ดูแล</button>`
+      : `<details><summary class="note" style="cursor:pointer">🔒 ผู้ดูแล</summary><div class="row" style="margin-top:6px">
+          <input id="phPass" type="password" autocomplete="off" placeholder="รหัสผู้ดูแล" style="max-width:200px"><button class="b" type="button" id="phLogin">เข้า</button>
+          <span class="note" id="phLoginMsg"></span></div></details>`;
+    if ($("mail")) $("mail").hidden = !(SP && SYNC && phAdmin);
+  }
+  document.addEventListener("click", async (e) => {
+    if (e.target.id === "phLogin") {
+      const v = $("phPass").value.trim(); if (!v) return;
+      $("phLoginMsg").textContent = "กำลังตรวจ…";
+      try {
+        const r = await api("reportAdminCheck", { adminKey: v });
+        if (!r.ok) { $("phLoginMsg").textContent = r.error === "unknown_action" ? "Apps Script ยังเป็นเวอร์ชันเก่า" : "รหัสไม่ถูกต้อง"; return; }
+      } catch { $("phLoginMsg").textContent = "ตรวจรหัสไม่ได้ — ต้องต่ออินเทอร์เน็ต"; return; }
+      phKey = v; phAdmin = true; try { sessionStorage.setItem("phAdminKey", v); } catch {}
+      renderAdmin(); phRefresh(true);
+    }
+    if (e.target.id === "phLogout") {
+      phKey = ""; phAdmin = false; try { sessionStorage.removeItem("phAdminKey"); } catch {}
+      renderAdmin(); renderPhotos();
+    }
+  });
   const phOf = (el) => el.closest(".phk");
   function phMsg(el, html) { const k = phOf(el); if (k) k.querySelector(".phmsg").innerHTML = html ? `<div class="warn">${html}</div>` : ""; }
   // trucks of the report(s) of the chosen date, in report order
@@ -1016,6 +1046,7 @@
     const by = new Map();
     (ph.server || []).forEach((p) => by.set(p.id, p));
     ph.local.filter((p) => p.project === PROJ && p.date === ph.date).forEach((p) => by.set(p.id, { ...by.get(p.id), ...p }));
+    if (!phAdmin) [...by.keys()].forEach((id) => { if (by.get(id).kind === "printout") by.delete(id); });
     return [...by.values()];
   }
   async function phRefresh(force) {
@@ -1033,7 +1064,7 @@
     $("phNote").textContent = [!SYNC ? "ยังไม่ได้ต่อ Google Sheets — ภาพเก็บในเครื่องนี้เท่านั้น"
       : ph.server == null ? "ออฟไลน์ — แสดงเฉพาะภาพในเครื่องนี้" : "ภาพของทุกเครื่อง (เก็บใน Google Drive)",
       pend ? `⏳ รอส่ง ${pend} ภาพ` : "", trucks.length ? `รายงานวันนี้มี ${trucks.length} คัน` : "ยังไม่มีรถในใบรายงานของวันนี้ — แนบภาพด้วยเลข D/O ได้เลย"].filter(Boolean).join(" · ");
-    $("phKinds").innerHTML = UI_ORDER.map((key) => {
+    $("phKinds").innerHTML = kindsFor().map((key) => {
       const k = PK.find((x) => x.key === key);
       const locked = k.locked && !phAdmin;
       const items = ReportPhotos.forReport(list, trucks, key);
@@ -1056,8 +1087,6 @@
       const others = items.filter((x) => !known.has(digitsOf(x.photo.do)));
       return `<section class="phk" data-k="${key}">
         <h2 style="margin:0 0 4px">${esc(k.dept)} — ${esc(k.title)}</h2>
-        ${locked ? `<p class="note" style="margin:0 0 8px">🔒 เฉพาะผู้ดูแล — ใส่รหัสเพื่อแนบ Printout</p>
-          <div class="phrow"><label>รหัสผู้ดูแล<input class="phpass" type="password" autocomplete="off"></label><button class="b phunlock" type="button">เข้า</button></div>` : ""}
         <div class="phmsg"></div>
         ${trucks.length ? `<p class="note" style="margin:6px 0 0">แนบแล้ว ${trucks.length - miss.length}/${trucks.length} คัน${miss.length ? "" : " ✅"}</p>
           <div class="phtiles">${tiles}</div>` : `<p class="note" style="margin:6px 0 0">ยังไม่มีรถในใบรายงานของวันนี้ — บันทึกรถก่อน แล้วรถจะขึ้นให้แตะที่นี่</p>`}
@@ -1080,16 +1109,14 @@
     const d = FieldReport.cleanDO(t.do);
     if (!d) { el.innerHTML = `<p class="note">ใส่ D/O ก่อน แล้วแนบภาพของรถคันนี้ได้</p>`; return; }
     const list = phList().filter((p) => FieldReport.cleanDO(p.do) === d);
-    el.innerHTML = `<h2 style="margin:0 0 6px">ภาพของรถคันนี้</h2><div class="phtiles">${UI_ORDER.map((key) => {
+    el.innerHTML = `<h2 style="margin:0 0 6px">ภาพของรถคันนี้</h2><div class="phtiles">${kindsFor().map((key) => {
       const k = PK.find((x) => x.key === key), locked = k.locked && !phAdmin;
       const mine = list.filter((p) => p.kind === key).sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
       return `<div class="phk phtile${mine.length ? " has" : ""}" data-k="${key}"><div class="tt"><b>${esc(k.title)}</b><small>${esc(k.dept)}</small></div>
         ${mine.map((p) => `<div class="phit${p.synced === false ? " pending" : ""}">
           ${p.data ? `<img src="data:image/jpeg;base64,${p.data}" alt="">` : `<button class="noimg" type="button" data-load="${esc(p.id)}">✓ มีภาพแล้ว<br>แตะเพื่อดู</button>`}
           <div class="cap">${locked ? "" : `<button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>`}${p.takenAt && k.stamp ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}
-        ${locked ? `<div style="padding:6px 8px"><input class="phpass" type="password" placeholder="🔒 รหัสผู้ดูแล" autocomplete="off" style="width:100%">
-            <button class="g phunlock" type="button" style="margin-top:6px;width:100%">เข้า</button></div>`
-          : mine.length ? `<button class="g phmore" type="button" data-shoot="${esc(d)}">+ ${key === "printout" ? "แนบเพิ่ม" : "ถ่ายเพิ่ม"}</button>`
+        ${mine.length ? `<button class="g phmore" type="button" data-shoot="${esc(d)}">+ ${key === "printout" ? "แนบเพิ่ม" : "ถ่ายเพิ่ม"}</button>`
           : `<button class="phshoot" type="button" data-shoot="${esc(d)}">${key === "printout" ? "📎<br>แนบ Printout" : "📸<br>แตะเพื่อถ่าย/แนบ"}</button>`}
         <div class="phmsg" style="padding:0 6px"></div></div>`;
     }).join("")}</div>`;
@@ -1137,13 +1164,6 @@
     const b = e.target.closest("button"); if (!b) return;
     const sec = phOf(b), key = sec && sec.dataset.k;
     if (!sec) return;
-    if (b.classList.contains("phunlock")) {
-      const v = sec.querySelector(".phpass").value;
-      const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-      if (h !== ReportPhotos.ADMIN_HASH) return phMsg(b, "รหัสไม่ถูกต้อง");
-      phAdmin = true; try { sessionStorage.setItem("phAdmin", "1"); } catch {}
-      return renderPhotos();
-    }
     if (b.classList.contains("phscan")) { scanTo = sec.querySelector(".phdo"); return startLive(); }
     if (b.dataset.shoot) {
       phPick = { kind: key, do: FieldReport.cleanDO(b.dataset.shoot), el: b };
@@ -1250,6 +1270,7 @@
   }
   if (SP) {
     $("photoBox").hidden = false;
+    renderAdmin();
     $("phDate").value = ph.date;
     const onDate = () => { const v = $("phDate").value; if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v !== ph.date) { ph.date = v; ph.server = null; ph.at = 0; phRefresh(true); } };
     $("phDate").addEventListener("input", onDate); $("phDate").addEventListener("change", onDate);

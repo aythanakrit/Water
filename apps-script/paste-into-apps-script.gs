@@ -245,6 +245,7 @@
  * Also keeps the contact list (sheet "Contacts"); its admin actions need Script property ADMIN_KEY.
  * Photos of special-project reports go to Google Drive (folder "รูปรายงานโครงการ"), indexed in sheet "Photos".
  * The photo folder and the yearly archives are kept in the same Drive folder as this spreadsheet.
+ * Printouts and the report e-mail are for the report administrator only: Script property REPORT_ADMIN_KEY.
  *
  * Built to stay fast as data grows: rows are found with TextFinder instead of reading whole
  * sheets, the job list only returns recent work, and finished jobs older than ARCHIVE_DAYS
@@ -285,11 +286,14 @@ function doPost(e) {
   const key = PropertiesService.getScriptProperties().getProperty("KEY");
   if (!key || req.key !== key) return json({ ok: false, error: "unauthorized" });
   // Photos: no script lock (Drive writes are slow and rows are only appended or marked)
+  const admin = isReportAdmin(req.adminKey);
   switch (req.action) {
-    case "photoUpload": return json(photoUpload(req));
-    case "photoList": return json({ ok: true, photos: photoList(req.project, req.date) });
-    case "photoGet": return json(photoGet(req.id));
-    case "photoDelete": return json(photoDelete(req.id));
+    case "reportAdminCheck": return json(admin ? { ok: true } : { ok: false, error: "not_admin" });
+    case "photoUpload": return json(req.kind === "printout" && !admin ? { ok: false, error: "not_admin" } : photoUpload(req));
+    case "photoList": return json({ ok: true, photos: photoList(req.project, req.date).filter((p) => admin || p.kind !== "printout") });
+    case "photoGet": return json(photoGet(req.id, admin));
+    case "photoDelete": return json(photoDelete(req.id, admin));
+    case "mailReport": return json(admin ? mailPdf(req, "REPORT_MAIL_TO", "รายงานโครงการ") : { ok: false, error: "not_admin" });
   }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -302,7 +306,6 @@ function doPost(e) {
       case "delete": deleteJob(req.id); return json({ ok: true });
       case "report": return json({ ok: true, jobs: reportJobs(req.from, req.to) });
       case "mailTrial": return json(mailPdf(req, "TRIAL_MAIL_TO", "Trial Mix"));
-      case "mailReport": return json(mailPdf(req, "REPORT_MAIL_TO", "รายงานโครงการ"));
       case "contacts": return json({ ok: true, people: listContacts(), settings: contactSettings() });
       case "contactAdd": return json(addContact(req.contact));
       case "adminCheck": return json(isAdmin(req.adminKey) ? { ok: true } : { ok: false, error: "not_admin" });
@@ -776,14 +779,21 @@ function photoRow(id) {
   const n = findRows(sh, PHOTO_COLS, "id", String(id || ""))[0];
   return n ? { sh, n, r: readRow(sh, PHOTO_COLS, n) } : null;
 }
-function photoGet(id) {
+// Report administrator: REPORT_ADMIN_KEY, never the same as KEY (which every device has)
+function isReportAdmin(k) {
+  const props = PropertiesService.getScriptProperties();
+  const a = props.getProperty("REPORT_ADMIN_KEY");
+  return !!a && a !== props.getProperty("KEY") && String(k || "") === a;
+}
+function photoGet(id, admin) {
   const p = photoRow(id);
-  if (!p || p.r.removed) return { ok: false, error: "not_found" };
+  if (!p || p.r.removed || (String(p.r.kind) === "printout" && !admin)) return { ok: false, error: "not_found" };
   return { ok: true, data: Utilities.base64Encode(DriveApp.getFileById(String(p.r.fileId)).getBlob().getBytes()) };
 }
-function photoDelete(id) {
+function photoDelete(id, admin) {
   const p = photoRow(id);
   if (!p) return { ok: true };
+  if (String(p.r.kind) === "printout" && !admin) return { ok: false, error: "not_admin" };
   p.sh.getRange(p.n, PHOTO_COLS.indexOf("removed") + 1).setValue(Date.now());
   try { DriveApp.getFileById(String(p.r.fileId)).setTrashed(true); } catch (e) {}
   return { ok: true };

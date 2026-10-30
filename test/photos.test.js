@@ -32,7 +32,3 @@ test("pages of four", () => {
   assert.deepEqual(P.chunk([1, 2, 3, 4, 5, 6, 7, 8, 9]).map((p) => p.length), [4, 4, 1]);
   assert.deepEqual(P.chunk([]), []);
 });
-
-test("admin code is kept only as a SHA-256 hash", () => {
-  assert.match(P.ADMIN_HASH, /^[0-9a-f]{64}$/);
-});
