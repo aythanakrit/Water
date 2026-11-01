@@ -41,12 +41,15 @@
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; }
   th { font-size: .8rem; color: var(--muted); font-weight: 600; }
-  td.no { width: 3.2em; font-weight: 700; }
+  td.no { width: 2.6em; font-weight: 700; }
   td.do { font-size: 1.05rem; letter-spacing: .03em; }
   td small { display: block; color: var(--muted); font-size: .78rem; letter-spacing: 0; }
   tr.dup td { color: var(--bad); background: var(--bad-bg); font-weight: 700; }
   tr.dup td small { color: var(--bad); }
   .scroll { overflow-x: auto; }
+  td.del { width: 1%; white-space: nowrap; text-align: right; }
+  .x { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; }
+  .btn.sm { padding: 6px 10px; font-size: .85rem; }
   .empty { color: var(--muted); }
   .note { font-size: .8rem; color: var(--muted); }
 </style>
@@ -74,8 +77,8 @@
   </section>
 
   <section>
-    <div class="scroll"><table><thead><tr><th>ลำดับ</th><th>D/O</th><th>เวลาบันทึก</th></tr></thead><tbody id="list"></tbody></table></div>
-    <p class="note" style="margin:8px 0 0">ล่าสุดอยู่บนสุด · เก็บในเครื่องนี้ ปิดหน้าแล้วกลับมาต่อได้</p>
+    <div class="scroll"><table><thead><tr><th>ลำดับ</th><th>D/O</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
+    <p class="note" style="margin:8px 0 0">ล่าสุดอยู่บนสุด · ยิงผิดกด ✕ แล้ว ยืนยันลบ · เก็บในเครื่องนี้ ปิดหน้าแล้วกลับมาต่อได้</p>
   </section>
 </main>
 
@@ -99,14 +102,16 @@
     return `${p} · ตั๋ววันที่ ${dd}/${mm}/${Number(yy) + 2543}`;
   };
 
+  let askDel = null; // row waiting for a second tap to delete
+
   function render() {
     const dup = DoLog.duplicates(list);
     $("total").textContent = list.length;
     $("dups").textContent = dup.size;
     $("list").innerHTML = list.length ? list.slice().reverse().map((e) => `<tr class="${dup.has(e.no) ? "dup" : ""}">
         <td class="no">${e.no}</td>
-        <td class="do">${esc(e.do)}<small>${esc(info(e.do))}${e.dupOf ? ` · ⚠️ ซ้ำกับลำดับ ${e.dupOf}` : dup.has(e.no) ? ` · ⚠️ ซ้ำที่ลำดับ ${list.filter((x) => x.dupOf === e.no).map((x) => x.no).join(", ")}` : ""}</small></td>
-        <td>${time(e.at)}</td></tr>`).join("")
+        <td class="do">${esc(e.do)}<small>บันทึก ${time(e.at)} · ${esc(info(e.do))}${e.dupOf ? ` · ⚠️ ซ้ำกับลำดับ ${e.dupOf}` : dup.has(e.no) ? ` · ⚠️ ซ้ำที่ลำดับ ${list.filter((x) => x.dupOf === e.no).map((x) => x.no).join(", ")}` : ""}</small></td>
+        <td class="del">${askDel === e.no ? `<button class="btn d sm" data-del="${e.no}" type="button">ยืนยันลบ</button>` : `<button class="x" data-ask="${e.no}" type="button" aria-label="ลบลำดับ ${e.no}">✕</button>`}</td></tr>`).join("")
       : `<tr><td colspan="3" class="empty">ยังไม่มีรายการ — พิมพ์หรือยิงเลขตั๋วด้านบน</td></tr>`;
   }
 
@@ -123,6 +128,19 @@
     $("msg").textContent = e.dupOf ? `⚠️ ลำดับ ${e.no}: ${d} ซ้ำกับลำดับ ${e.dupOf} — บันทึกไว้แล้ว` : `✓ บันทึกลำดับ ${e.no}: ${d}`;
     if (navigator.vibrate) navigator.vibrate(e.dupOf ? [80, 60, 80] : 40);
     render();
+  });
+
+  // delete one scan: tap ✕, then ยืนยันลบ; the rest are renumbered
+  $("list").addEventListener("click", (ev) => {
+    const ask = ev.target.closest("[data-ask]"), del = ev.target.closest("[data-del]");
+    if (ask) { askDel = Number(ask.dataset.ask); render(); return; }
+    if (del) {
+      const no = Number(del.dataset.del), d = (list.find((e) => e.no === no) || {}).do;
+      DoLog.remove(list, no); askDel = null; save(); render();
+      $("msg").className = ""; $("msg").textContent = `ลบลำดับ ${no} (${d}) แล้ว — เรียงลำดับใหม่`;
+      return;
+    }
+    if (askDel !== null) { askDel = null; render(); }
   });
 
   $("copy").addEventListener("click", async () => {

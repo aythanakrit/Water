@@ -24,6 +24,14 @@
     return entry;
   }
 
+  /** Remove entry `no`; the rest are renumbered 1, 2, 3 … and repeat marks worked out again. */
+  function remove(list, no) {
+    const kept = list.filter((e) => e.no !== no);
+    list.length = 0;
+    kept.forEach((e) => add(list, e.do, e.at));
+    return list;
+  }
+
   /** Numbers of the entries whose ticket appears more than once (the first one included). */
   function duplicates(list) {
     const count = new Map();
@@ -37,5 +45,5 @@
     return ["ลำดับ\tD/O\tเวลาบันทึก\tซ้ำ"].concat(list.map((e) => `${e.no}\t${e.do}\t${time(e.at)}\t${dup.has(e.no) ? "ซ้ำ" : ""}`)).join("\n");
   }
 
-  return { LEN, digits, complete, add, duplicates, toText };
+  return { LEN, digits, complete, add, remove, duplicates, toText };
 });

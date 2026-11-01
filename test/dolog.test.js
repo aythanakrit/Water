@@ -26,3 +26,11 @@ test("copy text has a header and marks repeats", () => {
   assert.equal(lines[0], "ลำดับ\tD/O\tเวลาบันทึก\tซ้ำ");
   assert.equal(lines[2], "2\t0372610310021\t21:05\tซ้ำ");
 });
+
+test("deleting an entry renumbers the rest and clears a repeat that is no longer one", () => {
+  const list = [];
+  L.add(list, "0372610310021", 1); L.add(list, "0042610310031", 2); L.add(list, "0372610310021", 3);
+  L.remove(list, 1);
+  assert.deepEqual(list.map((e) => [e.no, e.do, e.at, e.dupOf]), [[1, "0042610310031", 2, null], [2, "0372610310021", 3, null]]);
+  assert.equal(L.duplicates(list).size, 0);
+});
