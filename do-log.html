@@ -46,6 +46,10 @@
   td small { display: block; color: var(--muted); font-size: .78rem; letter-spacing: 0; }
   tr.dup td { color: var(--bad); background: var(--bad-bg); font-weight: 700; }
   tr.dup td small { color: var(--bad); }
+  .tag { display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px; font-size: .78rem; font-weight: 600; letter-spacing: 0; }
+  .tag.in { background: #e3f4e8; color: #1d7a3e; } .tag.out { background: #ffe9cc; color: #9a4b00; }
+  #chk { margin-top: 10px; font-size: .95rem; } #chk b { color: #9a4b00; }
+  #onlyOut { margin-left: 6px; }
   .scroll { overflow-x: auto; }
   td.del { width: 1%; white-space: nowrap; text-align: right; }
   .x { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; }
@@ -70,10 +74,12 @@
   <section>
     <div class="stats"><span>ทั้งหมด <b id="total">0</b> ใบ</span><span class="bad">ซ้ำ <b id="dups">0</b> ใบ</span></div>
     <div class="row">
+      <button class="btn" id="check" type="button">🔍 ตรวจกับใบรายงานสนาม</button>
       <button class="btn" id="copy" type="button">📋 คัดลอกทั้งหมด (วางใน Excel)</button>
       <button class="btn d" id="reset" type="button">เริ่มรายการใหม่</button>
       <span class="note" id="tools"></span>
     </div>
+    <div id="chk"></div>
   </section>
 
   <section>
@@ -82,6 +88,7 @@
   </section>
 </main>
 
+<script src="config.js"></script>
 <script src="fieldreport.js"></script>
 <script src="dolog.js"></script>
 <script>
@@ -103,14 +110,28 @@
   };
 
   let askDel = null; // row waiting for a second tap to delete
+  let reportJobs = null, onlyOut = false; // field-report jobs from the last check (this device + server)
 
   function render() {
     const dup = DoLog.duplicates(list);
     $("total").textContent = list.length;
     $("dups").textContent = dup.size;
-    $("list").innerHTML = list.length ? list.slice().reverse().map((e) => `<tr class="${dup.has(e.no) ? "dup" : ""}">
+    const found = reportJobs ? DoLog.match(list, reportJobs) : null;
+    const missing = found ? list.filter((e) => !found.get(e.no)).length : 0;
+    if (found) $("chk").innerHTML = missing
+      ? `ไม่มีในใบรายงานสนาม <b>${missing}</b> ใบ จาก ${list.length} <label class="note"><input type="checkbox" id="onlyOut" ${onlyOut ? "checked" : ""}> แสดงเฉพาะที่ไม่มี</label>`
+      : `<span style="color:var(--ok)">✓ ทุกเลขมีในใบรายงานสนามแล้ว (${list.length} ใบ)</span>`;
+    const thDate = (iso) => { const [y, m, d] = String(iso).slice(0, 10).split("-"); return d ? `${d}/${m}/${Number(y) + 543}` : iso; };
+    const tag = (e) => {
+      if (!found) return "";
+      const w = found.get(e.no);
+      return w ? `<br><span class="tag in">✓ ในใบรายงาน: ${esc(w.project || "(ไม่มีชื่อโครงการ)")}${w.date ? " · " + esc(thDate(w.date)) : ""}</span>`
+        : `<br><span class="tag out">✗ ไม่มีในใบรายงานสนาม</span>`;
+    };
+    const rows = list.slice().reverse().filter((e) => !(found && onlyOut && missing && found.get(e.no)));
+    $("list").innerHTML = list.length ? rows.map((e) => `<tr class="${dup.has(e.no) ? "dup" : ""}">
         <td class="no">${e.no}</td>
-        <td class="do">${esc(e.do)}<small>บันทึก ${time(e.at)} · ${esc(info(e.do))}${e.dupOf ? ` · ⚠️ ซ้ำกับลำดับ ${e.dupOf}` : dup.has(e.no) ? ` · ⚠️ ซ้ำที่ลำดับ ${list.filter((x) => x.dupOf === e.no).map((x) => x.no).join(", ")}` : ""}</small></td>
+        <td class="do">${esc(e.do)}<small>บันทึก ${time(e.at)} · ${esc(info(e.do))}${e.dupOf ? ` · ⚠️ ซ้ำกับลำดับ ${e.dupOf}` : dup.has(e.no) ? ` · ⚠️ ซ้ำที่ลำดับ ${list.filter((x) => x.dupOf === e.no).map((x) => x.no).join(", ")}` : ""}</small>${tag(e)}</td>
         <td class="del">${askDel === e.no ? `<button class="btn d sm" data-del="${e.no}" type="button">ยืนยันลบ</button>` : `<button class="x" data-ask="${e.no}" type="button" aria-label="ลบลำดับ ${e.no}">✕</button>`}</td></tr>`).join("")
       : `<tr><td colspan="3" class="empty">ยังไม่มีรายการ — พิมพ์หรือยิงเลขตั๋วด้านบน</td></tr>`;
   }
@@ -142,6 +163,29 @@
     }
     if (askDel !== null) { askDel = null; render(); }
   });
+
+  // check: field reports on this device + those on the server (dates around the scans)
+  const isoDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  $("check").addEventListener("click", async () => {
+    if (!list.length) return;
+    const btn = $("check"); btn.disabled = true; $("chk").textContent = "กำลังตรวจ…";
+    let jobs = [];
+    try { jobs = (JSON.parse(localStorage.getItem("field-reports-v1")) || {}).jobs || []; } catch (e) {}
+    let note = "";
+    const SYNC = window.FIELD_SYNC && window.FIELD_SYNC.url ? window.FIELD_SYNC : null;
+    if (SYNC) {
+      const at = list.map((e) => e.at), DAY = 864e5;
+      try {
+        const res = await fetch(SYNC.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "report", from: isoDay(Math.min(...at) - 2 * DAY), to: isoDay(Math.max(...at) + DAY), key: SYNC.key }) });
+        const out = await res.json();
+        if (out.ok) jobs = jobs.concat(out.jobs || []); else note = "⚠️ ดึงจากเซิร์ฟเวอร์ไม่ได้ — ตรวจเฉพาะใบรายงานในเครื่องนี้";
+      } catch (e) { note = "⚠️ ออฟไลน์ — ตรวจเฉพาะใบรายงานในเครื่องนี้"; }
+    } else note = "⚠️ ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ — ตรวจเฉพาะใบรายงานในเครื่องนี้";
+    reportJobs = jobs; btn.disabled = false; render();
+    if (note) $("chk").insertAdjacentHTML("beforeend", `<div class="note">${note}</div>`);
+  });
+  $("chk").addEventListener("change", (ev) => { if (ev.target.id === "onlyOut") { onlyOut = ev.target.checked; render(); } });
 
   $("copy").addEventListener("click", async () => {
     if (!list.length) return;

@@ -34,3 +34,12 @@ test("deleting an entry renumbers the rest and clears a repeat that is no longer
   assert.deepEqual(list.map((e) => [e.no, e.do, e.at, e.dupOf]), [[1, "0042610310031", 2, null], [2, "0372610310021", 3, null]]);
   assert.equal(L.duplicates(list).size, 0);
 });
+
+test("scans are checked against field-report trucks (spaces in a D/O ignored)", () => {
+  const list = [];
+  L.add(list, "0372610310021", 1); L.add(list, "0042610310031", 2);
+  const jobs = [{ header: { project: "A", date: "2026-10-31" }, trucks: [{ do: "037 2610310021" }, { do: "" }] }];
+  const m = L.match(list, jobs);
+  assert.deepEqual(m.get(1), { project: "A", date: "2026-10-31" });
+  assert.equal(m.get(2), null);
+});

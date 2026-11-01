@@ -39,11 +39,24 @@
     return new Set(list.filter((e) => count.get(e.do) > 1).map((e) => e.no));
   }
 
+  /**
+   * Which scanned tickets are in the field reports. `jobs` are field-report jobs ({ header, trucks }).
+   * Returns Map entry number → { project, date } when found, null when no report has that D/O.
+   */
+  function match(list, jobs) {
+    const where = new Map();
+    (jobs || []).forEach((j) => (j.trucks || []).forEach((t) => {
+      const d = digits(t.do);
+      if (d && !where.has(d)) where.set(d, { project: (j.header && j.header.project) || "", date: (j.header && j.header.date) || "" });
+    }));
+    return new Map(list.map((e) => [e.no, where.get(e.do) || null]));
+  }
+
   /** Tab-separated lines for pasting into Excel: ลำดับ, D/O, เวลา, ซ้ำ */
   function toText(list, time) {
     const dup = duplicates(list);
     return ["ลำดับ\tD/O\tเวลาบันทึก\tซ้ำ"].concat(list.map((e) => `${e.no}\t${e.do}\t${time(e.at)}\t${dup.has(e.no) ? "ซ้ำ" : ""}`)).join("\n");
   }
 
-  return { LEN, digits, complete, add, remove, duplicates, toText };
+  return { LEN, digits, complete, add, remove, match, duplicates, toText };
 });
