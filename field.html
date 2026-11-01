@@ -113,6 +113,7 @@
   .rc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 6px; color: #fff; }
   .rc.in { background: #1d7a3e; } .rc.out { background: #b42318; } .rc.wait { background: var(--muted); }
   .rc .d { font-variant-numeric: tabular-nums; letter-spacing: .03em; } .rc small { font-weight: 400; opacity: .95; }
+  .rc .again { background: #ffd23f; color: #3a2a00; border-radius: 999px; padding: 1px 10px; font-size: .85rem; }
   .rc button { margin-left: auto; font: inherit; font-size: .85rem; border: 0; border-radius: 6px; padding: 4px 10px; background: #fff; color: #b42318; cursor: pointer; }
   .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
   table.list tbody tr.dup td { color: var(--bad); font-weight: 600; }
@@ -252,8 +253,8 @@
     <section id="recheckBox">
       <h2>รีเช็คตั๋ว</h2>
       <div id="recheckOut" style="margin-bottom:8px"></div>
-      <label class="do">พิมพ์หรือยิงเลขตั๋ว — ครบ 13 หลักตรวจทันที
-        <input id="recheckIn" type="text" class="npad" data-pad="int" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="ตั๋วที่ต้องการเช็คว่าลงระบบแล้วหรือยัง"></label>
+      <label class="do">พิมพ์หรือยิงเลขตั๋ว — ครบ 13 หลักตรวจทันที (ช่องค้างไว้ ยิงต่อได้เลย)
+        <input id="recheckIn" type="text" inputmode="numeric" enterkeyhint="next" autocomplete="off" maxlength="13" placeholder="ตั๋วที่ต้องการเช็คว่าลงระบบแล้วหรือยัง"></label>
       <p class="note" style="margin:8px 0 0">🟩 เขียว = ลงระบบแล้ว · 🟥 แดง = ยังไม่ลง (กด "ลงรถคันนี้" เพื่อกรอกในช่องรับรถ) · ตรวจทั้งใบรายงานในเครื่องนี้และเครื่องอื่น</p>
     </section>
 
@@ -648,6 +649,7 @@
     list.forEach((r) => { if (r.state !== "in") { const w = localWhere(r.do); if (w) { r.state = "in"; r.where = w; } } });
     $("recheckOut").innerHTML = list.map((r, i) => `<div class="rc ${r.state}"><span class="d">${esc(r.do)}</span>
       <small>${r.state === "in" ? "✓ ลงระบบแล้ว — " + esc(r.where) : r.state === "wait" ? "กำลังตรวจ…" : "✗ ยังไม่ลงระบบ" + (r.where ? " — " + esc(r.where) : "")}</small>
+      ${r.times > 1 ? `<span class="again">⚠️ สแกนซ้ำ ครั้งที่ ${r.times}</span>` : ""}
       ${r.state === "out" && job.status !== "done" ? `<button type="button" data-rcadd="${i}">ลงรถคันนี้</button>` : ""}</div>`).join("");
   }
   $("recheckIn").addEventListener("input", async () => {
@@ -655,11 +657,10 @@
     if (d !== el.value) el.value = d;
     if (d.length !== 13) return;
     el.value = "";
-    // on-screen keypad open → close it so the result bar shows; a hardware scanner keeps the focus
-    const padOpen = !!document.querySelector(".t24pad:not([hidden])");
-    if (padOpen) el.blur();
+    // the box keeps the focus (no on-screen keypad) so a barcode scanner can fire ticket after ticket
     const list = rechecks[job.id] = rechecks[job.id] || [];
-    const r = { do: d, state: "wait", where: "" };
+    const times = list.filter((x) => x.do === d).length + 1;
+    const r = { do: d, state: "wait", where: "", times };
     list.push(r); // newest at the bottom, right above the box (the keypad opens below it)
     const w = localWhere(d);
     if (w) { r.state = "in"; r.where = w; }
@@ -674,9 +675,10 @@
       } else { r.state = "out"; r.where = "ออฟไลน์ — เช็คเฉพาะเครื่องนี้"; }
       renderRecheck();
     }
-    if (navigator.vibrate) navigator.vibrate(r.state === "in" ? 40 : [80, 60, 80]);
-    if (!padOpen) el.focus();
+    if (document.activeElement === el) el.scrollIntoView({ block: "nearest" });
+    if (navigator.vibrate) navigator.vibrate(r.state === "in" && times === 1 ? 40 : [80, 60, 80]);
   });
+  $("recheckIn").addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); }); // scanners end with Enter
   $("recheckOut").addEventListener("click", (e) => {
     const b = e.target.closest("[data-rcadd]"); if (!b) return;
     const r = (rechecks[job.id] || [])[Number(b.dataset.rcadd)]; if (!r) return;
