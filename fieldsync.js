@@ -19,23 +19,52 @@
     return m ? Number(m[1]) * 60 + Number(m[2]) : null;
   };
 
+  // ---------- truck order ----------
+  const DAY = 86400000, TH = 7 * 3600000; // Thai time, UTC+7
   /**
-   * Trucks in order of arrival at site. Times are clock times that may cross midnight,
-   * so each arrival is taken relative to the first truck's arrival (within ±12 h).
-   * Trucks without an arrival time keep their entry order after the others.
+   * Ticket date in a 13-digit D/O: digits 4–9 are YYMMDD (Christian year), e.g. 037 261028 0010 = 28 Oct 2026.
+   * Returns a day number (days since 1970-01-01) or null. The last 4 digits run from 0001 each day.
+   */
+  function doDay(d) {
+    const s = cleanDO(d).replace(/\D/g, "");
+    if (s.length !== 13) return null;
+    const y = 2000 + Number(s.slice(3, 5)), m = Number(s.slice(5, 7)), dd = Number(s.slice(7, 9));
+    if (m < 1 || m > 12 || dd < 1 || dd > 31) return null;
+    return Date.UTC(y, m - 1, dd) / DAY;
+  }
+  const doSeq = (d) => { const s = cleanDO(d).replace(/\D/g, ""); return s.length === 13 ? Number(s.slice(-4)) : null; };
+  const thaiDay = (ms) => Math.floor((ms + TH) / DAY);
+
+  /**
+   * Trucks in order of arrival at site, by date and time.
+   * The date is the ticket date in the D/O; an arrival clock time earlier than the batching time
+   * (or recorded on the next day) is after midnight, so it counts on the next day.
+   * Without a D/O date, the day the truck was recorded is used; with neither, arrivals are taken
+   * relative to the first truck's arrival (within ±12 h), as clock times may cross midnight.
+   * Trucks without an arrival time go last, in the order they were entered. Same minute: ticket date, running number, entry.
    */
   function sortTrucks(trucks) {
     const byEntry = trucks.slice().sort((a, b) => (a.created || 0) - (b.created || 0));
-    const first = byEntry.find((t) => toMin(t.arrival) != null);
-    const base = first ? toMin(first.arrival) : 0;
+    const dayOf = (t) => { const d = doDay(t.do); return d != null ? d : t.created > 1e12 ? thaiDay(t.created) : null; };
+    const dated = byEntry.find((t) => dayOf(t) != null && toMin(t.arrival) != null);
+    const undated = byEntry.find((t) => dayOf(t) == null && toMin(t.arrival) != null);
+    const base = undated ? toMin(undated.arrival) : 0, baseDay = dated ? dayOf(dated) : 0;
     const key = (t) => {
       const m = toMin(t.arrival);
       if (m == null) return Infinity;
-      let d = (m - base + 1440) % 1440;
-      if (d > 720) d -= 1440;
-      return d;
+      const day = dayOf(t);
+      if (day == null) { let d = (m - base + 1440) % 1440; if (d > 720) d -= 1440; return baseDay * 1440 + base + d; }
+      const bat = toMin(t.batching);
+      let next = bat != null ? m < bat : false;
+      if (bat == null && doDay(t.do) != null && t.created > 1e12 && thaiDay(t.created) > day && m < 720) next = true;
+      return (day + (next ? 1 : 0)) * 1440 + m;
     };
-    return byEntry.sort((a, b) => key(a) - key(b) || (a.created || 0) - (b.created || 0));
+    const seq = (t) => doSeq(t.do) ?? Infinity;
+    return byEntry.sort((a, b) => {
+      const ka = key(a), kb = key(b);
+      if (ka !== kb) return ka - kb;
+      return (ka === Infinity ? 0 : (dayOf(a) ?? 0) - (dayOf(b) ?? 0) || seq(a) - seq(b)) || (a.created || 0) - (b.created || 0);
+    });
   }
 
   const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -101,5 +130,5 @@
     return null;
   }
 
-  return { cleanDO, toMin, sortTrucks, newId, upgradeJob, mergeJobs, findConflict };
+  return { cleanDO, toMin, doDay, doSeq, sortTrucks, newId, upgradeJob, mergeJobs, findConflict };
 });

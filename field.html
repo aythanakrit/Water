@@ -475,18 +475,30 @@
       </section>`;
     }).join("") : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
   }
-  let delArmed = null;
-  $("jobs").addEventListener("click", (e) => {
-    const o = e.target.dataset.open, d = e.target.dataset.del;
+  // Deleting a report needs the code (SHA-256 checked in this browser; keeps reports from being deleted by mistake)
+  const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
+  const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  $("jobs").addEventListener("click", async (e) => {
+    const o = e.target.dataset.open, d = e.target.dataset.del, ok = e.target.dataset.delok, no = e.target.dataset.delno;
     if (o) openJob(o);
     if (d) {
-      if (delArmed !== d) { delArmed = d; e.target.textContent = "กดอีกครั้งเพื่อลบ"; setTimeout(() => { if (delArmed === d) { delArmed = null; showList(); } }, 4000); return; }
-      db.jobs = db.jobs.filter((j) => j.id !== d); delArmed = null;
-      db.dirty = db.dirty.filter((x) => x !== d);
-      if (SYNC) { db.deleted.push(d); syncNow(); }
+      const row = e.target.parentNode;
+      row.innerHTML = `<input type="password" data-delcode="${d}" placeholder="รหัสเพื่อลบใบรายงาน" autocomplete="off" style="max-width:180px">
+        <button class="g d" data-delok="${d}" type="button">ยืนยันลบ</button><button class="g" data-delno="1" type="button">ยกเลิก</button>
+        <span class="note" data-delmsg></span>`;
+      row.querySelector("input").focus();
+    }
+    if (no) showList();
+    if (ok) {
+      const row = e.target.parentNode, code = row.querySelector("input").value.trim();
+      if ((await sha256(code)) !== DEL_HASH) { row.querySelector("[data-delmsg]").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ลบ"; return; }
+      db.jobs = db.jobs.filter((j) => j.id !== ok);
+      db.dirty = db.dirty.filter((x) => x !== ok);
+      if (SYNC) { db.deleted.push(ok); syncNow(); }
       persist(); showList();
     }
   });
+  $("jobs").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.dataset.delcode) e.target.parentNode.querySelector("[data-delok]").click(); });
   $("newJob").addEventListener("click", () => {
     if (PROJ) {
       // today's report already started → open it; otherwise start one with the fixed details of the last report

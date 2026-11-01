@@ -75,3 +75,41 @@ test("merge keeps the D/O that still has its leading zeros when both copies are 
   assert.equal(S.mergeJobs(j, k).trucks[0].do, "0032610160061");
   assert.equal(S.mergeJobs(k, j).trucks[0].do, "0032610160061");
 });
+
+test("D/O carries the ticket date (YYMMDD in digits 4–9) and a daily running number", () => {
+  assert.equal(S.doDay("0372610280010"), Date.UTC(2026, 9, 28) / 864e5);
+  assert.equal(S.doSeq("0372610280010"), 10);
+  assert.equal(S.doDay("037261028001"), null); // 12 digits: not a full D/O
+  assert.equal(S.doDay("0372613280010"), null); // month 13
+});
+
+test("trucks sort by D/O date + arrival time; after midnight counts as the next day", () => {
+  const t = (id, d, batching, arrival, created) => ({ id, do: d, batching, arrival, created });
+  const trucks = [
+    t("b", "0372610310021", "23:10", "00:05", 2),   // 31 Oct ticket, arrives after midnight (earlier clock than batching)
+    t("a", "0372610310020", "22:50", "23:40", 1),
+    t("c", "0372611010001", "00:20", "01:00", 3),   // 1 Nov ticket
+    t("y", "0372610300050", "15:00", "15:40", 6),   // previous day, entered late
+    t("z", "0372610310022", "", "", 4),             // no arrival yet: last (entry order)
+  ];
+  assert.deepEqual(S.sortTrucks(trucks).map((x) => x.id), ["y", "a", "b", "c", "z"]);
+});
+
+test("same arrival minute: ticket running number decides", () => {
+  const t = (id, d) => ({ id, do: d, batching: "08:00", arrival: "08:30", created: 9 });
+  assert.deepEqual(S.sortTrucks([t("2", "0372610310012"), t("1", "0372610310011")]).map((x) => x.id), ["1", "2"]);
+});
+
+test("no batching time: an early-morning arrival recorded the day after the ticket date counts on that day", () => {
+  const at = (iso) => Date.parse(iso);
+  const trucks = [
+    { id: "late", do: "0372610310030", arrival: "00:20", created: at("2026-11-01T00:21:00+07:00") },
+    { id: "eve", do: "0372610310029", arrival: "23:50", created: at("2026-10-31T23:51:00+07:00") },
+  ];
+  assert.deepEqual(S.sortTrucks(trucks).map((x) => x.id), ["eve", "late"]);
+});
+
+test("same arrival minute across two ticket dates: the earlier ticket date first", () => {
+  const t = (id, d) => ({ id, do: d, batching: "", arrival: "05:00", created: 9 });
+  assert.deepEqual(S.sortTrucks([t("nov", "0372611010001"), t("oct", "0372610310020")]).map((x) => x.id), ["oct", "nov"]);
+});
