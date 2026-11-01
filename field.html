@@ -110,6 +110,10 @@
   .warn ul { margin: 0; padding-left: 18px; }
   .sync { font-size: .85rem; color: var(--muted); margin: -8px 0 12px; }
   .sync.off { color: var(--warn); } .sync.bad { color: var(--bad); font-weight: 600; }
+  .rc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 6px; color: #fff; }
+  .rc.in { background: #1d7a3e; } .rc.out { background: #b42318; } .rc.wait { background: var(--muted); }
+  .rc .d { font-variant-numeric: tabular-nums; letter-spacing: .03em; } .rc small { font-weight: 400; opacity: .95; }
+  .rc button { margin-left: auto; font: inherit; font-size: .85rem; border: 0; border-radius: 6px; padding: 4px 10px; background: #fff; color: #b42318; cursor: pointer; }
   .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
   table.list tbody tr.dup td { color: var(--bad); font-weight: 600; }
   table.list tbody tr.t-warn td { background: var(--warn-bg); }
@@ -243,6 +247,14 @@
       </div>
       <div id="addWarn"></div>
       <p class="note" style="margin:8px 0 0">เวลาผสมกรอกตามใบ D/O · เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้ทั้งคู่) · 📷 สแกน = เปิดกล้องเล็งบาร์โค้ด อ่านเองอัตโนมัติ (อ่านไม่ได้กด "ถ่ายรูปแทน") · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
+    </section>
+
+    <section id="recheckBox">
+      <h2>รีเช็คตั๋ว</h2>
+      <div id="recheckOut" style="margin-bottom:8px"></div>
+      <label class="do">พิมพ์หรือยิงเลขตั๋ว — ครบ 13 หลักตรวจทันที
+        <input id="recheckIn" type="text" class="npad" data-pad="int" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="ตั๋วที่ต้องการเช็คว่าลงระบบแล้วหรือยัง"></label>
+      <p class="note" style="margin:8px 0 0">🟩 เขียว = ลงระบบแล้ว · 🟥 แดง = ยังไม่ลง (กด "ลงรถคันนี้" เพื่อกรอกในช่องรับรถ) · ตรวจทั้งใบรายงานในเครื่องนี้และเครื่องอื่น</p>
     </section>
 
     <section class="edit" id="editBox" hidden></section>
@@ -553,7 +565,7 @@
     $("addBox").hidden = done;
     $("finish").textContent = done ? "เปิดงานแก้ไขต่อ" : "จบงาน";
     if (!$("newVol").value) $("newVol").value = job.trucks.length ? job.trucks[job.trucks.length - 1].volume : 7;
-    renderList(); renderEdit(); showSync();
+    renderList(); renderEdit(); renderRecheck(); showSync();
   }
   function renderTimeSum() {
     const late = job.trucks.filter((t) => FieldReport.timeAlerts(t).length), L = FieldReport.LIMITS;
@@ -622,6 +634,54 @@
     job.trucks.push(t); job.trucks = FieldSync.sortTrucks(job.trucks); touch();
     $("newDO").value = ""; $("newTruck").value = ""; $("newBatch").value = ""; $("addWarn").innerHTML = "";
     renderJob(); $("newDO").focus();
+  });
+
+  // ---------- re-check tickets: 13 digits → is this D/O already in any field report? ----------
+  const rechecks = {}; // jobId → [{ do, state: "in" | "out" | "wait", where }]
+  function localWhere(d) {
+    const hit = FieldReport.findDO(d, db.jobs);
+    if (!hit) return null;
+    return hit.jobId === job.id ? `ใบนี้ ลำดับที่ ${hit.index + 1}` : `งาน "${hit.project || "(ไม่มีชื่อ)"}" ลำดับที่ ${hit.index + 1}`;
+  }
+  function renderRecheck() {
+    const list = rechecks[job.id] || [];
+    list.forEach((r) => { if (r.state !== "in") { const w = localWhere(r.do); if (w) { r.state = "in"; r.where = w; } } });
+    $("recheckOut").innerHTML = list.map((r, i) => `<div class="rc ${r.state}"><span class="d">${esc(r.do)}</span>
+      <small>${r.state === "in" ? "✓ ลงระบบแล้ว — " + esc(r.where) : r.state === "wait" ? "กำลังตรวจ…" : "✗ ยังไม่ลงระบบ" + (r.where ? " — " + esc(r.where) : "")}</small>
+      ${r.state === "out" && job.status !== "done" ? `<button type="button" data-rcadd="${i}">ลงรถคันนี้</button>` : ""}</div>`).join("");
+  }
+  $("recheckIn").addEventListener("input", async () => {
+    const el = $("recheckIn"), d = el.value.replace(/\D/g, "");
+    if (d !== el.value) el.value = d;
+    if (d.length !== 13) return;
+    el.value = "";
+    // on-screen keypad open → close it so the result bar shows; a hardware scanner keeps the focus
+    const padOpen = !!document.querySelector(".t24pad:not([hidden])");
+    if (padOpen) el.blur();
+    const list = rechecks[job.id] = rechecks[job.id] || [];
+    const r = { do: d, state: "wait", where: "" };
+    list.push(r); // newest at the bottom, right above the box (the keypad opens below it)
+    const w = localWhere(d);
+    if (w) { r.state = "in"; r.where = w; }
+    renderRecheck();
+    if (!w) {
+      if (SYNC && navigator.onLine) {
+        try {
+          const res = await Promise.race([api("checkDO", { do: d, jobId: "" }), new Promise((_, no) => setTimeout(() => no(new Error("timeout")), 6000))]);
+          if (res.ok && res.hit) { r.state = "in"; r.where = `งาน "${res.hit.project || "(ไม่มีชื่อ)"}" ลำดับที่ ${res.hit.no} (เครื่องอื่น)`; }
+          else r.state = "out";
+        } catch { r.state = "out"; r.where = "ตรวจเครื่องอื่นไม่ได้ (เน็ต) — เช็คเฉพาะเครื่องนี้"; }
+      } else { r.state = "out"; r.where = "ออฟไลน์ — เช็คเฉพาะเครื่องนี้"; }
+      renderRecheck();
+    }
+    if (navigator.vibrate) navigator.vibrate(r.state === "in" ? 40 : [80, 60, 80]);
+    if (!padOpen) el.focus();
+  });
+  $("recheckOut").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rcadd]"); if (!b) return;
+    const r = (rechecks[job.id] || [])[Number(b.dataset.rcadd)]; if (!r) return;
+    $("newDO").value = r.do; addWarn();
+    $("addBox").scrollIntoView({ behavior: "smooth", block: "center" }); $("newTruck").focus();
   });
 
   // Barcode from a photo (works where the live camera is not available).
