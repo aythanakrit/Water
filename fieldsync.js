@@ -37,10 +37,10 @@
 
   /**
    * Trucks in order of arrival at site, by date and time.
-   * The date is the ticket date in the D/O; an arrival clock time earlier than the batching time
-   * (or recorded on the next day) is after midnight, so it counts on the next day.
-   * Without a D/O date, the day the truck was recorded is used; with neither, arrivals are taken
-   * relative to the first truck's arrival (within ±12 h), as clock times may cross midnight.
+   * The date comes from when the truck was recorded (the arrival time nearest to it). Without that,
+   * from the ticket date in the D/O: an arrival clock time earlier than the batching time is after
+   * midnight, so it counts on the next day. With neither, arrivals are taken relative to the first
+   * truck's arrival (within ±12 h), as clock times may cross midnight.
    * Trucks without an arrival time go last, in the order they were entered. Same minute: ticket date, running number, entry.
    */
   function sortTrucks(trucks) {
@@ -52,6 +52,12 @@
     const key = (t) => {
       const m = toMin(t.arrival);
       if (m == null) return Infinity;
+      // recorded on a device: the arrival is the clock time nearest to when the truck was recorded
+      // (a plant's ticket date can stay on the previous day after midnight, so it cannot place the day)
+      if (t.created > 1e12) {
+        const now = (t.created + TH) / 60000, cd = thaiDay(t.created);
+        return [cd - 1, cd, cd + 1].map((d) => d * 1440 + m).reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a));
+      }
       const day = dayOf(t);
       if (day == null) { let d = (m - base + 1440) % 1440; if (d > 720) d -= 1440; return baseDay * 1440 + base + d; }
       const bat = toMin(t.batching);

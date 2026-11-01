@@ -113,3 +113,18 @@ test("same arrival minute across two ticket dates: the earlier ticket date first
   const t = (id, d) => ({ id, do: d, batching: "", arrival: "05:00", created: 9 });
   assert.deepEqual(S.sortTrucks([t("nov", "0372611010001"), t("oct", "0372610310020")]).map((x) => x.id), ["oct", "nov"]);
 });
+
+test("night pour from the site (1 Nov 2026): a plant still printing 31 Oct after midnight does not jump to the top", () => {
+  // as recorded on site; created = when บันทึกรถ was pressed (Thai time)
+  const at = (hhmm, day = "2026-11-01") => Date.parse(`${day}T${hhmm}:00+07:00`);
+  const t = (id, d, batching, arrival, created) => ({ id, do: d, batching, arrival, created });
+  const trucks = [
+    t("751", "0362610310034", "00:05", "00:55", at("00:55")),
+    t("771", "0042610310031", "00:00", "01:40", at("01:40")),
+    t("7169", "0362610310029", "23:20", "00:19", at("00:19")),
+    t("7227", "0372611010001", "00:06", "00:55", at("00:56")),
+    t("7112", "0042610310029", "23:46", "00:42", at("00:42")),
+    t("x", "0362610310020", "22:30", "23:30", at("23:30", "2026-10-31")),
+  ];
+  assert.deepEqual(S.sortTrucks(trucks).map((x) => x.id), ["x", "7169", "7112", "751", "7227", "771"]);
+});

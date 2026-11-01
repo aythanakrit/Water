@@ -528,6 +528,7 @@
       } catch { $("listMsg").textContent = "โหลดงานไม่ได้ — ต้องต่ออินเทอร์เน็ตเพื่อเปิดงานนี้"; return; }
     }
     job = j;
+    job.trucks = FieldSync.sortTrucks(job.trucks); // order may have been saved by an older version
     editIdx = -1;
     $("vList").hidden = true; $("vJob").hidden = false;
     document.querySelectorAll("[data-h]").forEach((el) => { el.value = job.header[el.dataset.h] ?? ""; });
