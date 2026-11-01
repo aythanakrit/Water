@@ -115,7 +115,7 @@
   /**
    * One project over a date range:
    *  plants — volume, trips and production rate (m³/h) from batching times
-   *  hourly — volume per batching hour per plant
+   *  hourly — volume per arrival hour per plant (when the trucks reached the site)
    *  trucks — each mixer truck, its trips and time windows
    *  issues — trips with a remark (typed or from the time checks)
    */
@@ -126,7 +126,8 @@
     picked.forEach((j) => {
       const tr = (j.trucks || []).filter((t) => String(t.do || "").trim());
       const bt = onTimeline(tr, "batching"), at = onTimeline(tr, "arrival"), et = onTimeline(tr, "end");
-      tr.forEach((t, i) => all.push({ job: j, t, date: j.header.date || "", plant: t.plant || "(ไม่ระบุ)", volume: num(t.volume), b: bt[i], a: at[i], e: et[i] }));
+      // h: the time a trip counts in the hourly tables — arrival at site (batching only when no arrival was recorded)
+      tr.forEach((t, i) => all.push({ job: j, t, date: j.header.date || "", plant: t.plant || "(ไม่ระบุ)", volume: num(t.volume), b: bt[i], a: at[i], e: et[i], h: at[i] ?? bt[i] }));
     });
 
     // production rate per plant (per day when the range has several days):
@@ -158,11 +159,11 @@
         first: first == null ? "" : hhmm(first), last: last == null ? "" : hhmm(last) };
     }).sort((a, b) => a.date.localeCompare(b.date) || b.volume - a.volume);
 
-    // volume per batching hour (per date when the range has several days)
+    // volume per arrival hour (per date when the range has several days)
     const hours = new Map();
     all.forEach((r) => {
-      if (r.b == null) return;
-      const h = Math.floor(r.b / 60);
+      if (r.h == null) return;
+      const h = Math.floor(r.h / 60);
       const key = `${r.date}|${String(h).padStart(5, "0")}`;
       if (!hours.has(key)) hours.set(key, { date: multiDay ? r.date : "", label: hhmm(h * 60).slice(0, 2) + ":00", byPlant: {}, total: 0 });
       const o = hours.get(key);
@@ -182,12 +183,12 @@
     const truckRows = [...trucks.values()].map((o) => ({ ...o, windows: o.windows.sort((a, b) => a.sortKey.localeCompare(b.sortKey)) }))
       .sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
 
-    // whole-hour columns by batching time (06:00, 07:00 …), continuous from the first to the last hour of each day
-    const hourKey = (r) => `${r.date}|${String(Math.floor(r.b / 60)).padStart(5, "0")}`;
+    // whole-hour columns by arrival time (06:00, 07:00 …), continuous from the first to the last hour of each day
+    const hourKey = (r) => `${r.date}|${String(Math.floor(r.h / 60)).padStart(5, "0")}`;
     const span2 = {};
     all.forEach((r) => {
-      if (r.b == null) return;
-      const h = Math.floor(r.b / 60), d = span2[r.date] || (span2[r.date] = [h, h]);
+      if (r.h == null) return;
+      const h = Math.floor(r.h / 60), d = span2[r.date] || (span2[r.date] = [h, h]);
       d[0] = Math.min(d[0], h); d[1] = Math.max(d[1], h);
     });
     const columns = [];
@@ -208,24 +209,24 @@
       o.volume += r.volume; o.trips++;
       const tr = travelOf(r);
       if (tr != null) o.travel.push(tr);
-      if (r.b == null) return;
-      if (o.first == null || r.b < o.first) o.first = r.b;
-      if (o.last == null || r.b > o.last) o.last = r.b;
+      if (r.h == null) return;
+      if (o.first == null || r.h < o.first) o.first = r.h;
+      if (o.last == null || r.h > o.last) o.last = r.h;
       const k = hourKey(r);
       o.byHour[k] = (o.byHour[k] || 0) + r.volume;
       totalByHour[k] = (totalByHour[k] || 0) + r.volume;
     });
-    // m³ per hour = average over the hours that plant actually batched
+    // m³ per hour = average over the hours that plant's trucks arrived
     const perHour = (m) => { const xs = Object.values(m).filter((x) => x > 0); return xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null; };
     const plantHours = [...byPlant.values()].map((o) => ({ plant: o.plant, volume: o.volume, trips: o.trips, byHour: o.byHour,
       perHour: perHour(o.byHour), avgTravel: avg(o.travel),
       first: o.first == null ? "" : hhmm(o.first), last: o.last == null ? "" : hhmm(o.last) })).sort((a, b) => b.volume - a.volume);
     const allTravel = [].concat(...[...byPlant.values()].map((o) => o.travel));
     const truckHours = [...trucks.values()].map((o) => {
-      // each hour: the trips batched in it, as batching → arrival
+      // each hour: the trips that arrived in it, as batching → arrival
       const byHour = {};
-      all.filter((r) => (String(r.t.truck || "").trim() || "(ไม่ระบุเลขรถ)") === o.truck && r.b != null)
-        .sort((x, y) => x.b - y.b)
+      all.filter((r) => (String(r.t.truck || "").trim() || "(ไม่ระบุเลขรถ)") === o.truck && r.h != null)
+        .sort((x, y) => x.h - y.h)
         .forEach((r) => { const k = hourKey(r); (byHour[k] = byHour[k] || []).push({ batching: r.t.batching || "", arrival: r.t.arrival || "", do: r.t.do, plant: r.plant }); });
       return { truck: o.truck, trips: o.trips, volume: o.volume, byHour };
     }).sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
