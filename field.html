@@ -313,7 +313,33 @@
   let db = { jobs: [] };
   try { db = JSON.parse(localStorage.getItem(KEY)) || db; } catch {}
   let storageOk = true;
+  // Several tabs/windows share this storage: each one merges what the others saved instead of overwriting it
+  const dropped = new Set(); // jobs this tab removed (deleted, or gone from the server): never brought back from storage
+  function mergeStored(other) {
+    if (!other || !Array.isArray(other.jobs)) return false;
+    let changed = false;
+    const gone = new Set([...(db.deleted || []), ...(other.deleted || []), ...dropped]);
+    other.jobs.forEach((o) => {
+      if (!o || !o.id || gone.has(o.id)) return;
+      FieldSync.upgradeJob(o);
+      const i = db.jobs.findIndex((j) => j.id === o.id);
+      if (i < 0) { db.jobs.push(o); changed = true; return; }
+      const a = db.jobs[i];
+      if (o.stub) return; // a list entry never replaces a full copy
+      if (!a.stub && JSON.stringify(FieldSync.mergeJobs(a, o)) === JSON.stringify(FieldSync.mergeJobs(a, a))) return; // nothing new
+      // extra fields (mailedAt, syncError …) are kept from both copies
+      const m = a.stub ? o : Object.assign({}, o, a, FieldSync.mergeJobs(a, o));
+      db.jobs[i] = m; if (job && job.id === m.id) job = m; changed = true;
+    });
+    const union = (k) => { const before = (db[k] || []).length; db[k] = [...new Set([...(db[k] || []), ...(other[k] || [])])]; return db[k].length !== before; };
+    if (union("dirty")) changed = true;
+    if (union("deleted")) changed = true;
+    db.dirty = db.dirty.filter((id) => !dropped.has(id));
+    db.jobs = db.jobs.filter((j) => !db.deleted.includes(j.id) && !dropped.has(j.id));
+    return changed;
+  }
   function persist() {
+    try { mergeStored(JSON.parse(localStorage.getItem(KEY))); } catch {}
     try { localStorage.setItem(KEY, JSON.stringify(db)); storageOk = true; }
     catch { storageOk = false; }
     const m = storageOk ? `บันทึกแล้ว ${FieldReport.nowHHMM()}` : "⚠️ บันทึกในเครื่องไม่ได้ — ส่งออกไฟล์สำรองก่อนปิดหน้า";
@@ -348,7 +374,7 @@
   function markDirty(id) {
     if (!SYNC) return;
     if (!db.dirty.includes(id)) db.dirty.push(id);
-    persist(); clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 3000);
+    persist(); clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 1200);
   }
   function showSync() {
     const n = db.dirty.length + db.deleted.length;
@@ -400,7 +426,7 @@
           local.syncError = `D/O ${r.conflict.do} ซ้ำกับ${r.conflict.sameJob ? "ลำดับที่ " + r.conflict.no + " ในงานนี้" : ` งาน "${r.conflict.project || "(ไม่มีชื่อ)"}" ลำดับที่ ${r.conflict.no}`} — แก้หรือลบรถคันนั้นก่อน`;
           db.dirty = db.dirty.filter((x) => x !== id); // wait for the next edit
         } else if (r.error === "deleted") {
-          db.jobs = db.jobs.filter((j) => j.id !== id); db.dirty = db.dirty.filter((x) => x !== id);
+          dropped.add(id); db.jobs = db.jobs.filter((j) => j.id !== id); db.dirty = db.dirty.filter((x) => x !== id);
           if (job && job.id === id) job = null;
         }
       }
@@ -422,6 +448,7 @@
       const onServer = new Set(r.jobs.map((j) => j.id));
       r.jobs.forEach(applyServer);
       // jobs removed on another device (never ones still waiting to be sent)
+      db.jobs.forEach((j) => { if (!onServer.has(j.id) && !db.dirty.includes(j.id)) dropped.add(j.id); });
       db.jobs = db.jobs.filter((j) => onServer.has(j.id) || db.dirty.includes(j.id));
       if (syncState === "offline") syncState = "idle";
       lastSync = FieldReport.nowHHMM(); persist(); showSync();
@@ -429,9 +456,24 @@
     } catch (e) { syncState = e.message === "unauthorized" ? "auth" : "offline"; showSync(); }
   }
   if (SYNC) {
+    const tick = () => { if (db.dirty.length || db.deleted.length) syncNow(); else pull(); };
     window.addEventListener("online", syncNow);
-    setInterval(() => { if (db.dirty.length || db.deleted.length) syncNow(); else pull(); }, 20000);
+    // every 10 s while the page is on screen; at once when it comes back (tab switched, iPad woken up)
+    setInterval(() => { if (!document.hidden) tick(); }, 10000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+    window.addEventListener("focus", tick);
   }
+  // another tab saved: take its changes and redraw (the truck being edited stays open)
+  window.addEventListener("storage", (e) => {
+    if (e.key !== KEY || !e.newValue) return;
+    let other; try { other = JSON.parse(e.newValue); } catch { return; }
+    const editId = job && job.trucks[editIdx] && job.trucks[editIdx].id;
+    if (!mergeStored(other)) return;
+    if (job && !db.jobs.some((j) => j.id === job.id)) { job = null; editIdx = -1; }
+    if (job && editId) editIdx = job.trucks.findIndex((t) => t.id === editId);
+    if (job) refreshOpenJob(); else if (!$("vList").hidden) showList();
+    showSync();
+  });
 
   // ---------- downloads (artifact viewer or plain browser) ----------
   let downloads = null;
@@ -506,7 +548,7 @@
     if (ok) {
       const row = e.target.parentNode, code = row.querySelector("input").value.trim();
       if ((await sha256(code)) !== DEL_HASH) { row.querySelector("[data-delmsg]").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ลบ"; return; }
-      db.jobs = db.jobs.filter((j) => j.id !== ok);
+      dropped.add(ok); db.jobs = db.jobs.filter((j) => j.id !== ok);
       db.dirty = db.dirty.filter((x) => x !== ok);
       if (SYNC) { db.deleted.push(ok); syncNow(); }
       persist(); showList();
