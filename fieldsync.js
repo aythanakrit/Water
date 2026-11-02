@@ -73,6 +73,26 @@
     });
   }
 
+  /**
+   * Arrival of each truck as minutes since 1970-01-01 (Thai clock), the same rule sortTrucks uses:
+   * from when the truck was recorded, else from the D/O ticket date. null when the truck has no arrival
+   * time or no date can be found (no recording time, no valid D/O). Aligned with the input array.
+   */
+  function arrivalMinutes(trucks) {
+    return trucks.map((t) => {
+      const m = toMin(t.arrival);
+      if (m == null) return null;
+      if (t.created > 1e12) {
+        const now = (t.created + TH) / 60000, cd = thaiDay(t.created);
+        return [cd - 1, cd, cd + 1].map((d) => d * 1440 + m).reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a));
+      }
+      const day = doDay(t.do);
+      if (day == null) return null;
+      const bat = toMin(t.batching);
+      return (day + (bat != null && m < bat ? 1 : 0)) * 1440 + m;
+    });
+  }
+
   const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   /** Give old (local-only) jobs the ids and timestamps sync needs. */
@@ -136,5 +156,5 @@
     return null;
   }
 
-  return { cleanDO, toMin, doDay, doSeq, sortTrucks, newId, upgradeJob, mergeJobs, findConflict };
+  return { cleanDO, toMin, doDay, doSeq, sortTrucks, arrivalMinutes, newId, upgradeJob, mergeJobs, findConflict };
 });

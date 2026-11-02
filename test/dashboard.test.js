@@ -116,3 +116,22 @@ test("a 24-hour job keeps its hours in order (18:00 … 17:00 next day)", () => 
   assert.equal(v.plantHours.length, 15);
   assert.equal(Object.values(v.totalByHour).reduce((a, b) => a + b, 0), 49 * 7);
 });
+
+test("a job over several days places each truck on its real date, even when stored out of order", () => {
+  // job dated 31 Oct; trucks every 30 min from 31 Oct 13:00 to 2 Nov 08:00 (Thai time), recorded on arrival
+  const TH = 7 * 3600000, start = Date.UTC(2026, 9, 31, 13, 0) - TH;
+  const hh = (ms) => { const d = new Date(ms + TH); return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
+  const trucks = [];
+  for (let i = 0; i <= 86; i++) {
+    const at = start + i * 1800000;
+    trucks.push({ do: "037261031" + String(i + 1).padStart(4, "0"), truck: String(700 + (i % 20)), volume: "7", plant: "P" + (i % 3),
+      batching: hh(at - 3600000), arrival: hh(at), created: at + 60000 });
+  }
+  trucks.reverse(); // the sheet may hold them in any order
+  const v = D.projectView([{ id: "x", status: "done", header: { project: "N", date: "2026-10-31" }, trucks }], "N");
+  assert.equal(v.columns.length, 44); // 31/10 13:00 … 2/11 08:00
+  assert.deepEqual([v.columns[0].date, v.columns[0].label], ["2026-10-31", "13:00"]);
+  assert.deepEqual([v.columns[11].date, v.columns[11].label], ["2026-11-01", "00:00"]);
+  assert.deepEqual([v.columns[43].date, v.columns[43].label], ["2026-11-02", "08:00"]);
+  assert.equal(Object.values(v.totalByHour).reduce((a, b) => a + b, 0), 87 * 7);
+});

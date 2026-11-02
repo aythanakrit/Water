@@ -4,9 +4,9 @@
  * Time rules come from FieldReport.timeAlerts (same limits as the field report).
  */
 (function (root, factory) {
-  if (typeof module === "object" && module.exports) module.exports = factory(require("./fieldreport.js"));
-  else root.Dashboard = factory(root.FieldReport);
-})(typeof self !== "undefined" ? self : this, function (FieldReport) {
+  if (typeof module === "object" && module.exports) module.exports = factory(require("./fieldreport.js"), require("./fieldsync.js"));
+  else root.Dashboard = factory(root.FieldReport, root.FieldSync);
+})(typeof self !== "undefined" ? self : this, function (FieldReport, FieldSync) {
   "use strict";
 
   const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
@@ -124,8 +124,34 @@
       (!from || (j.header.date || "") >= from) && (!to || (j.header.date || "") <= to));
     const all = [];
     picked.forEach((j) => {
-      const tr = (j.trucks || []).filter((t) => String(t.do || "").trim());
-      const bt = onTimeline(tr, "batching"), at = onTimeline(tr, "arrival"), et = onTimeline(tr, "end");
+      let tr = (j.trucks || []).filter((t) => String(t.do || "").trim());
+      // arrival order by real date when every arrival can be dated; otherwise keep the entry order
+      if (FieldSync.arrivalMinutes(tr).every((x, i) => x != null || clock(tr[i].arrival) == null)) tr = FieldSync.sortTrucks(tr);
+      let bt = onTimeline(tr, "batching"), at = onTimeline(tr, "arrival"), et = onTimeline(tr, "end");
+      // a job may run for days: place each arrival on its real date (recording time / ticket date),
+      // counted in minutes from midnight of the job date, then batching and pour end around it
+      const abs = FieldSync.arrivalMinutes(tr);
+      const jm = /^(\d{4})-(\d{2})-(\d{2})/.exec(j.header.date || "");
+      const firstAbs = Math.min(...abs.filter((x) => x != null));
+      const base = jm ? Date.UTC(+jm[1], jm[2] - 1, +jm[3]) / 864e5 * 1440 : firstAbs - (firstAbs % 1440);
+      if (abs.some((x) => x != null) && isFinite(base)) {
+        at = abs.map((x, i) => (x != null ? x - base : null));
+        const shift = (rel, i, field, before) => {
+          const c = clock(tr[i][field]), a = clock(tr[i].arrival);
+          if (c == null) return null;
+          if (at[i] == null) return rel[i];
+          return before ? at[i] - ((a - c + 1440) % 1440) : at[i] + ((c - a + 1440) % 1440);
+        };
+        // trucks without a dated arrival keep their place relative to the trucks around them
+        const anchor = (rel, field, before) => {
+          const k = rel.findIndex((x, i) => x != null && at[i] != null);
+          const off = k < 0 ? 0 : shift(rel, k, field, before) - rel[k];
+          return rel.map((x, i) => (at[i] != null ? shift(rel, i, field, before) : x == null ? null : x + off));
+        };
+        bt = anchor(bt, "batching", true); et = anchor(et, "end", false);
+        const relA = onTimeline(tr, "arrival"), ka = relA.findIndex((x, i) => x != null && at[i] != null);
+        if (ka >= 0) at = at.map((x, i) => (x != null ? x : relA[i] == null ? null : relA[i] + at[ka] - relA[ka]));
+      }
       // h: the time a trip counts in the hourly tables — arrival at site (batching only when no arrival was recorded)
       tr.forEach((t, i) => all.push({ job: j, t, date: j.header.date || "", plant: t.plant || "(ไม่ระบุ)", volume: num(t.volume), b: bt[i], a: at[i], e: et[i], h: at[i] ?? bt[i] }));
     });
@@ -164,7 +190,7 @@
     all.forEach((r) => {
       if (r.h == null) return;
       const h = Math.floor(r.h / 60);
-      const key = `${r.date}|${String(h).padStart(5, "0")}`;
+      const key = `${r.date}|${String(h + 10000).padStart(6, "0")}`;
       if (!hours.has(key)) hours.set(key, { date: multiDay ? r.date : "", label: hhmm(h * 60).slice(0, 2) + ":00", byPlant: {}, total: 0 });
       const o = hours.get(key);
       o.byPlant[r.plant] = (o.byPlant[r.plant] || 0) + r.volume; o.total += r.volume;
@@ -184,7 +210,7 @@
       .sort((a, b) => b.trips - a.trips || a.truck.localeCompare(b.truck, "th", { numeric: true }));
 
     // whole-hour columns by arrival time (06:00, 07:00 …), continuous from the first to the last hour of each day
-    const hourKey = (r) => `${r.date}|${String(Math.floor(r.h / 60)).padStart(5, "0")}`;
+    const hourKey = (r) => `${r.date}|${String(Math.floor(r.h / 60) + 10000).padStart(6, "0")}`;
     const span2 = {};
     all.forEach((r) => {
       if (r.h == null) return;
@@ -192,9 +218,13 @@
       d[0] = Math.min(d[0], h); d[1] = Math.max(d[1], h);
     });
     const columns = [];
+    // a job past midnight: the hours after it belong to the next calendar day, so each column shows its date
+    const crosses = Object.values(span2).some(([a, b]) => Math.floor(a / 24) !== Math.floor(b / 24));
+    const addDays = (d, n) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); if (!m || !n) return d;
+      const x = new Date(Date.UTC(+m[1], m[2] - 1, +m[3] + n)); return x.toISOString().slice(0, 10); };
     Object.keys(span2).sort().forEach((d) => {
       for (let h = span2[d][0]; h <= span2[d][1]; h++) {
-        columns.push({ key: `${d}|${String(h).padStart(5, "0")}`, date: multiDay ? d : "", label: hhmm(h * 60) });
+        columns.push({ key: `${d}|${String(h + 10000).padStart(6, "0")}`, date: multiDay || crosses ? addDays(d, Math.floor(h / 24)) : "", label: hhmm(h * 60) });
       }
     });
     const travelOf = (r) => {
