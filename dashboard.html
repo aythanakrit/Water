@@ -73,6 +73,15 @@
   table.hours th.st, table.hours td.st { width: 3.2em; min-width: 3.2em; }
   table.hours th.st2, table.hours td.st2 { position: sticky; left: 3.2em; background: var(--card); z-index: 1; }
   table.hours td:first-child.l { min-width: 7.5em; max-width: 12em; white-space: normal; }
+  /* PDF: drawn off screen in light colours, tables at full width (no scrolling, no sticky columns) */
+  #pdfRoot { position: absolute; left: -20000px; top: 0; padding: 0 16px; font-size: 14px;
+    --bg: #fff; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #cfd5dd; --grid: #eceff3;
+    --accent: #1f5fbf; --warn-bg: #fff6e0; --warn: #8a5a00; --bad: #b42318; --ok: #1d7a3e; background: #fff; color: var(--text); }
+  #pdfRoot .scroll { overflow: visible; }
+  #pdfRoot table.hours th, #pdfRoot table.hours td { position: static !important; }
+  #pdfRoot .unit { padding: 2px 0 6px; background: #fff; }
+  #pdfRoot .ptitle { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--text); padding: 8px 0 6px; margin-bottom: 8px; }
+  #pdfRoot .ptitle b { font-size: 1.25rem; } #pdfRoot .ptitle span { color: var(--muted); font-size: .85rem; }
 </style>
 </head>
 <body>
@@ -93,6 +102,7 @@
       <label>ถึง<input class="dth" id="to"></label>
       <button class="b" type="button" id="load">แสดงผล</button>
       <button type="button" id="csv">ดาวน์โหลด CSV</button>
+      <button type="button" id="pdf">ดาวน์โหลด PDF</button>
     </div>
     <div class="status" id="status"></div>
   </section>
@@ -215,6 +225,68 @@
     const blob = new Blob([Dashboard.toCSV(rows)], { type: "text/csv" });
     if (downloads) { try { await downloads.save({ filename: name, data: blob }); } catch {} return; }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  });
+
+  // ---------- PDF (A4 landscape): each heading + its table stays together on a page where it fits ----------
+  const loadScript = (src) => new Promise((ok, no) => { const sc = document.createElement("script"); sc.src = src; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+  async function pdfLibs() {
+    if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+    if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  }
+  $("pdf").addEventListener("click", async () => {
+    const name = $("project").value;
+    if (!name || !rows.length) { $("status").textContent = "ไม่มีข้อมูลให้ดาวน์โหลด — เลือกช่วงวันที่และโครงการก่อน"; return; }
+    const btn = $("pdf"), old = $("status").textContent;
+    btn.disabled = true; $("status").textContent = "กำลังสร้าง PDF…";
+    let root = null;
+    try {
+      await pdfLibs();
+      // units: [title + project head + KPIs], then each h3 with the table under it
+      root = document.createElement("div"); root.id = "pdfRoot";
+      const now = new Date(), p2 = (n) => String(n).padStart(2, "0");
+      const stamp = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear() + 543} ${p2(now.getHours())}:${p2(now.getMinutes())}`;
+      const src = document.createElement("div"); src.innerHTML = $("proj").innerHTML;
+      const kids = [...src.children], units = [];
+      let first = `<div class="ptitle"><b>Dashboard การส่งคอนกรีต</b><span>ช่วง ${esc(thDate($("from").value))} – ${esc(thDate($("to").value))} · พิมพ์ ${stamp}</span></div>`;
+      let i = 0;
+      while (i < kids.length && kids[i].tagName !== "H3") first += kids[i++].outerHTML;
+      units.push(first);
+      while (i < kids.length) { let u = kids[i++].outerHTML; while (i < kids.length && kids[i].tagName !== "H3") u += kids[i++].outerHTML; units.push(u); }
+      root.innerHTML = units.map((u) => `<div class="unit">${u}</div>`).join("");
+      document.body.appendChild(root);
+      // as wide as the widest table (long jobs have many hour columns), at least a landscape page
+      const wide = Math.max(1060, ...[...root.querySelectorAll("table")].map((t) => t.scrollWidth + 32));
+      root.style.width = wide + "px";
+      await document.fonts.ready;
+
+      const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const M = 10, W = 297 - 2 * M, H = 210 - 2 * M - 6; // 6 mm kept for the page number
+      const mmPerPx = W / wide;
+      let y = M, page = 1;
+      for (const el of root.querySelectorAll(".unit")) {
+        const c = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", windowWidth: wide });
+        let hmm = c.height / 2 * mmPerPx;
+        if (y > M && y + hmm > M + H) { pdf.addPage("a4", "landscape"); page++; y = M; }
+        if (hmm <= H) { pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", M, y, W, hmm); y += hmm + 2; continue; }
+        // taller than a page (many trucks): cut into page-high slices
+        const slicePx = Math.floor(H / mmPerPx * 2);
+        for (let top = 0; top < c.height; top += slicePx) {
+          const part = document.createElement("canvas"); part.width = c.width; part.height = Math.min(slicePx, c.height - top);
+          part.getContext("2d").drawImage(c, 0, top, c.width, part.height, 0, 0, c.width, part.height);
+          if (top > 0) { pdf.addPage("a4", "landscape"); page++; y = M; }
+          const ph = part.height / 2 * mmPerPx;
+          pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", M, y, W, ph); y += ph + 2;
+        }
+      }
+      for (let n = 1; n <= page; n++) { pdf.setPage(n); pdf.setFontSize(8); pdf.setTextColor(120); pdf.text(`${n} / ${page}`, 297 - M, 210 - 5, { align: "right" }); }
+      const file = `Dashboard_${name}_${$("from").value}_${$("to").value}.pdf`.replace(/[\\/:*?"<>|]+/g, "-");
+      const blob = pdf.output("blob");
+      if (downloads) { try { await downloads.save({ filename: file, data: blob }); } catch {} }
+      else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file; document.body.appendChild(a); a.click(); a.remove(); }
+      $("status").textContent = old + ` · ดาวน์โหลด PDF แล้ว (${page} หน้า)`;
+    } catch (e) {
+      $("status").textContent = "สร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่";
+    } finally { if (root) root.remove(); btn.disabled = false; }
   });
 
   setRange(7);
