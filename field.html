@@ -113,6 +113,7 @@
   .rc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 6px; color: #fff; }
   .rc.in { background: #1d7a3e; } .rc.out { background: #b42318; } .rc.wait { background: var(--muted); }
   .rc .d { font-variant-numeric: tabular-nums; letter-spacing: .03em; } .rc small { font-weight: 400; opacity: .95; }
+  [data-codebox] button.g { background: #fff; color: #b42318; border-color: #fff; }
   .rc .again { background: #ffd23f; color: #3a2a00; border-radius: 999px; padding: 1px 10px; font-size: .85rem; }
   .rc button { margin-left: auto; font: inherit; font-size: .85rem; border: 0; border-radius: 6px; padding: 4px 10px; background: #fff; color: #b42318; cursor: pointer; }
   .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
@@ -605,18 +606,42 @@
   function addWarn() {
     const hit = dupHit($("newDO").value);
     const w = FieldReport.checkDO($("newDO").value);
+    const old = FieldReport.staleDO($("newDO").value, Date.now());
     $("addWarn").innerHTML = (hit ? `<div class="err">⛔ ${esc(FieldReport.dupMessage(hit))} — บันทึกซ้ำไม่ได้</div>` : "") +
+      (old && !hit ? `<div class="err">⛔ ${esc(FieldReport.staleMessage(old))} — ต้องใช้รหัสจึงบันทึกได้</div>` : "") +
       (w.length ? `<div class="warn"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : "");
     return hit;
+  }
+  // a ticket dated more than 2 days before the recording day (or a date that does not exist) needs the code
+  function askCode(box, text, onOk) {
+    box.insertAdjacentHTML("beforeend", `<div class="err" data-codebox>⛔ ${esc(text)}
+      <div class="row" style="margin-top:6px;gap:6px"><input type="password" data-code placeholder="รหัส" autocomplete="off" style="max-width:150px">
+      <button class="b" type="button" data-codeok>ยืนยันรหัส</button><button class="g" type="button" data-codeno>ยกเลิก</button> <span data-codemsg></span></div></div>`);
+    const el = box.querySelector("[data-codebox]:last-child");
+    el.querySelector("[data-code]").focus();
+    const ok = async () => {
+      if ((await sha256(el.querySelector("[data-code]").value.trim())) !== DEL_HASH) { el.querySelector("[data-codemsg]").textContent = "รหัสไม่ถูกต้อง"; return; }
+      el.remove(); onOk();
+    };
+    el.querySelector("[data-codeok]").addEventListener("click", ok);
+    el.querySelector("[data-code]").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ok(); } });
+    el.querySelector("[data-codeno]").addEventListener("click", () => el.remove());
   }
   $("newDO").addEventListener("input", addWarn);
   $("newDO").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newTruck").focus(); } });
   $("newTruck").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newBatch").focus(); } });
   $("newBatch").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("addTruck").click(); } });
-  $("addTruck").addEventListener("click", async () => {
+  $("addTruck").addEventListener("click", () => addTruck(false));
+  async function addTruck(unlocked) {
     const d = FieldReport.cleanDO($("newDO").value);
     if (!d) { $("addWarn").innerHTML = `<div class="warn">ใส่เลข D/O ก่อนบันทึก</div>`; $("newDO").focus(); return; }
     if (addWarn()) { $("newDO").focus(); $("newDO").select(); return; }
+    const old = FieldReport.staleDO(d, Date.now());
+    if (old && !unlocked) {
+      $("addWarn").innerHTML = "";
+      askCode($("addWarn"), FieldReport.staleMessage(old) + " — ใส่รหัสเพื่อบันทึก", () => addTruck(true));
+      return;
+    }
     // Ask the central sheet too (other devices); if offline, the sheet checks again when the job is sent
     if (SYNC && navigator.onLine) {
       $("addTruck").disabled = true;
@@ -635,7 +660,7 @@
     job.trucks.push(t); job.trucks = FieldSync.sortTrucks(job.trucks); touch();
     $("newDO").value = ""; $("newTruck").value = ""; $("newBatch").value = ""; $("addWarn").innerHTML = "";
     renderJob(); $("newDO").focus();
-  });
+  }
 
   // ---------- re-check tickets: 13 digits → is this D/O already in any field report? ----------
   const rechecks = {}; // jobId → [{ do, state: "in" | "out" | "wait", where }]
@@ -948,8 +973,15 @@
       $("doErr").innerHTML = `<div class="err">⛔ ${hit ? esc(FieldReport.dupMessage(hit)) + " — แก้เป็นเลขนี้ไม่ได้" : "D/O ว่างไม่ได้"}</div>`;
       return;
     }
-    t.do = d; t.updated = Date.now(); const p = FieldReport.plantFromDO(d); t.plant = p.name || t.plant;
-    touch(); renderJob();
+    const apply = () => { t.do = d; t.updated = Date.now(); const p = FieldReport.plantFromDO(d); t.plant = p.name || t.plant; touch(); renderJob(); };
+    // judged against when this truck was recorded
+    const old = FieldReport.staleDO(d, t.created > 1e12 ? t.created : Date.now());
+    if (old) {
+      e.target.value = t.do; $("doErr").innerHTML = "";
+      askCode($("doErr"), FieldReport.staleMessage(old) + ` — ใส่รหัสเพื่อแก้เป็น ${d}`, apply);
+      return;
+    }
+    apply();
   });
   $("editBox").addEventListener("click", (e) => {
     const t = job.trucks[editIdx];

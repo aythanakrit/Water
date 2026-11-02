@@ -90,3 +90,14 @@ test("remark keeps what was typed and adds the alerts", () => {
   assert.equal(F.remarkWithAlerts({ remark: "ปั๊มเสีย", batching: "10:00", arrival: "11:15" }), "ปั๊มเสีย · เดินทาง 75 นาที");
   assert.equal(F.remarkWithAlerts({ remark: "", batching: "10:00", arrival: "10:30" }), "");
 });
+
+test("a ticket dated more than 2 days before the recording day needs the code", () => {
+  const at = Date.parse("2026-11-02T08:30:00+07:00");
+  assert.equal(F.staleDO("0372611020001", at), null); // today
+  assert.equal(F.staleDO("0372610310001", at), null); // 2 days back is still fine
+  assert.deepEqual(F.staleDO("0372610300001", at), { days: 3, date: "30/10/2569" });
+  assert.deepEqual(F.staleDO("0372613400001", at), { invalid: true, ymd: "261340" });
+  assert.equal(F.staleDO("03726103", at), null); // not a whole ticket yet
+  // 00:30 on 3 Nov Thai time is already the 3rd
+  assert.equal(F.staleDO("0372610310001", Date.parse("2026-11-03T00:30:00+07:00")).days, 3);
+});
