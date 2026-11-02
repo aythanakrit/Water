@@ -114,6 +114,11 @@
   .rc.in { background: #1d7a3e; } .rc.out { background: #b42318; } .rc.wait { background: var(--muted); }
   .rc .d { font-variant-numeric: tabular-nums; letter-spacing: .03em; } .rc small { font-weight: 400; opacity: .95; }
   [data-codebox] button.g { background: #fff; color: #b42318; border-color: #fff; }
+  .rcsum { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; font-size: .95rem; }
+  .rcsum b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+  .rcsum .in b { color: #1d7a3e; } .rcsum .out b { color: #b42318; } .rcsum .rep b { color: #8a5a00; }
+  .rcsum button { margin-left: auto; }
+  .rcsum button[aria-pressed="true"] { background: #b42318; border-color: #b42318; color: #fff; }
   .rc .again { background: #ffd23f; color: #3a2a00; border-radius: 999px; padding: 1px 10px; font-size: .85rem; }
   .rc button { margin-left: auto; font: inherit; font-size: .85rem; border: 0; border-radius: 6px; padding: 4px 10px; background: #fff; color: #b42318; cursor: pointer; }
   .err { background: var(--bad); color: var(--card); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-top: 8px; }
@@ -253,6 +258,7 @@
 
     <section id="recheckBox">
       <h2>รีเช็คตั๋ว</h2>
+      <div id="recheckSum" class="rcsum" hidden></div>
       <div id="recheckOut" style="margin-bottom:8px"></div>
       <label class="do">พิมพ์หรือยิงเลขตั๋ว — ครบ 13 หลักตรวจทันที (ช่องค้างไว้ ยิงต่อได้เลย)
         <input id="recheckIn" type="text" inputmode="numeric" enterkeyhint="next" autocomplete="off" maxlength="13" placeholder="ตั๋วที่ต้องการเช็คว่าลงระบบแล้วหรือยัง"></label>
@@ -715,10 +721,24 @@
     if (!hit) return null;
     return hit.jobId === job.id ? `ใบนี้ ลำดับที่ ${hit.index + 1}` : `งาน "${hit.project || "(ไม่มีชื่อ)"}" ลำดับที่ ${hit.index + 1}`;
   }
+  let rcOnlyOut = false;
+  $("recheckSum").addEventListener("click", (e) => {
+    if (e.target.id !== "rcOnlyOut") return;
+    rcOnlyOut = !rcOnlyOut; renderRecheck(); $("recheckIn").focus();
+  });
   function renderRecheck() {
     const list = rechecks[job.id] || [];
     list.forEach((r) => { if (r.state !== "in") { const w = localWhere(r.do); if (w) { r.state = "in"; r.where = w; } } });
-    $("recheckOut").innerHTML = list.map((r, i) => `<div class="rc ${r.state}"><span class="d">${esc(r.do)}</span>
+    // summary by ticket number (a ticket scanned twice counts once); repeats counted separately
+    const last = new Map(); list.forEach((r) => last.set(r.do, r));
+    const tickets = [...last.values()], nIn = tickets.filter((r) => r.state === "in").length, nOut = tickets.filter((r) => r.state === "out").length;
+    const reps = list.length - tickets.length;
+    if (!nOut) rcOnlyOut = false;
+    $("recheckSum").hidden = !list.length;
+    $("recheckSum").innerHTML = `<span>ตรวจแล้ว <b>${tickets.length}</b> ใบ</span><span class="in">✓ ลงแล้ว <b>${nIn}</b></span>
+      <span class="out">✗ ยังไม่ลง <b>${nOut}</b></span>${reps ? `<span class="rep">สแกนซ้ำ <b>${reps}</b></span>` : ""}
+      ${nOut ? `<button class="g" type="button" id="rcOnlyOut" aria-pressed="${rcOnlyOut}">${rcOnlyOut ? "แสดงทั้งหมด" : "แสดงเฉพาะที่ยังไม่ลง"}</button>` : ""}`;
+    $("recheckOut").innerHTML = list.map((r, i) => rcOnlyOut && (r.state !== "out" || last.get(r.do) !== r) ? "" : `<div class="rc ${r.state}"><span class="d">${esc(r.do)}</span>
       <small>${r.state === "in" ? "✓ ลงระบบแล้ว — " + esc(r.where) : r.state === "wait" ? "กำลังตรวจ…" : "✗ ยังไม่ลงระบบ" + (r.where ? " — " + esc(r.where) : "")}</small>
       ${r.times > 1 ? `<span class="again">⚠️ สแกนซ้ำ ครั้งที่ ${r.times}</span>` : ""}
       ${r.state === "out" && job.status !== "done" ? `<button type="button" data-rcadd="${i}">ลงรถคันนี้</button>` : ""}</div>`).join("");
