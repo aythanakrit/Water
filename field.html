@@ -603,12 +603,14 @@
 
   // ---------- add truck ----------
   const dupHit = (doNo, index) => FieldReport.findDO(doNo, db.jobs, { jobId: job.id, index });
+  const gapNew = () => FieldReport.truckGap(job.trucks, { truck: $("newTruck").value, batching: NumPad.normalize($("newBatch").value), created: Date.now() });
   function addWarn() {
     const hit = dupHit($("newDO").value);
     const w = FieldReport.checkDO($("newDO").value);
     const old = FieldReport.staleDO($("newDO").value, Date.now());
     $("addWarn").innerHTML = (hit ? `<div class="err">⛔ ${esc(FieldReport.dupMessage(hit))} — บันทึกซ้ำไม่ได้</div>` : "") +
       (old && !hit ? `<div class="err">⛔ ${esc(FieldReport.staleMessage(old))} — ต้องใช้รหัสจึงบันทึกได้</div>` : "") +
+      (gapNew() ? `<div class="err">⛔ ${esc(FieldReport.gapMessage(gapNew(), $("newTruck").value.trim()))} — ต้องใช้รหัสจึงบันทึกได้</div>` : "") +
       (w.length ? `<div class="warn"><ul>${w.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>` : "");
     return hit;
   }
@@ -628,6 +630,7 @@
     el.querySelector("[data-codeno]").addEventListener("click", () => el.remove());
   }
   $("newDO").addEventListener("input", addWarn);
+  ["newTruck", "newBatch"].forEach((id) => { $(id).addEventListener("input", addWarn); $(id).addEventListener("change", addWarn); });
   $("newDO").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newTruck").focus(); } });
   $("newTruck").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("newBatch").focus(); } });
   $("newBatch").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("addTruck").click(); } });
@@ -636,10 +639,11 @@
     const d = FieldReport.cleanDO($("newDO").value);
     if (!d) { $("addWarn").innerHTML = `<div class="warn">ใส่เลข D/O ก่อนบันทึก</div>`; $("newDO").focus(); return; }
     if (addWarn()) { $("newDO").focus(); $("newDO").select(); return; }
-    const old = FieldReport.staleDO(d, Date.now());
-    if (old && !unlocked) {
+    const old = FieldReport.staleDO(d, Date.now()), gap = gapNew();
+    if ((old || gap) && !unlocked) {
       $("addWarn").innerHTML = "";
-      askCode($("addWarn"), FieldReport.staleMessage(old) + " — ใส่รหัสเพื่อบันทึก", () => addTruck(true));
+      const why = [old && FieldReport.staleMessage(old), gap && FieldReport.gapMessage(gap, $("newTruck").value.trim())].filter(Boolean).join(" · ");
+      askCode($("addWarn"), why + " — ใส่รหัสเพื่อบันทึก", () => addTruck(true));
       return;
     }
     // Ask the central sheet too (other devices); if offline, the sheet checks again when the job is sent
@@ -937,7 +941,9 @@
   function showTimeAlerts() {
     const el = $("timeAlerts"), t = job.trucks[editIdx]; if (!el || !t) return;
     const al = FieldReport.timeAlerts(t);
-    el.innerHTML = al.length ? `<div class="${al.some((x) => x.level === "bad") ? "err" : "warn"}"><ul>${al.map((x) => `<li>${esc(x.text)}</li>`).join("")}</ul></div>` : "";
+    const gap = FieldReport.truckGap(job.trucks, t, editIdx);
+    el.innerHTML = (gap ? `<div class="err">⛔ ${esc(FieldReport.gapMessage(gap, String(t.truck).trim()))}</div>` : "") +
+      (al.length ? `<div class="${al.some((x) => x.level === "bad") ? "err" : "warn"}"><ul>${al.map((x) => `<li>${esc(x.text)}</li>`).join("")}</ul></div>` : "");
   }
   // Keep trucks in arrival order; the truck being edited stays selected
   function resort() {

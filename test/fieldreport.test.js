@@ -104,3 +104,15 @@ test("a ticket dated more than 2 days before the recording day needs the code", 
   // 00:30 on 3 Nov Thai time is already the 3rd
   assert.equal(F.staleDO("0372610310001", Date.parse("2026-11-03T00:30:00+07:00")).days, 3);
 });
+
+test("the same mixer truck needs at least 30 minutes between batching times", () => {
+  const at = Date.parse("2026-11-02T08:30:00+07:00");
+  const trucks = [{ truck: "7227", batching: "08:00", do: "a", created: at }, { truck: "7231", batching: "08:10", do: "b", created: at }];
+  assert.equal(F.truckGap(trucks, { truck: "7227", batching: "08:30", created: at }), null); // exactly 30 min is fine
+  assert.deepEqual(F.truckGap(trucks, { truck: "7227", batching: "08:20", created: at }), { index: 0, batching: "08:00", gap: 20, do: "a" });
+  assert.equal(F.truckGap(trucks, { truck: "9999", batching: "08:05", created: at }), null); // another truck
+  assert.equal(F.truckGap(trucks, { truck: "7227", batching: "", created: at }), null); // no batching time yet
+  assert.equal(F.truckGap([{ truck: "1", batching: "23:50", created: at }], { truck: "1", batching: "00:10", created: at }).gap, 20); // across midnight
+  assert.equal(F.truckGap([{ truck: "1", batching: "08:00", created: at }], { truck: "1", batching: "08:10", created: at + 24 * 3600e3 }), null); // next day
+  assert.equal(F.truckGap(trucks, trucks[0], 0), null); // a trip is not compared with itself
+});

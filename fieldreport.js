@@ -64,6 +64,29 @@
     : w.ahead ? `ตั๋ววันที่ ${w.date} ล่วงหน้า ${w.ahead} วันจากวันที่บันทึก (เกิน 1 วัน)`
     : `ตั๋ววันที่ ${w.date} ย้อนหลัง ${w.days} วันจากวันที่บันทึก (เกิน 2 วัน)`;
 
+  /**
+   * The same mixer truck cannot be batched again within 30 minutes.
+   * cand = { truck, batching, created }; returns the clashing trip { index, batching, gap, do } or null.
+   * Trips recorded more than 12 h apart are not compared (a job may run for days).
+   */
+  const TRUCK_GAP = 30;
+  function truckGap(trucks, cand, skipIndex = -1) {
+    const hm = (v) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v || "")); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+    const no = String(cand.truck || "").trim(), b = hm(cand.batching);
+    if (!no || b == null) return null;
+    for (let i = 0; i < trucks.length; i++) {
+      const t = trucks[i];
+      if (i === skipIndex || String(t.truck || "").trim() !== no) continue;
+      const tb = hm(t.batching);
+      if (tb == null) continue;
+      if (cand.created > 1e12 && t.created > 1e12 && Math.abs(cand.created - t.created) > 12 * 3600e3) continue;
+      const gap = Math.min((b - tb + 1440) % 1440, (tb - b + 1440) % 1440);
+      if (gap < TRUCK_GAP) return { index: i, batching: t.batching, gap, do: t.do };
+    }
+    return null;
+  }
+  const gapMessage = (h, no) => `รถ ${no} มีเที่ยวเวลาผสม ${h.batching} แล้ว (ลำดับที่ ${h.index + 1}) — ห่างกัน ${h.gap} นาที ต้องห่างอย่างน้อย ${TRUCK_GAP} นาที`;
+
   /** Warnings for a D/O entry: format and plant code (duplicates: see findDO). */
   function checkDO(doNo) {
     const d = cleanDO(doNo);
@@ -202,5 +225,5 @@
     };
   }
 
-  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, staleDO, staleMessage, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
+  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, staleDO, staleMessage, truckGap, gapMessage, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
 });
