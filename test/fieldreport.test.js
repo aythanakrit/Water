@@ -98,6 +98,9 @@ test("a ticket dated more than 2 days before the recording day needs the code", 
   assert.deepEqual(F.staleDO("0372610300001", at), { days: 3, date: "30/10/2569" });
   assert.deepEqual(F.staleDO("0372613400001", at), { invalid: true, ymd: "261340" });
   assert.equal(F.staleDO("03726103", at), null); // not a whole ticket yet
+  assert.equal(F.staleDO("0372611030001", at), null); // 1 day ahead is fine
+  assert.deepEqual(F.staleDO("0372611040001", at), { ahead: 2, date: "04/11/2569" });
+  assert.match(F.staleMessage({ ahead: 2, date: "04/11/2569" }), /ล่วงหน้า 2 วัน/);
   // 00:30 on 3 Nov Thai time is already the 3rd
   assert.equal(F.staleDO("0372610310001", Date.parse("2026-11-03T00:30:00+07:00")).days, 3);
 });

@@ -45,9 +45,10 @@
   /**
    * Ticket date check: digits 4–9 of a 13-digit D/O are YYMMDD (Christian year).
    * Returns null when fine, { invalid: true, ymd } when the date does not exist, or
-   * { days, date } when the ticket is more than `maxDays` days older than `at` (ms, Thai date).
+   * { days, date } when the ticket is more than `maxDays` days older than `at` (ms, Thai date),
+   * { ahead, date } when it is more than `maxAhead` days later.
    */
-  function staleDO(doNo, at, maxDays = 2) {
+  function staleDO(doNo, at, maxDays = 2, maxAhead = 1) {
     const s = cleanDO(doNo).replace(/\D/g, "");
     if (s.length !== DO_LENGTH) return null;
     const ymd = s.slice(3, 9), y = 2000 + Number(ymd.slice(0, 2)), m = Number(ymd.slice(2, 4)), d = Number(ymd.slice(4, 6));
@@ -55,9 +56,13 @@
     if (m < 1 || m > 12 || x.getUTCMonth() !== m - 1 || x.getUTCDate() !== d) return { invalid: true, ymd };
     const day = t / 864e5, today = Math.floor((at + 7 * 3600e3) / 864e5);
     const date = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y + 543}`;
-    return today - day > maxDays ? { days: today - day, date } : null;
+    if (today - day > maxDays) return { days: today - day, date };
+    if (day - today > maxAhead) return { ahead: day - today, date };
+    return null;
   }
-  const staleMessage = (w) => w.invalid ? `วันที่ในเลข D/O ไม่ถูกต้อง (${w.ymd})` : `ตั๋ววันที่ ${w.date} ย้อนหลัง ${w.days} วันจากวันที่บันทึก (เกิน 2 วัน)`;
+  const staleMessage = (w) => w.invalid ? `วันที่ในเลข D/O ไม่ถูกต้อง (${w.ymd})`
+    : w.ahead ? `ตั๋ววันที่ ${w.date} ล่วงหน้า ${w.ahead} วันจากวันที่บันทึก (เกิน 1 วัน)`
+    : `ตั๋ววันที่ ${w.date} ย้อนหลัง ${w.days} วันจากวันที่บันทึก (เกิน 2 วัน)`;
 
   /** Warnings for a D/O entry: format and plant code (duplicates: see findDO). */
   function checkDO(doNo) {
