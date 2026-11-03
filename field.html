@@ -321,10 +321,20 @@
   let storageOk = true;
   // Several tabs/windows share this storage: each one merges what the others saved instead of overwriting it
   const dropped = new Set(); // jobs this tab removed (deleted, or gone from the server): never brought back from storage
+  const sentDeleted = new Set(); // deletions this tab already sent to the server
   function mergeStored(other) {
     if (!other || !Array.isArray(other.jobs)) return false;
     let changed = false;
-    const gone = new Set([...(db.deleted || []), ...(other.deleted || []), ...dropped]);
+    // waiting-to-send marks: take another tab's mark only for an edit newer than ours (a mark this tab
+    // already cleared after sending must not come back, or the report would show "รอส่ง" for ever)
+    const mineUpdated = new Map(db.jobs.map((j) => [j.id, j.updated || 0]));
+    const theirs = new Map(other.jobs.filter((o) => o && o.id).map((o) => [o.id, o.updated || 0]));
+    (other.dirty || []).forEach((id) => {
+      if (db.dirty.includes(id) || dropped.has(id)) return;
+      if (!mineUpdated.has(id) || (theirs.get(id) || 0) > mineUpdated.get(id)) { db.dirty.push(id); changed = true; }
+    });
+    (other.deleted || []).forEach((id) => { if (!db.deleted.includes(id) && !sentDeleted.has(id)) { db.deleted.push(id); changed = true; } });
+    const gone = new Set([...(db.deleted || []), ...(other.deleted || []), ...dropped, ...sentDeleted]);
     other.jobs.forEach((o) => {
       if (!o || !o.id || gone.has(o.id)) return;
       FieldSync.upgradeJob(o);
@@ -337,9 +347,6 @@
       const m = a.stub ? o : Object.assign({}, o, a, FieldSync.mergeJobs(a, o));
       db.jobs[i] = m; if (job && job.id === m.id) job = m; changed = true;
     });
-    const union = (k) => { const before = (db[k] || []).length; db[k] = [...new Set([...(db[k] || []), ...(other[k] || [])])]; return db[k].length !== before; };
-    if (union("dirty")) changed = true;
-    if (union("deleted")) changed = true;
     db.dirty = db.dirty.filter((id) => !dropped.has(id));
     db.jobs = db.jobs.filter((j) => !db.deleted.includes(j.id) && !dropped.has(j.id));
     return changed;
@@ -417,7 +424,7 @@
     if (!SYNC || syncState === "busy") return;
     syncState = "busy"; showSync();
     try {
-      for (const id of [...db.deleted]) { await api("delete", { id }); db.deleted = db.deleted.filter((x) => x !== id); }
+      for (const id of [...db.deleted]) { await api("delete", { id }); sentDeleted.add(id); dropped.add(id); db.deleted = db.deleted.filter((x) => x !== id); }
       for (const id of [...db.dirty]) {
         const local = db.jobs.find((j) => j.id === id);
         if (!local) { db.dirty = db.dirty.filter((x) => x !== id); continue; }
@@ -435,6 +442,9 @@
         } else if (r.error === "deleted") {
           dropped.add(id); db.jobs = db.jobs.filter((j) => j.id !== id); db.dirty = db.dirty.filter((x) => x !== id);
           if (job && job.id === id) job = null;
+        } else {
+          // anything else (server error, bad request): keep it waiting, but say why
+          throw new Error(r.detail || r.error || "unknown");
         }
       }
       syncState = "idle"; lastSync = FieldReport.nowHHMM(); syncErr = "";
@@ -457,13 +467,15 @@
       // jobs removed on another device (never ones still waiting to be sent)
       db.jobs.forEach((j) => { if (!onServer.has(j.id) && !db.dirty.includes(j.id)) dropped.add(j.id); });
       db.jobs = db.jobs.filter((j) => onServer.has(j.id) || db.dirty.includes(j.id));
-      if (syncState === "offline") syncState = "idle";
+      // back online; a server-side refusal of a waiting report stays on screen until it is sent
+      if (syncState === "offline" && (!syncErr || /fetch|network|load failed|timeout/i.test(syncErr))) syncState = "idle";
       lastSync = FieldReport.nowHHMM(); persist(); showSync();
       if (!job && !$("vList").hidden) showList();
     } catch (e) { syncState = e.message === "unauthorized" ? "auth" : "offline"; showSync(); }
   }
   if (SYNC) {
-    const tick = () => { if (db.dirty.length || db.deleted.length) syncNow(); else pull(); };
+    // send what is waiting, then fetch what other devices changed (also when something could not be sent)
+    const tick = () => { if (db.dirty.length || db.deleted.length) syncNow().then(pull); else pull(); };
     window.addEventListener("online", syncNow);
     // every 10 s while the page is on screen; at once when it comes back (tab switched, iPad woken up)
     setInterval(() => { if (!document.hidden) tick(); }, 10000);
