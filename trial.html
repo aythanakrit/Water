@@ -199,6 +199,12 @@
         <button class="g d" id="del" type="button">ลบ</button>
         <span class="saved" id="pdfMsg"></span>
       </div>
+      <div class="row" id="delBox" hidden style="margin-top:10px;gap:6px">
+        <input id="delCode" type="password" placeholder="รหัสเพื่อลบ" autocomplete="off" style="max-width:170px">
+        <button class="g d" id="delOk" type="button">ยืนยันลบ</button>
+        <button class="g" id="delNo" type="button">ยกเลิก</button>
+        <span class="saved" id="delMsg"></span>
+      </div>
     </section>
   </div>
   <div id="print" aria-hidden="true"></div>
@@ -479,7 +485,7 @@
     });
     document.querySelectorAll("[data-f]").forEach((el) => { el.value = trial[el.dataset.f] ?? ""; });
     $("savedMsg").textContent = ""; $("pdfMsg").textContent = "";
-    $("photoMsg").textContent = "";
+    $("photoMsg").textContent = ""; $("delBox").hidden = true;
     renderTitle(); renderRows(); renderSlots(); window.scrollTo(0, 0);
   }
   function renderTitle() {
@@ -546,12 +552,18 @@
   $("finish").addEventListener("click", () => {
     trial.status = trial.status === "open" ? "done" : "open"; touch(); renderTitle();
   });
-  let delArmed = false;
-  $("del").addEventListener("click", () => {
-    if (!delArmed) { delArmed = true; $("del").textContent = "กดอีกครั้งเพื่อยืนยันลบ"; setTimeout(() => { delArmed = false; $("del").textContent = "ลบ"; }, 4000); return; }
+  // deleting a trial needs the code (SHA-256 of it below, same code as deleting a field report)
+  const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
+  const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  $("del").addEventListener("click", () => { $("delBox").hidden = false; $("delMsg").textContent = ""; $("delCode").value = ""; $("delCode").focus(); });
+  $("delNo").addEventListener("click", () => { $("delBox").hidden = true; });
+  $("delCode").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("delOk").click(); } });
+  $("delOk").addEventListener("click", async () => {
+    if ((await sha256($("delCode").value.trim())) !== DEL_HASH) { $("delMsg").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ลบ"; return; }
+    $("delBox").hidden = true;
     (trial.photos || []).forEach((p) => delPhoto(p.id).catch(() => {}));
     if (CLOUD) { db.gone.push(trial.id); db.dirty = db.dirty.filter((x) => x !== trial.id); schedule(); }
-    db.trials = db.trials.filter((t) => t.id !== trial.id); delArmed = false; $("del").textContent = "ลบ";
+    db.trials = db.trials.filter((t) => t.id !== trial.id);
     persist(); showList();
   });
 
