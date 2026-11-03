@@ -1,8 +1,7 @@
 /*
  * Google Apps Script backend for the field report (ใบรายงานสนาม).
  * Bound to a Google Sheet with sheets "Jobs", "Trucks" and "DO" (index of every D/O ever used).
- * Needs FieldSync (fieldsync.js) and Contacts (contacts.js) in the same project — paste apps-script/paste-into-apps-script.gs.
- * Also keeps the contact list (sheet "Contacts"); its admin actions need Script property ADMIN_KEY.
+ * Needs FieldSync (fieldsync.js) in the same project — paste apps-script/paste-into-apps-script.gs.
  * Photos of special-project reports go to Google Drive (folder "รูปรายงานโครงการ"), indexed in sheet "Photos".
  * The photo folder and the yearly archives are kept in the same Drive folder as this spreadsheet.
  * Printouts and the report e-mail are for the report administrator only: Script property REPORT_ADMIN_KEY.
@@ -24,11 +23,10 @@ const TRUCK_COLS = ["jobId", "id", "no", "truck", "do", "volume", "plant", "batc
 const DO_COLS = ["do", "jobId"];
 // Shown as text in the sheet so D/O keeps its leading zeros and times stay HH:MM
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
-const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"], Photos: ["date", "do"] };
+const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Photos: ["date", "do"] };
 const PHOTO_COLS = ["id", "project", "date", "kind", "do", "fileId", "takenAt", "created", "removed"];
 const PHOTO_KINDS = ["plant", "site", "printout", "samples"]; // samples: photos of the whole report, no D/O
 const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
-const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated", "email"];
 const DO_DIGITS = 13;
 
 const RECENT_DAYS = 7;      // job list: open jobs + jobs changed in the last 7 days
@@ -66,13 +64,6 @@ function doPost(e) {
       case "delete": deleteJob(req.id); return json({ ok: true });
       case "report": return json({ ok: true, jobs: reportJobs(req.from, req.to) });
       case "mailTrial": return json(mailPdf(req, "TRIAL_MAIL_TO", "Trial Mix"));
-      case "contacts": return json({ ok: true, people: listContacts(), settings: contactSettings() });
-      case "contactAdd": return json(addContact(req.contact));
-      case "adminCheck": return json(isAdmin(req.adminKey) ? { ok: true } : { ok: false, error: "not_admin" });
-      case "contactUpdate": return json(isAdmin(req.adminKey) ? updateContact(req.contact) : { ok: false, error: "not_admin" });
-      case "contactDelete": return json(isAdmin(req.adminKey) ? deleteContact(req.id) : { ok: false, error: "not_admin" });
-      case "contactImport": return json(isAdmin(req.adminKey) ? importContacts(req.people, req.dept, req.plant) : { ok: false, error: "not_admin" });
-      case "contactSettings": return json(isAdmin(req.adminKey) ? saveContactSettings(req.settings) : { ok: false, error: "not_admin" });
       default: return json({ ok: false, error: "unknown_action" });
     }
   } finally {
@@ -328,82 +319,6 @@ function deleteJob(id) {
   jobs.getRange(r._row, JOB_COLS.indexOf("status") + 1).setValue("deleted");
   jobs.getRange(r._row, JOB_COLS.indexOf("statusUpdated") + 1).setValue(Date.now());
   jobs.getRange(r._row, JOB_COLS.indexOf("updated") + 1).setValue(Date.now());
-}
-
-// ---------- contact list (everyone sees everyone; the admin edits, deletes and sets departments) ----------
-function isAdmin(k) {
-  const a = PropertiesService.getScriptProperties().getProperty("ADMIN_KEY");
-  return !!a && String(k || "") === a;
-}
-function contactsSheet() { return setupSheet(SpreadsheetApp.getActiveSpreadsheet(), "Contacts", CONTACT_COLS).sh; }
-function contactFromRow(r) {
-  const o = {};
-  CONTACT_COLS.forEach((c) => { o[c] = r[c] == null ? "" : String(r[c]); });
-  if (typeof r.phone === "number") o.phone = "0" + String(r.phone); // typed into the sheet by hand: Sheets dropped the 0
-  o.created = Number(r.created) || 0; o.updated = Number(r.updated) || 0;
-  return o;
-}
-function listContacts() { return readAll(contactsSheet(), CONTACT_COLS).map(contactFromRow); }
-function contactSettings() {
-  const s = PropertiesService.getScriptProperties().getProperty("contactSettings");
-  return Contacts.cleanSettings(s ? JSON.parse(s) : {});
-}
-function saveContactSettings(s) {
-  const clean = Contacts.cleanSettings(s);
-  PropertiesService.getScriptProperties().setProperty("contactSettings", JSON.stringify(clean));
-  return { ok: true, settings: clean };
-}
-function phoneOwner(phone, exceptId) {
-  const hit = listContacts().find((p) => p.phone === phone && p.id !== exceptId);
-  return hit ? `${hit.first} ${hit.last}` : null;
-}
-function writeContact(c, row) {
-  const sh = contactsSheet();
-  putRow(sh, CONTACT_COLS, CONTACT_COLS.map((k) => (c[k] == null ? "" : c[k])), row);
-}
-function addContact(input) {
-  const { contact, errors } = Contacts.check(input || {});
-  if (errors.length) return { ok: false, error: "invalid", errors };
-  const owner = phoneOwner(contact.phone);
-  if (owner) return { ok: false, error: "phone_taken", owner };
-  const t = Date.now();
-  const c = { ...contact, id: "c" + t.toString(36) + Math.random().toString(36).slice(2, 6), created: t, updated: t };
-  writeContact(c);
-  return { ok: true, contact: c };
-}
-function updateContact(input) {
-  const sh = contactsSheet();
-  const rows = findRows(sh, CONTACT_COLS, "id", input && input.id);
-  if (!rows.length) return { ok: false, error: "not_found" };
-  const { contact, errors } = Contacts.check(input, { loose: true }); // the admin may keep an imported contact without plant/surname
-  if (errors.length) return { ok: false, error: "invalid", errors };
-  const owner = phoneOwner(contact.phone, input.id);
-  if (owner) return { ok: false, error: "phone_taken", owner };
-  const old = contactFromRow(readRow(sh, CONTACT_COLS, rows[0]));
-  const c = { ...contact, id: old.id, created: old.created, updated: Date.now() };
-  writeContact(c, rows[0]);
-  return { ok: true, contact: c };
-}
-// Admin paste from Excel: only name and phone required; phones already listed are skipped
-function importContacts(list, dept, plant) {
-  const have = {};
-  listContacts().forEach((p) => { have[p.phone] = true; });
-  const added = [], skipped = [];
-  (Array.isArray(list) ? list : []).slice(0, 500).forEach((x, i) => {
-    const { contact, errors } = Contacts.check({ ...x, dept: dept || x.dept || "", plant: plant || x.plant || "" }, { loose: true });
-    if (errors.length) { skipped.push({ row: i + 1, why: errors.join(" · ") }); return; }
-    if (have[contact.phone]) { skipped.push({ row: i + 1, why: `เบอร์ซ้ำ (${contact.first})` }); return; }
-    const t = Date.now() + i;
-    writeContact({ ...contact, id: "c" + t.toString(36) + Math.random().toString(36).slice(2, 6), created: t, updated: t });
-    have[contact.phone] = true;
-    added.push(contact.first);
-  });
-  return { ok: true, added: added.length, skipped };
-}
-function deleteContact(id) {
-  const sh = contactsSheet();
-  deleteRows(sh, findRows(sh, CONTACT_COLS, "id", id));
-  return { ok: true };
 }
 
 // ---------- PDF by email (Trial Mix, project reports) ----------

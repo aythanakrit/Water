@@ -1,5 +1,5 @@
 // ===== ใบรายงานสนาม — Apps Script (วางไฟล์นี้ทั้งไฟล์ใน Code.gs) =====
-// สร้างจาก fieldsync.js + contacts.js + apps-script/Code.gs ด้วย `npm run build:gs` — อย่าแก้ไฟล์นี้โดยตรง
+// สร้างจาก fieldsync.js + apps-script/Code.gs ด้วย `npm run build:gs` — อย่าแก้ไฟล์นี้โดยตรง
 
 /*
  * Field report sync rules, shared by the web page and the Google Apps Script
@@ -76,6 +76,26 @@
     });
   }
 
+  /**
+   * Arrival of each truck as minutes since 1970-01-01 (Thai clock), the same rule sortTrucks uses:
+   * from when the truck was recorded, else from the D/O ticket date. null when the truck has no arrival
+   * time or no date can be found (no recording time, no valid D/O). Aligned with the input array.
+   */
+  function arrivalMinutes(trucks) {
+    return trucks.map((t) => {
+      const m = toMin(t.arrival);
+      if (m == null) return null;
+      if (t.created > 1e12) {
+        const now = (t.created + TH) / 60000, cd = thaiDay(t.created);
+        return [cd - 1, cd, cd + 1].map((d) => d * 1440 + m).reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a));
+      }
+      const day = doDay(t.do);
+      if (day == null) return null;
+      const bat = toMin(t.batching);
+      return (day + (bat != null && m < bat ? 1 : 0)) * 1440 + m;
+    });
+  }
+
   const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   /** Give old (local-only) jobs the ids and timestamps sync needs. */
@@ -139,145 +159,13 @@
     return null;
   }
 
-  return { cleanDO, toMin, doDay, doSeq, sortTrucks, newId, upgradeJob, mergeJobs, findConflict };
-});
-
-/*
- * Contact list (รายชื่อผู้ติดต่อ): everyone registers once, everyone sees everyone.
- * The admin keeps the departments and their positions in order; the list is shown
- * as an org chart: department → position (in the admin's order) → name.
- * Pure functions shared by contacts.html, the Apps Script backend and the tests.
- */
-(function (root, factory) {
-  if (typeof module === "object" && module.exports) module.exports = factory();
-  else root.Contacts = factory();
-})(typeof self !== "undefined" ? self : this, function () {
-  "use strict";
-
-  const FIELDS = ["first", "last", "nick", "phone", "email", "plant", "dept", "pos"];
-  const NO_DEPT = "ยังไม่ระบุแผนก";
-  const NO_POS = "ยังไม่ระบุตำแหน่ง";
-
-  const digits = (s) => String(s == null ? "" : s).replace(/\D/g, "");
-  /** Thai phone numbers: 10 digits starting with 0 (mobile) or 9 digits starting with 0 (Bangkok landline). */
-  function cleanPhone(s) {
-    let d = digits(s);
-    if (d.startsWith("66") && d.length >= 11) d = "0" + d.slice(2);
-    return d;
-  }
-  const phoneOk = (s) => /^0\d{8,9}$/.test(cleanPhone(s));
-  /** 0812345678 → 081-234-5678, 021234567 → 02-123-4567 */
-  function showPhone(s) {
-    const d = cleanPhone(s);
-    if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
-    if (d.length === 9) return `${d.slice(0, 2)}-${d.slice(2, 5)}-${d.slice(5)}`;
-    return d;
-  }
-
-  const emailOk = (s) => !s || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-
-  /**
-   * Trimmed fields and a list of what is missing or wrong (Thai messages).
-   * loose (admin import): only the name and phone are required.
-   */
-  function check(c, { loose } = {}) {
-    const o = {};
-    FIELDS.forEach((k) => { o[k] = String(c[k] == null ? "" : c[k]).trim().replace(/\s+/g, " "); });
-    o.phone = cleanPhone(o.phone);
-    o.email = o.email.toLowerCase();
-    const err = [];
-    if (!o.first) err.push("ใส่ชื่อ");
-    if (!o.last && !loose) err.push("ใส่นามสกุล");
-    if (!phoneOk(o.phone)) err.push("เบอร์โทรไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)");
-    if (!emailOk(o.email)) err.push("อีเมลไม่ถูกต้อง");
-    if (!o.plant && !loose) err.push("เลือกแพล้น");
-    return { contact: o, errors: err };
-  }
-
-  /** "นายสมชาย ใจดี" → { first: "สมชาย", last: "ใจดี" } (title dropped) */
-  function splitName(s) {
-    const n = String(s || "").trim().replace(/\s+/g, " ").replace(/^(คุณ|นางสาว|นาง|นาย|น\.ส\.|Mr\.?|Mrs\.?|Ms\.?|Miss)\s*/i, "");
-    const i = n.indexOf(" ");
-    return i < 0 ? { first: n, last: "" } : { first: n.slice(0, i), last: n.slice(i + 1) };
-  }
-
-  /**
-   * Rows copied from Excel (tab-separated): name, nickname, phone, e-mail in any order.
-   * A cell with @ is the e-mail, one that is a phone number is the phone, the first other cell is the name,
-   * the next the nickname. Header rows and rows without a phone are skipped.
-   */
-  function parsePaste(text) {
-    return String(text || "").split(/\r?\n/).map((line) => {
-      const cells = line.split("\t").map((c) => c.trim()).filter(Boolean);
-      const o = { first: "", last: "", nick: "", phone: "", email: "" };
-      const rest = [];
-      cells.forEach((c) => {
-        if (!o.email && /@/.test(c)) o.email = c;
-        else if (!o.phone && phoneOk(c) && /^[\d\s+()-]+$/.test(c)) o.phone = cleanPhone(c);
-        else if (!/^\d{1,3}\.?$/.test(c)) rest.push(c); // drop a running number column
-      });
-      if (!o.phone || !rest.length) return null;
-      Object.assign(o, splitName(rest[0]));
-      o.nick = rest[1] || "";
-      return o;
-    }).filter(Boolean);
-  }
-
-  /** Settings as the admin left them: [{ name, positions: [..] }], cleaned of blanks and repeats. */
-  function cleanSettings(s) {
-    const seen = new Set();
-    const depts = (s && Array.isArray(s.depts) ? s.depts : []).map((d) => ({
-      name: String(d.name || "").trim(),
-      positions: [...new Set((d.positions || []).map((p) => String(p).trim()).filter(Boolean))],
-    })).filter((d) => d.name && !seen.has(d.name) && seen.add(d.name));
-    return { depts };
-  }
-
-  /**
-   * Org chart: departments in the admin's order (people in a department the admin has not listed come
-   * after, then those with none), positions in the department's order, then by first name.
-   * Returns [{ dept, groups: [{ pos, people: [..] }], count }].
-   */
-  function orgChart(people, settings) {
-    const order = cleanSettings(settings).depts;
-    const dIdx = (n) => { const i = order.findIndex((d) => d.name === n); return i < 0 ? (n ? order.length : order.length + 1) : i; };
-    const byDept = new Map();
-    people.forEach((p) => {
-      const d = p.dept || NO_DEPT;
-      if (!byDept.has(d)) byDept.set(d, []);
-      byDept.get(d).push(p);
-    });
-    return [...byDept.entries()]
-      .sort(([a], [b]) => dIdx(a === NO_DEPT ? "" : a) - dIdx(b === NO_DEPT ? "" : b) || a.localeCompare(b, "th"))
-      .map(([dept, ps]) => {
-        const positions = (order.find((d) => d.name === dept) || { positions: [] }).positions;
-        const pIdx = (n) => { const i = positions.indexOf(n); return i < 0 ? (n ? positions.length : positions.length + 1) : i; };
-        const byPos = new Map();
-        ps.forEach((p) => { const k = p.pos || NO_POS; if (!byPos.has(k)) byPos.set(k, []); byPos.get(k).push(p); });
-        const groups = [...byPos.entries()]
-          .sort(([a], [b]) => pIdx(a === NO_POS ? "" : a) - pIdx(b === NO_POS ? "" : b) || a.localeCompare(b, "th"))
-          .map(([pos, list]) => ({ pos, people: list.sort((x, y) => x.first.localeCompare(y.first, "th") || x.last.localeCompare(y.last, "th")) }));
-        return { dept, groups, count: ps.length };
-      });
-  }
-
-  /** Search name, nickname, phone, plant, department or position. */
-  function matches(p, q) {
-    const s = String(q || "").trim().toLowerCase();
-    if (!s) return true;
-    const d = digits(s);
-    const hay = [p.first, p.last, p.nick, p.plant, p.dept, p.pos, p.email].join(" ").toLowerCase();
-    return s.split(/\s+/).every((w) => hay.includes(w)) || (d.length >= 3 && cleanPhone(p.phone).includes(d));
-  }
-
-  return { FIELDS, NO_DEPT, NO_POS, cleanPhone, phoneOk, showPhone, emailOk, check, splitName, parsePaste, cleanSettings, orgChart, matches };
+  return { cleanDO, toMin, doDay, doSeq, sortTrucks, arrivalMinutes, newId, upgradeJob, mergeJobs, findConflict };
 });
 
 /*
  * Google Apps Script backend for the field report (ใบรายงานสนาม).
  * Bound to a Google Sheet with sheets "Jobs", "Trucks" and "DO" (index of every D/O ever used).
- * Needs FieldSync (fieldsync.js) and Contacts (contacts.js) in the same project — paste apps-script/paste-into-apps-script.gs.
- * Also keeps the contact list (sheet "Contacts"); its admin actions need Script property ADMIN_KEY.
+ * Needs FieldSync (fieldsync.js) in the same project — paste apps-script/paste-into-apps-script.gs.
  * Photos of special-project reports go to Google Drive (folder "รูปรายงานโครงการ"), indexed in sheet "Photos".
  * The photo folder and the yearly archives are kept in the same Drive folder as this spreadsheet.
  * Printouts and the report e-mail are for the report administrator only: Script property REPORT_ADMIN_KEY.
@@ -299,11 +187,10 @@ const TRUCK_COLS = ["jobId", "id", "no", "truck", "do", "volume", "plant", "batc
 const DO_COLS = ["do", "jobId"];
 // Shown as text in the sheet so D/O keeps its leading zeros and times stay HH:MM
 const TEXT_TRUCK = ["do", "truck", "batching", "arrival", "start", "end", "label"];
-const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Contacts: ["phone"], Photos: ["date", "do"] };
+const TEXT = { Jobs: ["date"], Trucks: TEXT_TRUCK, DO: ["do"], Photos: ["date", "do"] };
 const PHOTO_COLS = ["id", "project", "date", "kind", "do", "fileId", "takenAt", "created", "removed"];
 const PHOTO_KINDS = ["plant", "site", "printout", "samples"]; // samples: photos of the whole report, no D/O
 const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
-const CONTACT_COLS = ["id", "first", "last", "nick", "phone", "plant", "dept", "pos", "created", "updated", "email"];
 const DO_DIGITS = 13;
 
 const RECENT_DAYS = 7;      // job list: open jobs + jobs changed in the last 7 days
@@ -341,13 +228,6 @@ function doPost(e) {
       case "delete": deleteJob(req.id); return json({ ok: true });
       case "report": return json({ ok: true, jobs: reportJobs(req.from, req.to) });
       case "mailTrial": return json(mailPdf(req, "TRIAL_MAIL_TO", "Trial Mix"));
-      case "contacts": return json({ ok: true, people: listContacts(), settings: contactSettings() });
-      case "contactAdd": return json(addContact(req.contact));
-      case "adminCheck": return json(isAdmin(req.adminKey) ? { ok: true } : { ok: false, error: "not_admin" });
-      case "contactUpdate": return json(isAdmin(req.adminKey) ? updateContact(req.contact) : { ok: false, error: "not_admin" });
-      case "contactDelete": return json(isAdmin(req.adminKey) ? deleteContact(req.id) : { ok: false, error: "not_admin" });
-      case "contactImport": return json(isAdmin(req.adminKey) ? importContacts(req.people, req.dept, req.plant) : { ok: false, error: "not_admin" });
-      case "contactSettings": return json(isAdmin(req.adminKey) ? saveContactSettings(req.settings) : { ok: false, error: "not_admin" });
       default: return json({ ok: false, error: "unknown_action" });
     }
   } finally {
@@ -603,82 +483,6 @@ function deleteJob(id) {
   jobs.getRange(r._row, JOB_COLS.indexOf("status") + 1).setValue("deleted");
   jobs.getRange(r._row, JOB_COLS.indexOf("statusUpdated") + 1).setValue(Date.now());
   jobs.getRange(r._row, JOB_COLS.indexOf("updated") + 1).setValue(Date.now());
-}
-
-// ---------- contact list (everyone sees everyone; the admin edits, deletes and sets departments) ----------
-function isAdmin(k) {
-  const a = PropertiesService.getScriptProperties().getProperty("ADMIN_KEY");
-  return !!a && String(k || "") === a;
-}
-function contactsSheet() { return setupSheet(SpreadsheetApp.getActiveSpreadsheet(), "Contacts", CONTACT_COLS).sh; }
-function contactFromRow(r) {
-  const o = {};
-  CONTACT_COLS.forEach((c) => { o[c] = r[c] == null ? "" : String(r[c]); });
-  if (typeof r.phone === "number") o.phone = "0" + String(r.phone); // typed into the sheet by hand: Sheets dropped the 0
-  o.created = Number(r.created) || 0; o.updated = Number(r.updated) || 0;
-  return o;
-}
-function listContacts() { return readAll(contactsSheet(), CONTACT_COLS).map(contactFromRow); }
-function contactSettings() {
-  const s = PropertiesService.getScriptProperties().getProperty("contactSettings");
-  return Contacts.cleanSettings(s ? JSON.parse(s) : {});
-}
-function saveContactSettings(s) {
-  const clean = Contacts.cleanSettings(s);
-  PropertiesService.getScriptProperties().setProperty("contactSettings", JSON.stringify(clean));
-  return { ok: true, settings: clean };
-}
-function phoneOwner(phone, exceptId) {
-  const hit = listContacts().find((p) => p.phone === phone && p.id !== exceptId);
-  return hit ? `${hit.first} ${hit.last}` : null;
-}
-function writeContact(c, row) {
-  const sh = contactsSheet();
-  putRow(sh, CONTACT_COLS, CONTACT_COLS.map((k) => (c[k] == null ? "" : c[k])), row);
-}
-function addContact(input) {
-  const { contact, errors } = Contacts.check(input || {});
-  if (errors.length) return { ok: false, error: "invalid", errors };
-  const owner = phoneOwner(contact.phone);
-  if (owner) return { ok: false, error: "phone_taken", owner };
-  const t = Date.now();
-  const c = { ...contact, id: "c" + t.toString(36) + Math.random().toString(36).slice(2, 6), created: t, updated: t };
-  writeContact(c);
-  return { ok: true, contact: c };
-}
-function updateContact(input) {
-  const sh = contactsSheet();
-  const rows = findRows(sh, CONTACT_COLS, "id", input && input.id);
-  if (!rows.length) return { ok: false, error: "not_found" };
-  const { contact, errors } = Contacts.check(input, { loose: true }); // the admin may keep an imported contact without plant/surname
-  if (errors.length) return { ok: false, error: "invalid", errors };
-  const owner = phoneOwner(contact.phone, input.id);
-  if (owner) return { ok: false, error: "phone_taken", owner };
-  const old = contactFromRow(readRow(sh, CONTACT_COLS, rows[0]));
-  const c = { ...contact, id: old.id, created: old.created, updated: Date.now() };
-  writeContact(c, rows[0]);
-  return { ok: true, contact: c };
-}
-// Admin paste from Excel: only name and phone required; phones already listed are skipped
-function importContacts(list, dept, plant) {
-  const have = {};
-  listContacts().forEach((p) => { have[p.phone] = true; });
-  const added = [], skipped = [];
-  (Array.isArray(list) ? list : []).slice(0, 500).forEach((x, i) => {
-    const { contact, errors } = Contacts.check({ ...x, dept: dept || x.dept || "", plant: plant || x.plant || "" }, { loose: true });
-    if (errors.length) { skipped.push({ row: i + 1, why: errors.join(" · ") }); return; }
-    if (have[contact.phone]) { skipped.push({ row: i + 1, why: `เบอร์ซ้ำ (${contact.first})` }); return; }
-    const t = Date.now() + i;
-    writeContact({ ...contact, id: "c" + t.toString(36) + Math.random().toString(36).slice(2, 6), created: t, updated: t });
-    have[contact.phone] = true;
-    added.push(contact.first);
-  });
-  return { ok: true, added: added.length, skipped };
-}
-function deleteContact(id) {
-  const sh = contactsSheet();
-  deleteRows(sh, findRows(sh, CONTACT_COLS, "id", id));
-  return { ok: true };
 }
 
 // ---------- PDF by email (Trial Mix, project reports) ----------

@@ -36,7 +36,6 @@ const ok = (c, m) => console.log((c ? 'PASS ' : 'FAIL ') + m);
   r = await call('photoGet', { id: 'p-pr-1' }); ok(!r.ok, 'staff cannot fetch printout');
   r = await call('photoDelete', { id: 'p-site-1' }); r = await call('photoGet', { id: 'p-site-1' }); ok(!r.ok, 'photo deleted');
   // forwarded to Apps Script
-  r = await call('contacts'); ok(r.ok && r.people.length === 1, 'contacts forwarded');
   r = await call('mailReport', { adminKey: 'adm' }); ok(r.mailed, 'mail forwarded (admin)');
   r = await call('reportAdminCheck', { adminKey: 'adm' }); ok(r.ok, 'admin check');
   // migration

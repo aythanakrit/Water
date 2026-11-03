@@ -4,15 +4,15 @@
  *
  * Pages project settings:
  *   Bindings:  D1 database → variable DB · R2 bucket → variable PHOTOS
- *   Variables: FIELD_SYNC_KEY (the app key, as before) · REPORT_ADMIN_KEY (secret) · FIELD_SYNC_URL (Apps Script /exec, still used for e-mail and contacts)
+ *   Variables: FIELD_SYNC_KEY (the app key, as before) · REPORT_ADMIN_KEY (secret) · FIELD_SYNC_URL (Apps Script /exec, still used for e-mail)
  *   Optional:  MIRROR_TO_SHEET = 1 → every save/delete is also sent to the Google Sheet (trial period)
  * GET /api answers which of these are set (never their values).
  */
 import * as S from "./_lib/store.js";
 
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
-// actions still served by the Apps Script (e-mail with PDF, contact list, contact admin)
-const FORWARD = ["mailReport", "mailTrial", "contacts", "contactAdd", "adminCheck", "contactUpdate", "contactDelete", "contactImport", "contactSettings"];
+// actions still served by the Apps Script (e-mail with PDF)
+const FORWARD = ["mailReport", "mailTrial"];
 const ADMIN_ONLY = ["migrateFetch", "importJob", "migratePhotoList", "importPhoto", "backup"];
 
 function isReportAdmin(env, k) {
@@ -52,7 +52,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const db = env.DB, bucket = env.PHOTOS;
   const admin = isReportAdmin(env, req.adminKey);
   if (ADMIN_ONLY.includes(a) && !admin) return json({ ok: false, error: "not_admin" });
-  if (/^photo|Photo/.test(a) && !bucket) return json({ ok: false, error: "no_photo_storage" });
+  if (/^photo/.test(a) && !bucket) return json({ ok: false, error: "no_photo_storage" });
   const mirror = (body) => { if (env.MIRROR_TO_SHEET === "1" && env.FIELD_SYNC_URL) waitUntil(gas(env, body).catch(() => {})); };
   try {
     await S.ensureSchema(db);
@@ -68,11 +68,19 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "photoList": return json({ ok: true, photos: await S.photoList(db, req.project, req.date, admin) });
       case "photoGet": return json(await S.photoGet(db, bucket, req.id, admin));
       case "photoDelete": return json(await S.photoDelete(db, bucket, req.id, admin));
+      // ---- Trial Mix ----
+      case "trialList": return json(await S.trialList(db));
+      case "trialSave": return json(await S.trialSave(db, req.trial));
+      case "trialDelete": return json(await S.trialDelete(db, bucket, req.id));
+      case "trialPhotoPut": return json(bucket ? await S.trialPhotoPut(bucket, req) : { ok: false, error: "no_photo_storage" });
+      case "trialPhotoGet": return json(bucket ? await S.trialPhotoGet(bucket, req) : { ok: false, error: "no_photo_storage" });
+      case "trialPhotoDelete": return json(bucket ? await S.trialPhotoDelete(bucket, req) : { ok: false, error: "no_photo_storage" });
       // ---- one-time move from the Google Sheet (report administrator) ----
       case "migrateFetch": return json(await gas(env, { action: "report", from: "2000-01-01", to: "2100-12-31", key: req.key }));
       case "importJob": return json(await S.importJob(db, req.job));
       case "migratePhotoList": return json(await gas(env, { action: "photoList", project: req.project, date: req.date, key: req.key, adminKey: req.adminKey }));
       case "importPhoto": {
+        if (!bucket) return json({ ok: false, error: "no_photo_storage" });
         const p = req.photo || {};
         const g = await gas(env, { action: "photoGet", id: p.id, key: req.key, adminKey: req.adminKey });
         if (!g.ok) return json({ ok: false, error: "source_" + (g.error || "failed") });
