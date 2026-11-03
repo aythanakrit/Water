@@ -27,6 +27,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, project TEXT, date TEXT, kind TEXT, do TEXT, rkey TEXT,
     takenAt INTEGER, created INTEGER, removed INTEGER)`,
   `CREATE INDEX IF NOT EXISTS photos_day ON photos(project, date)`,
+  `CREATE TABLE IF NOT EXISTS trials (id TEXT PRIMARY KEY, status TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
 ];
 let ready = null;
 export function ensureSchema(db) {
@@ -210,7 +211,55 @@ export async function backup(db, bucket, now = Date.now()) {
   const photos = (await db.prepare("SELECT * FROM photos").all()).results;
   const d = new Date(now + 7 * 3600e3).toISOString().slice(0, 10);
   const key = `backup/field-${d}.json`;
-  const body = JSON.stringify({ at: now, jobs: jobs.map((r) => jobFromRow(r, true)).map((j, i) => ({ ...j, status: jobs[i].status })), photos });
+  const trials = (await db.prepare("SELECT data FROM trials WHERE deleted = 0").all()).results.map((r) => parse(r.data, null));
+  const body = JSON.stringify({ at: now, jobs: jobs.map((r) => jobFromRow(r, true)).map((j, i) => ({ ...j, status: jobs[i].status })), photos, trials });
   await bucket.put(key, body, { httpMetadata: { contentType: "application/json" } });
   return { key, jobs: jobs.length, photos: photos.length, bytes: body.length };
+}
+
+// ---------- Trial Mix: one record per trial (newest edit wins); photos in R2 under trial/<trialId>/<photoId>.jpg ----------
+const TRIAL_ID = /^[\w-]{3,80}$/;
+export async function trialList(db) {
+  const { results } = await db.prepare("SELECT id, deleted, data FROM trials").all();
+  return { ok: true, trials: results.filter((r) => !r.deleted).map((r) => parse(r.data, null)).filter(Boolean),
+    deleted: results.filter((r) => r.deleted).map((r) => r.id) };
+}
+export async function trialSave(db, t) {
+  if (!t || !TRIAL_ID.test(String(t.id || "")) || !t.header || !Array.isArray(t.rows)) return { ok: false, error: "bad_request" };
+  const cur = await db.prepare("SELECT updated, deleted, data FROM trials WHERE id = ?").bind(t.id).first();
+  if (cur && cur.deleted) return { ok: false, error: "deleted" };
+  if (cur && Number(cur.updated) > Number(t.updated || 0)) return { ok: true, trial: parse(cur.data, null) }; // another device saved later
+  await db.prepare(`INSERT INTO trials (id, status, updated, deleted, data) VALUES (?,?,?,0,?)
+    ON CONFLICT(id) DO UPDATE SET status=excluded.status, updated=excluded.updated, data=excluded.data`)
+    .bind(t.id, t.status || "open", Number(t.updated) || Date.now(), JSON.stringify(t)).run();
+  return { ok: true, trial: t };
+}
+export async function trialDelete(db, bucket, id, now = Date.now()) {
+  if (!TRIAL_ID.test(String(id || ""))) return { ok: false, error: "bad_request" };
+  await db.prepare(`INSERT INTO trials (id, status, updated, deleted, data) VALUES (?, 'deleted', ?, 1, '{}')
+    ON CONFLICT(id) DO UPDATE SET deleted = 1, updated = excluded.updated, data = '{}'`).bind(id, now).run();
+  if (bucket) {
+    const list = await bucket.list({ prefix: `trial/${id}/` });
+    if (list.objects.length) await bucket.delete(list.objects.map((o) => o.key));
+  }
+  return { ok: true };
+}
+const trialKey = (trialId, id) => (TRIAL_ID.test(String(trialId || "")) && TRIAL_ID.test(String(id || "")) ? `trial/${trialId}/${id}.jpg` : null);
+export async function trialPhotoPut(bucket, req) {
+  const key = trialKey(req.trialId, req.id);
+  if (!key || typeof req.data !== "string") return { ok: false, error: "bad_request" };
+  const bytes = b64ToBytes(req.data);
+  if (bytes.length > PHOTO_MAX_BYTES) return { ok: false, error: "too_large" };
+  await bucket.put(key, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+  return { ok: true };
+}
+export async function trialPhotoGet(bucket, req) {
+  const key = trialKey(req.trialId, req.id);
+  const obj = key && (await bucket.get(key));
+  return obj ? { ok: true, data: bytesToB64(await obj.arrayBuffer()) } : { ok: false, error: "not_found" };
+}
+export async function trialPhotoDelete(bucket, req) {
+  const key = trialKey(req.trialId, req.id);
+  if (key) await bucket.delete(key);
+  return { ok: true };
 }

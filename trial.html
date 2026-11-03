@@ -129,11 +129,12 @@
   <!-- List -->
   <div id="vList">
     <h1>Trial Mix</h1>
-    <p class="sub">บันทึก slump และอุณหภูมิทุก 30 นาที ถึง 180 นาที · บันทึกอัตโนมัติในเครื่องนี้ · Export PDF ตามฟอร์ม M Concrete Trial Mix</p>
+    <p class="sub">บันทึก slump และอุณหภูมิทุก 30 นาที ถึง 180 นาที · บันทึกอัตโนมัติ · Export PDF ตามฟอร์ม M Concrete Trial Mix</p>
     <div class="row" style="margin-bottom:14px">
       <button class="b" id="newTrial" type="button">+ สร้าง Trial ใหม่</button>
       <span class="saved" id="listMsg"></span>
     </div>
+    <p class="note" id="syncNote" style="margin:-6px 0 12px"></p>
     <div class="jobs" id="trials"></div>
   </div>
 
@@ -232,7 +233,82 @@
     $("savedMsg").textContent = ok ? `บันทึกแล้ว ${nowHHMM()}` : "⚠️ บันทึกในเครื่องไม่ได้ — Export PDF เก็บไว้ก่อน";
   }
   let trial = null;
-  const touch = () => { trial.updated = Date.now(); persist(); };
+  const touch = () => { trial.updated = Date.now(); markDirty(trial.id); persist(); };
+
+  // ---------- central storage (Cloudflare D1 + R2 through /api), when the site uses it ----------
+  // Every trial and its photos go up; other devices take a newer copy. Without /api: this device only.
+  const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
+  db.dirty = db.dirty || []; db.gone = db.gone || []; db.photoGone = db.photoGone || [];
+  let syncTimer = null, syncing = false, syncText = "";
+  function markDirty(id) { if (CLOUD && !db.dirty.includes(id)) db.dirty.push(id); schedule(); }
+  const schedule = () => { if (!CLOUD) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 1500); };
+  async function api(action, body = {}) {
+    const res = await fetch(CLOUD.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...body, action, key: CLOUD.key }) });
+    const out = await res.json();
+    if (out.error === "unauthorized") throw new Error("รหัสเชื่อมต่อไม่ถูกต้อง — แจ้งผู้ดูแล");
+    return out;
+  }
+  const blobB64 = (blob) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(blob); });
+  function showSync() {
+    const n = db.dirty.length + db.gone.length;
+    $("syncNote").textContent = !CLOUD ? "💾 เก็บในเครื่องนี้เท่านั้น"
+      : syncing ? "⏳ กำลังส่งข้อมูลขึ้นระบบกลาง…" : syncText ? syncText
+      : n ? `⏳ รอส่ง ${n} รายการ` : "☁️ ซิงค์กับระบบกลางแล้ว — เปิดได้ทุกเครื่อง";
+  }
+  async function syncNow() {
+    if (!CLOUD || syncing) return;
+    syncing = true; syncText = ""; showSync();
+    try {
+      for (const id of [...db.gone]) { const r = await api("trialDelete", { id }); if (r.ok) db.gone = db.gone.filter((x) => x !== id); }
+      for (const p of [...db.photoGone]) { await api("trialPhotoDelete", p); db.photoGone = db.photoGone.filter((x) => x !== p); }
+      for (const id of [...db.dirty]) {
+        const t = db.trials.find((x) => x.id === id);
+        if (!t) { db.dirty = db.dirty.filter((x) => x !== id); continue; }
+        // photos first, so another device never lists a photo it cannot fetch
+        for (const p of t.photos || []) {
+          if (p.up) continue;
+          const blob = await getPhoto(p.id).catch(() => null);
+          if (!blob) continue;
+          const r = await api("trialPhotoPut", { trialId: t.id, id: p.id, data: await blobB64(blob) });
+          if (!r.ok) throw new Error(r.error === "too_large" ? "รูปใหญ่เกินไป" : "ส่งรูปไม่สำเร็จ");
+          p.up = true;
+        }
+        const sentAt = t.updated;
+        const r = await api("trialSave", { trial: t });
+        if (r.error === "deleted") { db.trials = db.trials.filter((x) => x.id !== id); db.dirty = db.dirty.filter((x) => x !== id); continue; }
+        if (!r.ok) throw new Error(r.detail || r.error || "บันทึกไม่สำเร็จ");
+        if (r.trial && r.trial.updated > sentAt && !(trial && trial.id === id)) Object.assign(t, r.trial); // a newer copy from another device
+        if (t.updated === sentAt) db.dirty = db.dirty.filter((x) => x !== id);
+      }
+    } catch (e) {
+      syncText = /fetch|network|load failed/i.test(e.message) ? "📴 ออฟไลน์ — จะส่งให้เองเมื่อมีสัญญาณ" : "⚠️ ส่งขึ้นระบบกลางไม่สำเร็จ: " + e.message;
+    } finally { syncing = false; persist(); showSync(); }
+  }
+  // Take what other devices saved; trials only on this device (made before the central storage) go up
+  async function pull() {
+    if (!CLOUD || syncing) return;
+    try {
+      const r = await api("trialList");
+      if (!r.ok) return;
+      const gone = new Set(r.deleted || []);
+      const server = new Map(r.trials.map((t) => [t.id, t]));
+      db.trials = db.trials.filter((t) => !gone.has(t.id));
+      server.forEach((st, id) => {
+        const i = db.trials.findIndex((t) => t.id === id);
+        if (i < 0) db.trials.push(st);
+        else if (st.updated > db.trials[i].updated && !db.dirty.includes(id) && !(trial && trial.id === id)) db.trials[i] = st;
+      });
+      db.trials.forEach((t) => { if (!server.has(t.id) && !db.dirty.includes(t.id)) db.dirty.push(t.id); });
+      persist();
+      if (!trial) showList();
+      if (db.dirty.length) syncNow(); else showSync();
+    } catch { syncText = "📴 ออฟไลน์ — แสดงข้อมูลในเครื่อง"; showSync(); }
+  }
+  if (CLOUD) {
+    setInterval(() => { if (!document.hidden) (db.dirty.length || db.gone.length ? syncNow() : pull()); }, 15000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+    window.addEventListener("online", syncNow);
+  }
 
   // ---------- downloads (artifact viewer or plain browser) ----------
   let downloads = null;
@@ -267,7 +343,16 @@
   const delPhoto = (id) => idb("readwrite", (s) => s.delete(id));
   const urls = new Map(); // photo id → object URL
   async function photoURL(id) {
-    if (!urls.has(id)) { const b = await getPhoto(id); if (!b) return ""; urls.set(id, URL.createObjectURL(b)); }
+    if (!urls.has(id)) {
+      let b = await getPhoto(id).catch(() => null);
+      // taken on another device: fetch it once and keep it here
+      if (!b && CLOUD && trial) {
+        const r = await api("trialPhotoGet", { trialId: trial.id, id }).catch(() => null);
+        if (r && r.ok) { b = await (await fetch("data:image/jpeg;base64," + r.data)).blob(); await putPhoto(id, b).catch(() => {}); }
+      }
+      if (!b) return "";
+      urls.set(id, URL.createObjectURL(b));
+    }
     return urls.get(id);
   }
   // Shrink to at most 1600 px on the long side, JPEG — a phone photo goes from ~4 MB to ~300 KB
@@ -318,7 +403,7 @@
     else if (t.dataset.delslot) {
       const key = t.dataset.delslot, n = trial.photos.filter((p) => p.slot === key).length;
       if (n && !t.dataset.armed) { t.dataset.armed = "1"; t.textContent = `ลบพร้อม ${n} รูป?`; setTimeout(() => { delete t.dataset.armed; t.textContent = "ลบช่อง"; }, 3000); return; }
-      trial.photos.filter((p) => p.slot === key).forEach((p) => delPhoto(p.id).catch(() => {}));
+      trial.photos.filter((p) => p.slot === key).forEach((p) => { delPhoto(p.id).catch(() => {}); if (CLOUD && p.up) db.photoGone.push({ trialId: trial.id, id: p.id }); });
       trial.photos = trial.photos.filter((p) => p.slot !== key);
       trial.extraSlots = trial.extraSlots.filter((x) => x.key !== key);
       touch(); renderSlots();
@@ -328,6 +413,7 @@
     else if (t.dataset.delp) {
       if (!t.dataset.armed) { t.dataset.armed = "1"; t.textContent = "?"; setTimeout(() => { delete t.dataset.armed; t.textContent = "×"; }, 3000); return; }
       const id = t.dataset.delp;
+      if (CLOUD && trial.photos.some((p) => p.id === id && p.up)) db.photoGone.push({ trialId: trial.id, id });
       trial.photos = trial.photos.filter((p) => p.id !== id);
       touch(); delPhoto(id).catch(() => {});
       if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
@@ -368,6 +454,7 @@
           <div class="meta">${esc([thaiDate(t.header.date), t.header.code, t.header.customer].filter(Boolean).join(" · "))} · บันทึกแล้ว ${TrialMix.filledRows(t)}/${t.rows.length} ช่วงเวลา${(t.photos || []).length ? ` · รูป ${t.photos.length}` : ""}${t.mailedAt ? " · ส่งเมลแล้ว ✓" : ""}</div></div>
         <button class="g" data-open="${esc(t.id)}" type="button">${t.status === "open" ? "บันทึกต่อ" : "เปิด"}</button>
       </section>`).join("") : `<p class="note">ยังไม่มี Trial — กด "สร้าง Trial ใหม่"</p>`;
+    showSync();
   }
   $("trials").addEventListener("click", (e) => {
     const id = e.target.closest("[data-open]")?.dataset.open;
@@ -375,7 +462,7 @@
   });
   $("newTrial").addEventListener("click", () => {
     const t = TrialMix.newTrial("t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), today());
-    db.trials.push(t); persist(); openTrial(t);
+    db.trials.push(t); markDirty(t.id); persist(); openTrial(t);
   });
   $("toList").addEventListener("click", showList);
 
@@ -463,6 +550,7 @@
   $("del").addEventListener("click", () => {
     if (!delArmed) { delArmed = true; $("del").textContent = "กดอีกครั้งเพื่อยืนยันลบ"; setTimeout(() => { delArmed = false; $("del").textContent = "ลบ"; }, 4000); return; }
     (trial.photos || []).forEach((p) => delPhoto(p.id).catch(() => {}));
+    if (CLOUD) { db.gone.push(trial.id); db.dirty = db.dirty.filter((x) => x !== trial.id); schedule(); }
     db.trials = db.trials.filter((t) => t.id !== trial.id); delArmed = false; $("del").textContent = "ลบ";
     persist(); showList();
   });
@@ -569,6 +657,7 @@
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && trial) persist(); });
   showList();
+  if (CLOUD) pull();
 </script>
 <script src="topbar.js"></script>
 </body>
