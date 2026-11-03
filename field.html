@@ -53,6 +53,10 @@
   .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
   .kpi b { display: block; font-size: 1.15rem; color: var(--accent); font-variant-numeric: tabular-nums; }
   .kpi span { font-size: .75rem; color: var(--muted); }
+  .kpi.ed { cursor: text; border-color: var(--accent); }
+  .kpi.ed input { display: block; width: 100%; font: inherit; font-size: 1.15rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums;
+    background: transparent; border: 0; border-bottom: 1px dashed var(--accent); border-radius: 0; padding: 0; margin: 0 0 2px; }
+  .kpi.ed input:focus { outline: none; border-bottom-style: solid; }
   .scan { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
   @media (max-width: 700px) { .scan { grid-template-columns: 1fr 1fr 1fr; } .scan .do, .scan button.b { grid-column: 1 / -1; } }
   .doin { display: flex; gap: 6px; }
@@ -115,6 +119,7 @@
   .rc .d { font-variant-numeric: tabular-nums; letter-spacing: .03em; } .rc small { font-weight: 400; opacity: .95; }
   [data-codebox] button.g { background: #fff; color: #b42318; border-color: #fff; }
   .rcsum { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; font-size: .95rem; }
+  .rcsum[hidden] { display: none; }
   .rcsum b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
   .rcsum .in b { color: #1d7a3e; } .rcsum .out b { color: #b42318; } .rcsum .rep b { color: #8a5a00; }
   .rcsum button { margin-left: auto; }
@@ -218,14 +223,19 @@
           <label>Cylinder (ksc)<input data-h="cylinder" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
           <label>ชื่อช่าง<input data-h="tech"></label>
           <label>เบอร์ติดต่อ<input data-h="phone" type="tel"></label>
-          <label>ยอดสั่ง (คิว)<input data-h="ordered" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
-          <label>ยอดผลิต (คิว)<input data-h="produced" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off"></label>
         </div>
       </details>
     </section>
 
     <section>
-      <div class="sum" id="sum"></div>
+      <div class="sum" id="sum">
+        <label class="kpi ed"><input data-h="ordered" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off" placeholder="กรอก"><span>ยอดสั่ง (คิว) ✎</span></label>
+        <div class="kpi"><b id="kRecv"></b><span>ยอดรับ (คิว)</span></div>
+        <label class="kpi ed"><input data-h="produced" type="text" class="npad" data-pad="dec" inputmode="decimal" autocomplete="off" placeholder="กรอก"><span>ยอดผลิต (คิว) ✎</span></label>
+        <div class="kpi"><b id="kTransit"></b><span>ระหว่างทาง (คิว)</span></div>
+        <div class="kpi"><b id="kLeft"></b><span>อีก…คิวครบ</span></div>
+        <div class="kpi"><b id="kPct"></b><span>ผลิตแล้ว</span></div>
+      </div>
       <div id="timeSum"></div>
     </section>
 
@@ -620,10 +630,10 @@
     $("jobTitle").textContent = h.project || "งานใหม่";
     $("jobSub").textContent = [h.customer, [h.structure, h.structureNo].filter(Boolean).join(" "), thaiDate(h.date),
       h.cube ? `Cube ${h.cube} ksc` : "", h.cylinder ? `Cylinder ${h.cylinder} ksc` : ""].filter(Boolean).join(" · ") + (done ? " · จบงานแล้ว" : "");
-    $("sum").innerHTML = [
-      [fmt(s.ordered), "ยอดสั่ง (คิว)"], [fmt(s.received), "ยอดรับ (คิว)"], [fmt(s.produced), "ยอดผลิต (คิว)"],
-      [fmt(s.inTransit), "ระหว่างทาง (คิว)"], [fmt(s.remaining), "อีก…คิวครบ"], [s.pct == null ? "–" : fmt(s.pct * 100, 0) + "%", "ผลิตแล้ว"],
-    ].map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join("");
+    // ยอดสั่ง / ยอดผลิต are typed straight into their boxes; the others follow
+    $("kRecv").textContent = fmt(s.received); $("kTransit").textContent = fmt(s.inTransit);
+    $("kLeft").textContent = fmt(s.remaining); $("kPct").textContent = s.pct == null ? "–" : fmt(s.pct * 100, 0) + "%";
+    document.querySelectorAll("#sum [data-h]").forEach((el) => { if (document.activeElement !== el) el.value = h[el.dataset.h] ?? ""; });
     renderTimeSum();
     $("addBox").hidden = done;
     $("finish").textContent = done ? "เปิดงานแก้ไขต่อ" : "จบงาน";
