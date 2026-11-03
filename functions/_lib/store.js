@@ -138,6 +138,11 @@ export async function deleteJob(db, id, now = Date.now()) {
 /** Copy a job from the old Google Sheet as it is (one-time move). D/O numbers already used elsewhere are reported, not taken. */
 export async function importJob(db, job) {
   if (!job || !job.id || !job.header || !Array.isArray(job.trucks)) return { ok: false, error: "bad_request" };
+  // the Sheet's "report" answer has no job times: take them from the trucks, or the job would count as
+  // changed long ago and drop out of the job list (finished jobs show for 7 days after their last change)
+  const tu = job.trucks.map((t) => Number(t.updated) || 0).filter(Boolean), tc = job.trucks.map((t) => Number(t.created) || 0).filter(Boolean);
+  if (!job.updated) job.updated = tu.length ? Math.max(...tu) : Date.now();
+  if (!job.created) job.created = tc.length ? Math.min(...tc) : job.updated;
   FieldSync.upgradeJob(job);
   const cur = await readJob(db, job.id);
   const merged = FieldSync.mergeJobs(cur ? cur.job : null, { ...job, status: job.status || "open" });
