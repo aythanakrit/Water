@@ -237,6 +237,11 @@
         <div class="kpi"><b id="kPct"></b><span>ผลิตแล้ว</span></div>
       </div>
       <div id="timeSum"></div>
+      <div class="row" style="margin-top:10px;gap:8px">
+        <button class="g" id="dashOpen" type="button">📊 Dashboard งานนี้</button>
+        <button class="g" id="dashShare" type="button">📲 ส่งลิงก์ให้อีกเครื่อง</button>
+        <span class="note" id="dashMsg"></span>
+      </div>
     </section>
 
     <section id="addBox">
@@ -650,6 +655,20 @@
     const keep = document.activeElement; renderJob(); keep && keep.focus();
   }));
   $("toList").addEventListener("click", showList);
+  // Dashboard of this project and day — opens here or on another device, refreshes every 30 s
+  const dashURL = () => new URL(`dashboard.html?project=${encodeURIComponent(job.header.project || "")}&date=${encodeURIComponent(job.header.date || "")}`, location.href).href;
+  $("dashOpen").addEventListener("click", () => {
+    if (!job.header.project) { $("dashMsg").textContent = "ใส่ชื่อโครงการในข้อมูลงานก่อน"; return; }
+    window.open(dashURL(), "_blank");
+  });
+  $("dashShare").addEventListener("click", async () => {
+    if (!job.header.project) { $("dashMsg").textContent = "ใส่ชื่อโครงการในข้อมูลงานก่อน"; return; }
+    const url = dashURL();
+    try {
+      if (navigator.share) { await navigator.share({ title: `Dashboard ${job.header.project}`, url }); return; }
+      await navigator.clipboard.writeText(url); $("dashMsg").textContent = "คัดลอกลิงก์แล้ว — ส่งทาง LINE/อีเมลได้เลย";
+    } catch (e) { if (e && e.name !== "AbortError") $("dashMsg").textContent = url; }
+  });
 
   const COLS = [["no", "ลำดับ"], ["truck", "รถ"], ["do", "D/O"], ["volume", "m³"], ["plant", "หน่วยผลิต"], ["batching", "ผสม"],
     ["arrival", "ถึง"], ["start", "เริ่มเท"], ["end", "เทเสร็จ"], ["conTemp", "°C คอนกรีต"], ["slump", "Slump"], ["sampleQty", "ก้อน"], ["remark", "หมายเหตุ"]];

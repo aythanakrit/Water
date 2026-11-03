@@ -105,6 +105,7 @@
       <button type="button" id="pdf">ดาวน์โหลด PDF</button>
     </div>
     <div class="status" id="status"></div>
+    <label id="live" hidden style="flex-direction:row;align-items:center;gap:6px;margin-top:6px;font-size:.85rem"><input type="checkbox" id="liveOn"> อัปเดตอัตโนมัติทุก 30 วินาที</label>
   </section>
 
   <section id="projBox">
@@ -147,7 +148,8 @@
 
   async function load() {
     const from = $("from").value, to = $("to").value;
-    $("status").textContent = "กำลังโหลด…";
+    const quiet = !!jobs.length && $("liveOn") && $("liveOn").checked; // live refresh: keep the page as it is while loading
+    if (!quiet) $("status").textContent = "กำลังโหลด…";
     try {
       if (SYNC) {
         const res = await fetch(SYNC.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -167,10 +169,11 @@
       $("status").textContent = "โหลดข้อมูลไม่ได้: " + (e.message || "ตรวจอินเทอร์เน็ต");
     }
     const projects = Dashboard.groupBy(Dashboard.trips(jobs, { from, to }), "project").map((g) => g.key);
-    const curP = $("project").value;
+    const curP = $("project").value || wantProject;
     $("project").innerHTML = projects.length ? projects.map((p) => `<option${p === curP ? " selected" : ""}>${esc(p)}</option>`).join("") : `<option value="">ไม่มีโครงการในช่วงนี้</option>`;
 
     render();
+    if ($("liveOn") && $("liveOn").checked) $("status").textContent += ` · อัปเดตล่าสุด ${new Date().toTimeString().slice(0, 5)}`;
   }
 
   function render() {
@@ -289,7 +292,20 @@
     } finally { if (root) root.remove(); btn.disabled = false; }
   });
 
-  setRange(7);
+  // Opened from a field report (dashboard.html?project=…&date=…): that project and day, refreshed every 30 s
+  const qs = new URLSearchParams(location.search);
+  let wantProject = qs.get("project") || "";
+  const qDate = /^\d{4}-\d{2}-\d{2}$/.test(qs.get("date") || "") ? qs.get("date") : "";
+  if (qDate) {
+    $("from").value = qDate; $("to").value = qDate;
+    document.querySelectorAll("[data-range]").forEach((b) => b.setAttribute("aria-pressed", "false"));
+  } else setRange(7);
+  if (wantProject || qDate) {
+    $("live").hidden = false; $("liveOn").checked = true;
+    setInterval(() => { if ($("liveOn").checked && !document.hidden) load(); }, 30000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && $("liveOn").checked) load(); });
+  }
+  $("project").addEventListener("change", () => { wantProject = ""; });
   load();
 </script>
 <script src="topbar.js"></script>
