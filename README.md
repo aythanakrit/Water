@@ -9,6 +9,7 @@
 - `core.html` + `coretest.js` ตรวจสอบผลกดลูกปูน Coring: L:D (ปรับตาม ASTM C42), ความหนาแน่น, กำลังอัด, % เทียบ Mix, Target 100%/85%, ตัดสินรายกลุ่มตาม ACI 318 (ตรวจเลขข้อตามฉบับที่ใช้) (เฉลี่ย ≥ 85%, ต่ำสุด ≥ 75%)
 - `field.html` + `fieldreport.js` ใบรายงานสนามและเก็บก้อนตัวอย่าง (FM-PQ-10): สร้างงาน, สแกน/พิมพ์ D/O → หน่วยผลิตจากรหัส 3 หลักแรก, บันทึกอัตโนมัติในเครื่อง, ส่งออก/นำเข้าไฟล์สำรอง, Export PDF A4 แนวนอน 15 คัน/หน้า
 - `fieldsync.js` + `apps-script/Code.gs` + `config.js` เก็บข้อมูลใบรายงานสนามกลางใน Google Sheets (ดูขั้นตอนที่ `docs/SETUP-GOOGLE-SHEETS.md`) ถ้า `config.js` ไม่มี url จะเก็บเฉพาะในเครื่อง
+- `functions/api.js` + `functions/_lib/store.js` ที่เก็บข้อมูลแบบใหม่บน Cloudflare D1 + R2 (สลับด้วยตัวแปร `FIELD_SYNC_BACKEND=cloudflare`) ดูขั้นตอนที่ `docs/SETUP-CLOUDFLARE.md` · ย้ายข้อมูลเก่าที่ `migrate.html`
 - `dashboard.html` + `dashboard.js` Dashboard รายโครงการจากใบรายงานสนาม: คิวและคิว/ชม. ต่อแพลนท์, รถโม่และเที่ยว, เที่ยวที่มีปัญหา (Apps Script action `report`)
 - `volume.html` + `volume.js` ปริมาตรคอนกรีตจากขนาดชิ้นงาน: % เผื่อเริ่มต้นตามชนิดงาน (ค่าปฏิบัติ ไม่ใช่ค่าตามมาตรฐาน แก้ได้) พร้อมเหตุผลที่ต้องเผื่อ, ยอดสั่งปัดขึ้น, จำนวนเที่ยวรถโม่
 - `trial.html` + `trialmix.js` Trial Mix: slump และอุณหภูมิทุก 30 นาที (0–180 นาที), unit weight, air content, bleeding · เก็บในเครื่อง · PDF ตามฟอร์ม M Concrete Trial Mix

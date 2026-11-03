@@ -155,7 +155,7 @@
         const out = await res.json();
         if (!out.ok) throw new Error(out.error === "unknown_action" ? "Apps Script ยังเป็นเวอร์ชันเก่า — ต้องอัปเดตโค้ดและ Deploy เวอร์ชันใหม่" : out.error);
         jobs = out.jobs;
-        $("status").textContent = `ข้อมูลจาก Google Sheets · ${thDate(from)} – ${thDate(to)} · งานที่จบเกิน 90 วันอยู่ในไฟล์เก็บถาวร ไม่แสดงที่นี่`;
+        $("status").textContent = SYNC.url === "/api" ? `ข้อมูลจากระบบกลาง · ${thDate(from)} – ${thDate(to)}` : `ข้อมูลจาก Google Sheets · ${thDate(from)} – ${thDate(to)} · งานที่จบเกิน 90 วันอยู่ในไฟล์เก็บถาวร ไม่แสดงที่นี่`;
       } else {
         let db = { jobs: [] };
         try { db = JSON.parse(localStorage.getItem("field-reports-v1")) || db; } catch {}

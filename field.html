@@ -359,6 +359,7 @@
 
   // ---------- central storage (Google Sheets), optional ----------
   const SYNC = window.FIELD_SYNC && window.FIELD_SYNC.url ? window.FIELD_SYNC : null;
+  const HUB = SYNC && SYNC.url === "/api" ? "ระบบกลาง" : "Google Sheets"; // /api = Cloudflare D1
   let syncState = SYNC ? "idle" : "local", lastSync = null, syncTimer = null, syncErr = "";
   // report administrator (printouts, report e-mail): the key is checked by the Apps Script, kept for this browser tab only
   var phKey = "";
@@ -385,14 +386,14 @@
   function showSync() {
     const n = db.dirty.length + db.deleted.length;
     const [cls, txt] = !SYNC ? ["", "💾 เก็บข้อมูลในเครื่องนี้เท่านั้น"]
-      : syncState === "busy" ? ["", "⏳ กำลังส่งข้อมูลขึ้น Google Sheets…"]
+      : syncState === "busy" ? ["", `⏳ กำลังส่งข้อมูลขึ้น${HUB}…`]
       : syncState === "offline" && syncErr && navigator.onLine && !/fetch|network|load failed/i.test(syncErr)
-        ? ["bad", `⚠️ ส่งขึ้น Google Sheets ไม่สำเร็จ (มี ${n} รายการรอส่ง) — สาเหตุ: ${syncErr}`]
+        ? ["bad", `⚠️ ส่งขึ้น${HUB}ไม่สำเร็จ (มี ${n} รายการรอส่ง) — สาเหตุ: ${syncErr}`]
       : syncState === "offline" ? ["off", `📴 ออฟไลน์ — มี ${n} รายการรอส่ง จะส่งให้เองเมื่อมีสัญญาณ`]
-      : syncState === "auth" ? ["bad", "⛔ เชื่อม Google Sheets ไม่ได้ (รหัส key ไม่ตรง) — แจ้งผู้ดูแล"]
-      : n ? ["off", `⏳ รอส่ง ${n} รายการ`] : ["", `☁️ ซิงค์กับ Google Sheets แล้ว${lastSync ? " " + lastSync : ""}`];
+      : syncState === "auth" ? ["bad", `⛔ เชื่อม${HUB}ไม่ได้ (รหัส key ไม่ตรง) — แจ้งผู้ดูแล`]
+      : n ? ["off", `⏳ รอส่ง ${n} รายการ`] : ["", `☁️ ซิงค์กับ${HUB}แล้ว${lastSync ? " " + lastSync : ""}`];
     ["syncList", "syncJob"].forEach((id) => { const el = $(id); if (el) { el.className = "sync " + cls; el.textContent = txt; } });
-    if ($("syncErr")) $("syncErr").innerHTML = job && job.syncError ? `<div class="err">⛔ ส่งขึ้น Google Sheets ไม่ได้: ${esc(job.syncError)}</div>` : "";
+    if ($("syncErr")) $("syncErr").innerHTML = job && job.syncError ? `<div class="err">⛔ ส่งขึ้น${HUB}ไม่ได้: ${esc(job.syncError)}</div>` : "";
   }
   // Replace a local job with the merged copy, keeping edits made while the request was in flight
   function applyServer(serverJob) {

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>ย้ายข้อมูลไป Cloudflare</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7; --accent: #1f5fbf; --ok: #1d7a3e; --bad: #b42318; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --ok: #5cc98a; --bad: #ff8a80; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --ok: #5cc98a; --bad: #ff8a80; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  h1 { font-size: 1.3rem; margin: 0 0 6px; } .sub, .note { color: var(--muted); font-size: .88rem; }
+  input, button { font: inherit; border-radius: 8px; padding: 8px 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  button { background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; } button:disabled { opacity: .5; }
+  #log { white-space: pre-wrap; font: 13px/1.5 ui-monospace, monospace; max-height: 50vh; overflow: auto; background: var(--bg); padding: 10px; border-radius: 8px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <a href="index.html" style="color:var(--accent);text-decoration:none">← หน้าหลัก</a>
+  <h1>ย้ายข้อมูลใบรายงานสนามไป Cloudflare</h1>
+  <p class="sub">สำหรับผู้ดูแลรายงาน · คัดลอกใบรายงานและรูปจาก Google Sheet / Drive มาเก็บใน D1 / R2 ครั้งเดียว · ข้อมูลเดิมใน Sheet ไม่ถูกลบ · กดซ้ำได้ (ข้อมูลที่ย้ายแล้วจะถูกรวม ไม่ซ้ำ)</p>
+  <section>
+    <div id="state" class="note">กำลังตรวจการตั้งค่า…</div>
+    <p style="margin:10px 0 6px"><input id="adm" type="password" placeholder="รหัสผู้ดูแลรายงาน (REPORT_ADMIN_KEY)" autocomplete="off" style="width:100%"></p>
+    <button id="go" type="button" disabled>เริ่มย้ายข้อมูล</button>
+    <button id="bk" type="button" disabled style="background:transparent;color:var(--accent)">สำรองข้อมูลตอนนี้</button>
+  </section>
+  <section><div id="log">—</div></section>
+</main>
+<script src="config.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const S = window.FIELD_SYNC || {};
+  const log = (t, c) => { const el = $("log"); if (el.textContent === "—") el.textContent = ""; const s = document.createElement("span"); if (c) s.className = c; s.textContent = t + "\n"; el.append(s); el.scrollTop = 1e9; };
+  const call = async (action, body = {}) => (await fetch("/api", { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ ...body, action, key: S.key, adminKey: $("adm").value.trim() }) })).json();
+
+  (async () => {
+    try {
+      const r = await (await fetch("/api")).json();
+      const miss = Object.entries(r.set).filter(([k, v]) => !v && k !== "MIRROR_TO_SHEET").map(([k]) => k);
+      $("state").innerHTML = miss.length ? `<span class="bad">ยังตั้งค่าไม่ครบใน Cloudflare: ${miss.join(", ")}</span>`
+        : `<span class="ok">✓ Cloudflare ตั้งค่าครบ (D1, R2, รหัส, Apps Script)</span>${r.set.MIRROR_TO_SHEET ? " · ส่งสำเนาไป Google Sheet อยู่" : ""}`;
+      $("go").disabled = $("bk").disabled = !!miss.length || !S.key;
+      if (!S.key) $("state").insertAdjacentHTML("beforeend", ' · <span class="bad">ไม่มี key ใน config.js</span>');
+    } catch { $("state").innerHTML = '<span class="bad">ไม่พบ /api — ยังไม่ได้ deploy ส่วน Cloudflare</span>'; }
+  })();
+
+  $("go").addEventListener("click", async () => {
+    $("go").disabled = true; $("log").textContent = "—";
+    try {
+      const chk = await call("reportAdminCheck");
+      if (!chk.ok) { log("รหัสผู้ดูแลไม่ถูกต้อง", "bad"); return; }
+      log("ดึงใบรายงานทั้งหมดจาก Google Sheet…");
+      const all = await call("migrateFetch");
+      if (!all.ok) { log("ดึงไม่ได้: " + (all.error || "?"), "bad"); return; }
+      log(`พบ ${all.jobs.length} ใบรายงาน`);
+      let n = 0, trucks = 0; const clash = [];
+      for (const j of all.jobs) {
+        const r = await call("importJob", { job: j });
+        if (!r.ok) { log(`✗ ${j.header.project || "(ไม่มีชื่อ)"} ${j.header.date}: ${r.error}`, "bad"); continue; }
+        n++; trucks += r.trucks; (r.clash || []).forEach((d) => clash.push(`${d} (${j.header.project} ${j.header.date})`));
+        if (n % 10 === 0) log(`… ${n}/${all.jobs.length}`);
+      }
+      log(`✓ ย้ายใบรายงาน ${n} ใบ รถ ${trucks} เที่ยว`, "ok");
+      if (clash.length) log(`⚠️ D/O ที่ซ้ำกับใบอื่น (ไม่ได้นับเป็นของใบนี้ ตรวจดูภายหลัง):\n  ${clash.join("\n  ")}`, "bad");
+      // photos: one list per project + date
+      const days = [...new Set(all.jobs.map((j) => `${j.header.project}|${j.header.date}`))];
+      let ph = 0, phBad = 0;
+      log(`ตรวจรูปใน ${days.length} วันทำงาน…`);
+      for (const k of days) {
+        const [project, date] = k.split("|");
+        const l = await call("migratePhotoList", { project, date });
+        if (!l.ok) continue;
+        for (const p of l.photos) { const r = await call("importPhoto", { photo: p }); if (r.ok) ph++; else { phBad++; log(`✗ รูป ${p.id}: ${r.error}`, "bad"); } }
+      }
+      log(`✓ ย้ายรูป ${ph} รูป${phBad ? ` · ไม่สำเร็จ ${phBad} รูป (กดเริ่มย้ายอีกครั้งเพื่อลองใหม่)` : ""}`, phBad ? "bad" : "ok");
+      const b = await call("backup");
+      log(b.ok ? `✓ สำรองข้อมูลไว้ที่ R2: ${b.key}` : "สำรองข้อมูลไม่สำเร็จ", b.ok ? "ok" : "bad");
+      log("เสร็จแล้ว — ใบรายงานที่เก็บถาวร (จบงานเกิน 90 วัน) อยู่ในไฟล์เก็บถาวรใน Drive ไม่ได้ย้ายมา");
+    } catch (e) { log("ผิดพลาด: " + e.message, "bad"); }
+    finally { $("go").disabled = false; }
+  });
+  $("bk").addEventListener("click", async () => {
+    const b = await call("backup");
+    log(b.ok ? `✓ สำรองแล้ว: ${b.key} (${b.jobs} ใบรายงาน, ${b.photos} รูป)` : "สำรองไม่ได้: " + (b.error || "?"), b.ok ? "ok" : "bad");
+  });
+</script>
+</body>
+</html>
