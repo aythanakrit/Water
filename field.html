@@ -656,7 +656,7 @@
   }));
   $("toList").addEventListener("click", showList);
   // Dashboard of this project and day — opens here or on another device, refreshes every 30 s
-  const dashURL = () => new URL(`dashboard.html?project=${encodeURIComponent(job.header.project || "")}&date=${encodeURIComponent(job.header.date || "")}`, location.href).href;
+  const dashURL = () => new URL(`dashboard.html?job=${encodeURIComponent(job.id)}&project=${encodeURIComponent(job.header.project || "")}&date=${encodeURIComponent(job.header.date || "")}`, location.href).href;
   $("dashOpen").addEventListener("click", () => {
     if (!job.header.project) { $("dashMsg").textContent = "ใส่ชื่อโครงการในข้อมูลงานก่อน"; return; }
     window.open(dashURL(), "_blank");

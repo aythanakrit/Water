@@ -105,6 +105,7 @@
       <button type="button" id="pdf">ดาวน์โหลด PDF</button>
     </div>
     <div class="status" id="status"></div>
+    <p id="onlyNote" hidden style="margin:6px 0 0;font-size:.9rem"><b id="onlyText"></b> · <button type="button" id="onlyAll" style="padding:2px 8px">ดูทั้งโครงการ</button></p>
     <label id="live" hidden style="flex-direction:row;align-items:center;gap:6px;margin-top:6px;font-size:.85rem"><input type="checkbox" id="liveOn"> อัปเดตอัตโนมัติทุก 30 วินาที</label>
   </section>
 
@@ -167,6 +168,15 @@
     } catch (e) {
       jobs = [];
       $("status").textContent = "โหลดข้อมูลไม่ได้: " + (e.message || "ตรวจอินเทอร์เน็ต");
+    }
+    // opened from one field report: that report only
+    if (onlyJob) {
+      const one = jobs.find((j) => j.id === onlyJob);
+      jobs = one ? [one] : [];
+      const h = one ? one.header : {};
+      $("onlyNote").hidden = false;
+      $("onlyText").textContent = one ? `เฉพาะใบรายงานนี้: ${[h.project, [h.structure, h.structureNo].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}`
+        : "ยังไม่พบใบรายงานนี้ในระบบกลาง — รอเครื่องหน้างานส่งข้อมูลขึ้นก่อน";
     }
     const projects = Dashboard.groupBy(Dashboard.trips(jobs, { from, to }), "project").map((g) => g.key);
     const curP = $("project").value || wantProject;
@@ -295,12 +305,14 @@
   // Opened from a field report (dashboard.html?project=…&date=…): that project and day, refreshed every 30 s
   const qs = new URLSearchParams(location.search);
   let wantProject = qs.get("project") || "";
+  let onlyJob = qs.get("job") || "";
+  $("onlyAll").addEventListener("click", () => { onlyJob = ""; $("onlyNote").hidden = true; load(); });
   const qDate = /^\d{4}-\d{2}-\d{2}$/.test(qs.get("date") || "") ? qs.get("date") : "";
   if (qDate) {
     $("from").value = qDate; $("to").value = qDate;
     document.querySelectorAll("[data-range]").forEach((b) => b.setAttribute("aria-pressed", "false"));
   } else setRange(7);
-  if (wantProject || qDate) {
+  if (wantProject || qDate || onlyJob) {
     $("live").hidden = false; $("liveOn").checked = true;
     setInterval(() => { if ($("liveOn").checked && !document.hidden) load(); }, 30000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && $("liveOn").checked) load(); });
