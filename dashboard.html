@@ -82,6 +82,7 @@
   #pdfRoot .unit { padding: 2px 0 6px; background: #fff; }
   #pdfRoot .ptitle { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--text); padding: 8px 0 6px; margin-bottom: 8px; }
   #pdfRoot .ptitle b { font-size: 1.25rem; } #pdfRoot .ptitle span { color: var(--muted); font-size: .85rem; }
+  body.lock .pick { display: none !important; }
 </style>
 </head>
 <body>
@@ -92,25 +93,25 @@
 
   <section>
     <div class="filters">
-      <div class="row" role="group" aria-label="ช่วงเวลา" style="display:flex;gap:6px;flex-wrap:wrap">
+      <div class="row pick" role="group" aria-label="ช่วงเวลา" style="display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" data-range="0">วันนี้</button>
         <button type="button" data-range="7" aria-pressed="true">7 วัน</button>
         <button type="button" data-range="30">30 วัน</button>
         <button type="button" data-range="month">เดือนนี้</button>
       </div>
-      <label>ตั้งแต่<input class="dth" id="from"></label>
-      <label>ถึง<input class="dth" id="to"></label>
-      <button class="b" type="button" id="load">แสดงผล</button>
+      <label class="pick">ตั้งแต่<input class="dth" id="from"></label>
+      <label class="pick">ถึง<input class="dth" id="to"></label>
+      <button class="b pick" type="button" id="load">แสดงผล</button>
       <button type="button" id="csv">ดาวน์โหลด CSV</button>
       <button type="button" id="pdf">ดาวน์โหลด PDF</button>
     </div>
     <div class="status" id="status"></div>
-    <p id="onlyNote" hidden style="margin:6px 0 0;font-size:.9rem"><b id="onlyText"></b> · <button type="button" id="onlyAll" style="padding:2px 8px">ดูทั้งโครงการ</button></p>
+    <p id="onlyNote" hidden style="margin:6px 0 0;font-size:.9rem"><b id="onlyText"></b></p>
     <label id="live" hidden style="flex-direction:row;align-items:center;gap:6px;margin-top:6px;font-size:.85rem"><input type="checkbox" id="liveOn"> อัปเดตอัตโนมัติทุก 30 วินาที</label>
   </section>
 
   <section id="projBox">
-    <div class="filters" style="margin-bottom:10px">
+    <div class="filters pick" style="margin-bottom:10px">
       <label style="flex:1;min-width:220px">โครงการ<select id="project"></select></label>
     </div>
     <div id="proj"></div>
@@ -306,7 +307,8 @@
   const qs = new URLSearchParams(location.search);
   let wantProject = qs.get("project") || "";
   let onlyJob = qs.get("job") || "";
-  $("onlyAll").addEventListener("click", () => { onlyJob = ""; $("onlyNote").hidden = true; load(); });
+  // one report only: no choice of dates or project on this page
+  if (onlyJob) document.body.classList.add("lock");
   const qDate = /^\d{4}-\d{2}-\d{2}$/.test(qs.get("date") || "") ? qs.get("date") : "";
   if (qDate) {
     $("from").value = qDate; $("to").value = qDate;
