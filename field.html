@@ -240,6 +240,7 @@
       <div class="row" style="margin-top:10px;gap:8px">
         <button class="g" id="dashOpen" type="button">📊 Dashboard งานนี้</button>
         <button class="g" id="dashShare" type="button">📲 ส่งลิงก์ให้อีกเครื่อง</button>
+        <button class="g" id="sumShot" type="button">📷 บันทึกภาพสรุป (ส่งลูกค้า)</button>
         <span class="note" id="dashMsg"></span>
       </div>
     </section>
@@ -655,6 +656,41 @@
     const keep = document.activeElement; renderJob(); keep && keep.focus();
   }));
   $("toList").addEventListener("click", showList);
+  // Picture of the summary for the customer (LINE): project, date, time and the six numbers — no internal time alerts
+  $("sumShot").addEventListener("click", async () => {
+    const msg = $("dashMsg");
+    if (!window.html2canvas) { msg.textContent = "โหลดตัวสร้างภาพไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่"; return; }
+    const h = job.header, s = FieldReport.summary(job);
+    const at = `${thaiDate(today())} เวลา ${FieldReport.nowHHMM()} น.`;
+    const tile = (v, l, strong) => `<div style="border:1px solid #d6dbe3;border-radius:12px;padding:12px 14px;background:${strong ? "#eef4ff" : "#fff"}">
+      <div style="font-size:30px;font-weight:700;color:#1f5fbf;font-variant-numeric:tabular-nums">${v}</div><div style="font-size:16px;color:#5d6675">${l}</div></div>`;
+    const box = document.createElement("div");
+    box.style.cssText = "position:fixed;left:-10000px;top:0;width:720px;padding:24px;background:#fff;color:#1d2330;font-family:Sarabun,'Noto Sans Thai',system-ui,sans-serif";
+    box.innerHTML = `<div style="display:flex;align-items:center;gap:14px;border-bottom:2px solid #1d2330;padding-bottom:12px;margin-bottom:14px">
+        <img src="${LOGO}" style="height:52px"><div><div style="font-size:24px;font-weight:700">${esc(h.project || "โครงการ")}</div>
+        <div style="font-size:16px;color:#5d6675">${esc([h.customer, [h.structure, h.structureNo].filter(Boolean).join(" "), thaiDate(h.date)].filter(Boolean).join(" · "))}</div></div></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        ${tile(fmt(s.ordered), "ยอดสั่ง (คิว)", true)}${tile(fmt(s.produced), "ยอดผลิต (คิว)", true)}${tile(fmt(s.received), "ยอดรับ (คิว)")}
+        ${tile(fmt(s.inTransit), "ระหว่างทาง (คิว)")}${tile(fmt(s.remaining), "อีก…คิวครบ")}${tile(s.pct == null ? "–" : fmt(s.pct * 100, 0) + "%", "ผลิตแล้ว")}</div>
+      <div style="margin-top:12px;font-size:15px;color:#5d6675">ข้อมูล ณ ${at} · บริษัท เอ็มคอนกรีต จำกัด</div>`;
+    document.body.appendChild(box);
+    try {
+      msg.textContent = "กำลังสร้างภาพ…";
+      await document.fonts.ready;
+      const c = await html2canvas(box, { scale: 2, backgroundColor: "#ffffff" });
+      const blob = await new Promise((ok) => c.toBlob(ok, "image/png"));
+      const name = ["สรุป", h.project, h.structure, h.date, FieldReport.nowHHMM().replace(":", "")].filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "-") + ".png";
+      const file = new File([blob], name, { type: "image/png" });
+      // iPad / phone: share sheet straight to LINE; elsewhere: save the picture
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: h.project || "สรุปงาน" }); msg.textContent = "ส่งภาพแล้ว"; return; }
+        catch (e) { if (e && e.name === "AbortError") { msg.textContent = ""; return; } }
+      }
+      await saveFile(name, blob, msg);
+    } catch { msg.textContent = "สร้างภาพไม่สำเร็จ — ลองใหม่"; }
+    finally { box.remove(); }
+  });
+
   // Dashboard of this project and day — opens here or on another device, refreshes every 30 s
   const dashURL = () => new URL(`dashboard.html?job=${encodeURIComponent(job.id)}&project=${encodeURIComponent(job.header.project || "")}&date=${encodeURIComponent(job.header.date || "")}`, location.href).href;
   $("dashOpen").addEventListener("click", () => {
