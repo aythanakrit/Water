@@ -27,6 +27,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, project TEXT, date TEXT, kind TEXT, do TEXT, rkey TEXT,
     takenAt INTEGER, created INTEGER, removed INTEGER)`,
   `CREATE INDEX IF NOT EXISTS photos_day ON photos(project, date)`,
+  `CREATE TABLE IF NOT EXISTS scans (id TEXT PRIMARY KEY, list TEXT NOT NULL, do TEXT NOT NULL, at INTEGER NOT NULL, dev TEXT,
+    removed INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS scans_list ON scans(list, updated)`,
   `CREATE TABLE IF NOT EXISTS trials (id TEXT PRIMARY KEY, status TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
 ];
 let ready = null;
@@ -261,5 +264,37 @@ export async function trialPhotoGet(bucket, req) {
 export async function trialPhotoDelete(bucket, req) {
   const key = trialKey(req.trialId, req.id);
   if (key) await bucket.delete(key);
+  return { ok: true };
+}
+
+// ---------- ticket scan lists shared by several devices (สแกนตั๋ว) ----------
+// Each scan is one row; a device sends its new scans and fetches what changed since its last look (server time).
+const LIST = (s) => String(s || "").trim().slice(0, 80);
+const SCAN_ID = /^[\w-]{6,60}$/;
+export async function scanLists(db, now = Date.now()) {
+  const { results } = await db.prepare(`SELECT list, COUNT(*) AS n, MAX(at) AS last FROM scans WHERE removed = 0 AND at >= ? GROUP BY list ORDER BY last DESC LIMIT 30`)
+    .bind(now - 14 * DAY).all();
+  return { ok: true, lists: results };
+}
+export async function scanPush(db, list, scans, now = Date.now()) {
+  list = LIST(list);
+  const ok = (Array.isArray(scans) ? scans : []).filter((x) => x && SCAN_ID.test(String(x.id)) && /^\d{13}$/.test(String(x.do)) && Number(x.at) > 0).slice(0, 500);
+  if (!list) return { ok: false, error: "bad_request" };
+  if (ok.length) await db.batch(ok.map((x) => db.prepare("INSERT OR IGNORE INTO scans (id, list, do, at, dev, removed, updated) VALUES (?,?,?,?,?,0,?)")
+    .bind(String(x.id), list, String(x.do), Number(x.at), String(x.dev || "").slice(0, 40), now)));
+  return { ok: true, saved: ok.map((x) => x.id), now };
+}
+export async function scanPull(db, list, since, now = Date.now()) {
+  const { results } = await db.prepare("SELECT id, do, at, dev, removed, updated FROM scans WHERE list = ? AND updated > ? ORDER BY updated LIMIT 5000")
+    .bind(LIST(list), Number(since) || 0).all();
+  return { ok: true, scans: results, now };
+}
+export async function scanRemove(db, list, ids, now = Date.now()) {
+  const good = (Array.isArray(ids) ? ids : [ids]).map(String).filter((x) => SCAN_ID.test(x)).slice(0, 90);
+  if (good.length) await db.prepare(`UPDATE scans SET removed = 1, updated = ? WHERE list = ? AND id IN (${good.map(() => "?").join(",")})`).bind(now, LIST(list), ...good).run();
+  return { ok: true };
+}
+export async function scanClear(db, list, now = Date.now()) {
+  await db.prepare("UPDATE scans SET removed = 1, updated = ? WHERE list = ? AND removed = 0").bind(now, LIST(list)).run();
   return { ok: true };
 }

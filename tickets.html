@@ -66,6 +66,7 @@
       <button class="btn b" id="camBtn" type="button">📷 สแกน</button>
     </div>
     <div id="msg" role="status" aria-live="polite"></div>
+    <p class="note" id="syncNote" style="margin:4px 0 0"></p>
   </section>
 
   <section>
@@ -80,7 +81,8 @@
       <div><h2>จำนวนตั๋วรายวันที่ตั๋ว</h2><table><tbody id="byDate"></tbody></table></div>
     </div>
     <div class="row">
-      <input id="name" type="text" placeholder="ชื่อรายการ (ใช้ตั้งชื่อไฟล์) เช่น ตั๋ว P037 3 พ.ย." style="flex:1;min-width:200px">
+      <input id="name" type="text" list="lists" placeholder="ชื่อรายการ เช่น ตั๋ว P037 3 พ.ย. (เครื่องอื่นใส่ชื่อเดียวกัน = สแกนรวมกัน)" style="flex:1;min-width:200px">
+      <datalist id="lists"></datalist>
       <button class="btn b" id="xlsx" type="button">⬇️ ส่งออก Excel</button>
       <button class="btn d" id="reset" type="button">เริ่มรายการใหม่</button>
     </div>
@@ -104,6 +106,7 @@
   <div class="bar"><button type="button" id="liveClose">เสร็จ</button></div>
 </div>
 
+<script src="config.js"></script>
 <script src="fieldreport.js"></script>
 <script src="tickets.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
@@ -111,9 +114,28 @@
   const $ = (id) => document.getElementById(id);
   const KEY = "ticket-scan-v1";
   const RESET_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
-  let st = { list: [], name: "" };
-  try { st = Object.assign(st, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { $("tools").textContent = "⚠️ บันทึกในเครื่องไม่ได้ — ส่งออก Excel เก็บไว้ก่อนปิดหน้า"; } };
+  // Every scan is { id, do, at, dev, removed }; lists are kept by name. With the central storage (/api)
+  // every device scanning into the same list name sees one list, numbered by scan time.
+  const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
+  let store = { name: "", lists: {} };
+  try {
+    const old = JSON.parse(localStorage.getItem(KEY)) || {};
+    if (old.lists) store = old;
+    else if (Array.isArray(old.list)) { // the first version kept one list
+      const n = old.name || "รายการเดิม";
+      store = { name: n, lists: { [n]: { scans: old.list.map((e, i) => ({ id: "old" + e.at + "x" + i, do: e.do, at: e.at + i, dev: "", removed: 0 })), since: 0, pending: old.list.map((e, i) => "old" + e.at + "x" + i), gone: [] } } };
+    }
+  } catch (e) {}
+  let DEV = ""; try { DEV = localStorage.getItem("ticket-dev") || ""; if (!DEV) { DEV = Math.random().toString(36).slice(2, 6).toUpperCase(); localStorage.setItem("ticket-dev", DEV); } } catch (e) { DEV = "????"; }
+  const cur = () => { const n = store.name || ""; return store.lists[n] || (store.lists[n] = { scans: [], since: 0, pending: [], gone: [] }); };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { $("tools").textContent = "⚠️ บันทึกในเครื่องไม่ได้ — ส่งออก Excel เก็บไว้ก่อนปิดหน้า"; } };
+  // the numbered list: scans of every device in time order
+  function numbered() {
+    const L = [];
+    cur().scans.filter((x) => !x.removed).sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1))
+      .forEach((x) => { const e = Tickets.add(L, x.do, x.at); e.id = x.id; e.dev = x.dev; });
+    return L;
+  }
   const pad = (n) => String(n).padStart(2, "0");
   const time = (ms) => { const d = new Date(ms); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() + 543} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
   const thDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? `${m[3]}/${m[2]}/${+m[1] + 543}` : iso; };
@@ -121,7 +143,11 @@
   let askDel = null;
 
   function render() {
-    const L = st.list, dup = Tickets.duplicates(L), s = Tickets.summary(L);
+    const L = numbered(), dup = Tickets.duplicates(L), s = Tickets.summary(L);
+    const devs = new Set(cur().scans.filter((x) => !x.removed && x.dev).map((x) => x.dev));
+    $("syncNote").textContent = !CLOUD ? "💾 เก็บในเครื่องนี้เท่านั้น"
+      : !store.name ? "ใส่ชื่อรายการก่อนสแกน — เครื่องอื่นใส่ชื่อเดียวกันจะสแกนรวมรายการเดียวกัน"
+      : `${syncBad || "☁️ ออนไลน์"} · รายการ "${store.name}" · เครื่องนี้ ${DEV}${devs.size > 1 ? ` · สแกนร่วม ${devs.size} เครื่อง` : ""}${cur().pending.length ? ` · รอส่ง ${cur().pending.length}` : ""}`;
     $("kScans").textContent = s.scans; $("kTickets").textContent = s.tickets; $("kDup").textContent = s.dupTickets; $("kRep").textContent = s.repeats;
     $("byPlant").innerHTML = s.plants.map((x) => `<tr><td>${esc(x.key)}</td><td class="n">${x.n}</td></tr>`).join("") || `<tr><td class="empty">—</td></tr>`;
     $("byDate").innerHTML = s.dates.map((x) => `<tr><td>${esc(thDate(x.key))}</td><td class="n">${x.n}</td></tr>`).join("") || `<tr><td class="empty">—</td></tr>`;
@@ -129,7 +155,7 @@
       const p = Tickets.parse(e.do);
       const again = e.dupOf ? ` · ⚠️ ซ้ำกับลำดับ ${e.dupOf}` : dup.has(e.no) ? ` · ⚠️ สแกนซ้ำที่ลำดับ ${L.filter((x) => x.dupOf === e.no).map((x) => x.no).join(", ")}` : "";
       return `<tr class="${dup.has(e.no) ? "dup" : ""}"><td class="no">${e.no}</td>
-        <td class="do">${esc(e.do)}<small>${esc(p.plant || "ไม่พบหน่วยผลิต " + p.code)} · ตั๋ว ${esc(thDate(p.date))} · สแกน ${esc(time(e.at).slice(11))}${again}</small></td>
+        <td class="do">${esc(e.do)}<small>${esc(p.plant || "ไม่พบหน่วยผลิต " + p.code)} · ตั๋ว ${esc(thDate(p.date))} · สแกน ${esc(time(e.at).slice(11))}${e.dev && CLOUD ? ` · เครื่อง ${esc(e.dev)}` : ""}${again}</small></td>
         <td class="del">${askDel === e.no ? `<button class="btn d" data-del="${e.no}" type="button">ยืนยันลบ</button>` : `<button class="x" data-ask="${e.no}" type="button" aria-label="ลบลำดับ ${e.no}">✕</button>`}</td></tr>`;
     }).join("") : `<tr><td colspan="3" class="empty">ยังไม่มีรายการ — ยิงหรือสแกนตั๋วด้านบน</td></tr>`;
     $("xlsx").disabled = !L.length;
@@ -137,8 +163,11 @@
 
   // one ticket in: from the box (scanner / typing) or the camera
   function addTicket(d) {
-    const e = Tickets.add(st.list, d, Date.now());
-    save(); render();
+    if (CLOUD && !store.name) { store.name = `สแกน ${time(Date.now()).slice(0, 10)}`; $("name").value = store.name; }
+    const id = Date.now().toString(36) + DEV + Math.random().toString(36).slice(2, 6);
+    cur().scans.push({ id, do: d, at: Date.now(), dev: DEV, removed: 0 }); cur().pending.push(id);
+    save(); render(); syncSoon();
+    const e = numbered().find((x) => x.id === id);
     $("msg").className = e.dupOf ? "bad" : "ok";
     $("msg").textContent = e.dupOf ? `⚠️ ลำดับ ${e.no}: ${d} ซ้ำกับลำดับ ${e.dupOf}` : `✓ ลำดับ ${e.no}: ${d}`;
     if (navigator.vibrate) navigator.vibrate(e.dupOf ? [80, 60, 80] : 40);
@@ -155,32 +184,38 @@
   $("list").addEventListener("click", (ev) => {
     const a = ev.target.closest("[data-ask]"), del = ev.target.closest("[data-del]");
     if (a) { askDel = Number(a.dataset.ask); render(); return; }
-    if (del) { const no = Number(del.dataset.del); Tickets.remove(st.list, no); askDel = null; save(); render(); $("msg").className = ""; $("msg").textContent = `ลบลำดับ ${no} แล้ว — เรียงลำดับใหม่`; return; }
+    if (del) {
+      const no = Number(del.dataset.del), e = numbered().find((x) => x.no === no), x = e && cur().scans.find((y) => y.id === e.id);
+      if (x) { x.removed = 1; cur().pending = cur().pending.filter((p) => p !== x.id); if (CLOUD) cur().gone.push(x.id); }
+      askDel = null; save(); render(); syncSoon(); $("msg").className = ""; $("msg").textContent = `ลบลำดับ ${no} แล้ว — เรียงลำดับใหม่`; return;
+    }
     if (askDel !== null) { askDel = null; render(); }
   });
 
-  $("name").value = st.name || "";
-  $("name").addEventListener("input", () => { st.name = $("name").value; save(); });
+  // the list name: devices using the same name scan into one list
+  $("name").value = store.name || "";
+  $("name").addEventListener("change", () => { store.name = $("name").value.trim(); save(); askDel = null; render(); syncNow(); });
+  $("name").addEventListener("focus", loadLists);
 
   // ---------- Excel: sheet "รายการ" (every scan) + sheet "สรุป" (counts) ----------
   const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
   $("xlsx").addEventListener("click", async () => {
-    if (!st.list.length) return;
+    const L = numbered(); if (!L.length) return;
     try {
       if (!window.XLSX) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
-      const rows = Tickets.rows(st.list, time).map((r) => ({ ...r, "วันที่ตั๋ว": thDate(r["วันที่ตั๋ว"]) })), s = Tickets.summary(st.list);
+      const rows = Tickets.rows(L, time).map((r, i) => ({ ...r, "วันที่ตั๋ว": thDate(r["วันที่ตั๋ว"]), "เครื่อง": L[i].dev || "" })), s = Tickets.summary(L);
       const ws = XLSX.utils.json_to_sheet(rows);
       // D/O as text: keep its leading zeros
       rows.forEach((_, i) => { const c = ws[XLSX.utils.encode_cell({ r: i + 1, c: 1 })]; if (c) { c.t = "s"; c.z = "@"; } });
-      ws["!cols"] = [6, 16, 10, 26, 12, 8, 20, 16].map((w) => ({ wch: w }));
-      const sum = [["สรุปการสแกนตั๋ว", st.name || ""], ["ส่งออกเมื่อ", time(Date.now())], [],
+      ws["!cols"] = [6, 16, 10, 26, 12, 8, 20, 16, 8].map((w) => ({ wch: w }));
+      const sum = [["สรุปการสแกนตั๋ว", store.name || ""], ["ส่งออกเมื่อ", time(Date.now())], [],
         ["สแกนทั้งหมด (ครั้ง)", s.scans], ["ตั๋ว (ไม่นับซ้ำ)", s.tickets], ["ตั๋วที่ซ้ำ (ใบ)", s.dupTickets], ["สแกนซ้ำ (ครั้ง)", s.repeats], [],
         ["หน่วยผลิต", "จำนวนตั๋ว"], ...s.plants.map((x) => [x.key, x.n]), [], ["วันที่ตั๋ว", "จำนวนตั๋ว"], ...s.dates.map((x) => [thDate(x.key), x.n])];
       const ws2 = XLSX.utils.aoa_to_sheet(sum); ws2["!cols"] = [{ wch: 28 }, { wch: 16 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "รายการ"); XLSX.utils.book_append_sheet(wb, ws2, "สรุป");
       const d = new Date(), stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-      const file = `สแกนตั๋ว_${(st.name || "").trim() || stamp}${st.name ? "_" + stamp : ""}.xlsx`.replace(/[\\/:*?"<>|]+/g, "-");
+      const file = `สแกนตั๋ว_${(store.name || "").trim() || stamp}${store.name ? "_" + stamp : ""}.xlsx`.replace(/[\\/:*?"<>|]+/g, "-");
       const blob = new Blob([XLSX.write(wb, { type: "array", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
@@ -190,11 +225,13 @@
 
   // ---------- start again (needs the code) ----------
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-  $("reset").addEventListener("click", () => { if (!st.list.length) return; $("resetBox").hidden = false; $("resetCode").value = ""; $("resetCode").focus(); });
+  $("reset").addEventListener("click", () => { if (!numbered().length) return; $("resetBox").hidden = false; $("resetCode").value = ""; $("resetCode").focus(); });
   $("resetNo").addEventListener("click", () => { $("resetBox").hidden = true; });
   $("resetOk").addEventListener("click", async () => {
     if ((await sha256($("resetCode").value.trim())) !== RESET_HASH) { $("tools").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ล้าง"; return; }
-    st.list = []; save(); render(); $("resetBox").hidden = true; $("tools").textContent = "เริ่มรายการใหม่แล้ว (ส่งออก Excel ก่อนล้างทุกครั้ง)"; $("msg").textContent = "";
+    cur().scans.forEach((x) => { x.removed = 1; }); cur().pending = [];
+    if (CLOUD && store.name) { try { await api("scanClear", { list: store.name }); } catch (e) {} }
+    save(); render(); $("resetBox").hidden = true; $("tools").textContent = "เริ่มรายการใหม่แล้ว (ส่งออก Excel ก่อนล้างทุกครั้ง)"; $("msg").textContent = "";
   });
 
   // ---------- camera: keeps scanning; a ticket counts once it reads the same number twice ----------
@@ -244,7 +281,7 @@
           const e = addTicket(d); me.added = d; me.addedAt = Date.now();
           const box = $("liveBox"); box.className = "box " + (e.dupOf ? "dup" : "hit"); setTimeout(() => { box.className = "box"; }, 700);
           $("liveLast").textContent = e.dupOf ? `⚠️ ${d} ซ้ำกับลำดับ ${e.dupOf}` : `✓ ลำดับ ${e.no}: ${d}`;
-          $("liveHint").textContent = `สแกนแล้ว ${st.list.length} ครั้ง — เล็งใบถัดไปได้เลย`;
+          $("liveHint").textContent = `สแกนแล้ว ${numbered().length} ครั้ง — เล็งใบถัดไปได้เลย`;
         }
         me.last = d;
       }
@@ -254,6 +291,46 @@
   });
   $("liveClose").addEventListener("click", stopLive);
   document.addEventListener("visibilitychange", () => { if (document.hidden) stopLive(); });
+
+  // ---------- central list: send new scans, fetch other devices' every 2.5 s while on screen ----------
+  let syncing = false, syncBad = "", syncT = 0;
+  async function api(action, body) {
+    const r = await fetch(CLOUD.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...body, action, key: CLOUD.key }) });
+    return r.json();
+  }
+  const syncSoon = () => { clearTimeout(syncT); syncT = setTimeout(syncNow, 300); };
+  async function syncNow() {
+    if (!CLOUD || !store.name || syncing) return;
+    syncing = true;
+    const name = store.name, L = cur();
+    try {
+      if (L.pending.length) {
+        const send = L.scans.filter((x) => L.pending.includes(x.id) && !x.removed);
+        const r = await api("scanPush", { list: name, scans: send });
+        if (!r.ok) throw new Error(r.error || "x");
+        L.pending = L.pending.filter((id) => !r.saved.includes(id));
+      }
+      if (L.gone.length) { const ids = L.gone.slice(0, 90); const r = await api("scanRemove", { list: name, ids }); if (r.ok) L.gone = L.gone.filter((id) => !ids.includes(id)); }
+      const r = await api("scanPull", { list: name, since: L.since });
+      if (!r.ok) throw new Error(r.error || "x");
+      const byId = new Map(L.scans.map((x) => [x.id, x]));
+      r.scans.forEach((x) => { const m = byId.get(x.id); if (m) m.removed = x.removed; else L.scans.push({ id: x.id, do: x.do, at: x.at, dev: x.dev, removed: x.removed }); });
+      if (r.scans.length) L.since = Math.max(L.since, ...r.scans.map((x) => x.updated));
+      syncBad = "";
+      if (store.name === name) { save(); render(); }
+    } catch (e) { syncBad = "📴 ออฟไลน์ — สแกนต่อได้ จะส่งให้เองเมื่อมีสัญญาณ"; render(); }
+    finally { syncing = false; }
+  }
+  async function loadLists() {
+    if (!CLOUD) return;
+    try { const r = await api("scanLists", {}); if (r.ok) $("lists").innerHTML = r.lists.map((x) => `<option value="${esc(x.list)}">${x.n} สแกน</option>`).join(""); } catch (e) {}
+  }
+  if (CLOUD) {
+    setInterval(() => { if (!document.hidden) syncNow(); }, 2500);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) syncNow(); });
+    window.addEventListener("online", syncNow);
+    loadLists(); syncNow();
+  }
 
   render();
   $("doIn").focus();

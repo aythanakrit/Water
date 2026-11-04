@@ -68,6 +68,12 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "photoList": return json({ ok: true, photos: await S.photoList(db, req.project, req.date, admin) });
       case "photoGet": return json(await S.photoGet(db, bucket, req.id, admin));
       case "photoDelete": return json(await S.photoDelete(db, bucket, req.id, admin));
+      // ---- ticket scan lists (several devices at once) ----
+      case "scanLists": return json(await S.scanLists(db));
+      case "scanPush": return json(await S.scanPush(db, req.list, req.scans));
+      case "scanPull": return json(await S.scanPull(db, req.list, req.since));
+      case "scanRemove": return json(await S.scanRemove(db, req.list, req.ids));
+      case "scanClear": return json(await S.scanClear(db, req.list));
       // ---- Trial Mix ----
       case "trialList": return json(await S.trialList(db));
       case "trialSave": return json(await S.trialSave(db, req.trial));
