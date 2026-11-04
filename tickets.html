@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Production">
+<title>สแกนตั๋ว D/O</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7; --accent: #1f5fbf; --ok: #1d7a3e; --bad: #b42318; --bad-bg: #fde4e1; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --ok: #5cc98a; --bad: #ff8a80; --bad-bg: #3a1d1b; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --ok: #5cc98a; --bad: #ff8a80; --bad-bg: #3a1d1b; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 2px; } h2 { font-size: 1rem; margin: 0 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: .9rem; }
+  .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  .in { display: flex; gap: 8px; }
+  #doIn { flex: 1; min-width: 0; font: inherit; font-size: 1.5rem; letter-spacing: .05em; font-variant-numeric: tabular-nums; padding: 10px 12px;
+    border: 2px solid var(--accent); border-radius: 10px; background: var(--bg); color: var(--text); }
+  input[type=text], input[type=password] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .btn { font: inherit; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--line); background: var(--card); color: var(--accent); cursor: pointer; }
+  .btn.b { background: var(--accent); border-color: var(--accent); color: #fff; } .btn.d { color: var(--bad); } .btn:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; } .row[hidden] { display: none; }
+  #msg { margin-top: 10px; min-height: 1.6em; font-size: 1.05rem; font-weight: 600; } #msg.ok { color: var(--ok); } #msg.bad { color: var(--bad); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .kpi b { display: block; font-size: 1.5rem; color: var(--accent); font-variant-numeric: tabular-nums; } .kpi span { font-size: .8rem; color: var(--muted); }
+  .kpi.bad b { color: var(--bad); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; } @media (max-width: 560px) { .cols { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; } th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+  td.n { text-align: right; width: 4em; } td.no { width: 2.6em; font-weight: 700; } td.do { font-size: 1.05rem; letter-spacing: .03em; }
+  td small { display: block; color: var(--muted); font-size: .78rem; letter-spacing: 0; } td.del { width: 1%; white-space: nowrap; text-align: right; }
+  tr.dup td { color: var(--bad); background: var(--bad-bg); font-weight: 700; } tr.dup td small { color: var(--bad); }
+  .x { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; }
+  .note { font-size: .8rem; color: var(--muted); } .empty { color: var(--muted); }
+  #live { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; flex-direction: column; } #live[hidden] { display: none; }
+  #live .cam { position: relative; flex: 1; overflow: hidden; } #live video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #live .box { position: absolute; left: 6%; right: 6%; top: 50%; height: 18%; transform: translateY(-50%); border: 3px solid #fff; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); }
+  #live .box.hit { border-color: #4ade80; } #live .box.dup { border-color: #f87171; }
+  #live .hint { position: absolute; left: 0; right: 0; top: calc(50% + 12%); text-align: center; color: #fff; font-size: 1.05rem; padding: 0 16px; font-weight: 600; }
+  #live .last { position: absolute; left: 0; right: 0; top: 16px; text-align: center; color: #fff; font-size: 1rem; }
+  #live .bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 12px 12px max(12px, env(safe-area-inset-bottom, 0px)); background: #000; }
+  #live .bar button { font: inherit; font-size: 1rem; min-height: 48px; padding: 8px 18px; border-radius: 999px; border: 1px solid #555; background: #222; color: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+  <h1>สแกนตั๋ว D/O</h1>
+  <p class="sub">สแกนด้วยกล้อง เครื่องยิงบาร์โค้ด หรือพิมพ์ — ครบ 13 หลักบันทึกทันที · ตั๋วซ้ำขึ้นสีแดง · สรุปจำนวนรายแพล้นท์/วันที่ · ส่งออก Excel</p>
+
+  <section>
+    <label for="doIn">เลขตั๋ว D/O (13 หลัก) — ช่องค้างไว้ ยิงต่อได้เลย</label>
+    <div class="in">
+      <input id="doIn" type="text" inputmode="numeric" enterkeyhint="next" autocomplete="off" maxlength="13" placeholder="ยิงหรือพิมพ์ 13 หลัก">
+      <button class="btn b" id="camBtn" type="button">📷 สแกน</button>
+    </div>
+    <div id="msg" role="status" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <div class="kpis">
+      <div class="kpi"><b id="kScans">0</b><span>สแกนทั้งหมด (ครั้ง)</span></div>
+      <div class="kpi"><b id="kTickets">0</b><span>ตั๋ว (ไม่นับซ้ำ)</span></div>
+      <div class="kpi bad"><b id="kDup">0</b><span>ตั๋วที่ซ้ำ (ใบ)</span></div>
+      <div class="kpi bad"><b id="kRep">0</b><span>สแกนซ้ำ (ครั้ง)</span></div>
+    </div>
+    <div class="cols">
+      <div><h2>จำนวนตั๋วรายแพล้นท์</h2><table><tbody id="byPlant"></tbody></table></div>
+      <div><h2>จำนวนตั๋วรายวันที่ตั๋ว</h2><table><tbody id="byDate"></tbody></table></div>
+    </div>
+    <div class="row">
+      <input id="name" type="text" placeholder="ชื่อรายการ (ใช้ตั้งชื่อไฟล์) เช่น ตั๋ว P037 3 พ.ย." style="flex:1;min-width:200px">
+      <button class="btn b" id="xlsx" type="button">⬇️ ส่งออก Excel</button>
+      <button class="btn d" id="reset" type="button">เริ่มรายการใหม่</button>
+    </div>
+    <div class="row" id="resetBox" hidden>
+      <input id="resetCode" type="password" placeholder="รหัสเพื่อเริ่มใหม่" autocomplete="off" style="max-width:170px">
+      <button class="btn d" id="resetOk" type="button">ยืนยันล้าง</button><button class="btn" id="resetNo" type="button">ยกเลิก</button>
+    </div>
+    <p class="note" id="tools" style="margin:8px 0 0"></p>
+  </section>
+
+  <section>
+    <h2>รายการสแกน (ล่าสุดอยู่บน)</h2>
+    <table><thead><tr><th>ลำดับ</th><th>D/O</th><th></th></tr></thead><tbody id="list"></tbody></table>
+    <p class="note" style="margin:8px 0 0">เก็บในเครื่องนี้ · ปิดหน้าแล้วกลับมาสแกนต่อได้ · สแกนผิดกด ✕ แล้วยืนยันลบ</p>
+  </section>
+</main>
+
+<div id="live" hidden>
+  <div class="cam"><video id="liveVideo" playsinline muted></video><div class="box" id="liveBox"></div>
+    <div class="last" id="liveLast"></div><div class="hint" id="liveHint">เล็งบาร์โค้ดให้อยู่ในกรอบ — สแกนต่อเนื่องได้เลย</div></div>
+  <div class="bar"><button type="button" id="liveClose">เสร็จ</button></div>
+</div>
+
+<script src="fieldreport.js"></script>
+<script src="tickets.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const KEY = "ticket-scan-v1";
+  const RESET_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
+  let st = { list: [], name: "" };
+  try { st = Object.assign(st, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { $("tools").textContent = "⚠️ บันทึกในเครื่องไม่ได้ — ส่งออก Excel เก็บไว้ก่อนปิดหน้า"; } };
+  const pad = (n) => String(n).padStart(2, "0");
+  const time = (ms) => { const d = new Date(ms); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() + 543} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+  const thDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? `${m[3]}/${m[2]}/${+m[1] + 543}` : iso; };
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let askDel = null;
+
+  function render() {
+    const L = st.list, dup = Tickets.duplicates(L), s = Tickets.summary(L);
+    $("kScans").textContent = s.scans; $("kTickets").textContent = s.tickets; $("kDup").textContent = s.dupTickets; $("kRep").textContent = s.repeats;
+    $("byPlant").innerHTML = s.plants.map((x) => `<tr><td>${esc(x.key)}</td><td class="n">${x.n}</td></tr>`).join("") || `<tr><td class="empty">—</td></tr>`;
+    $("byDate").innerHTML = s.dates.map((x) => `<tr><td>${esc(thDate(x.key))}</td><td class="n">${x.n}</td></tr>`).join("") || `<tr><td class="empty">—</td></tr>`;
+    $("list").innerHTML = L.length ? L.slice().reverse().map((e) => {
+      const p = Tickets.parse(e.do);
+      const again = e.dupOf ? ` · ⚠️ ซ้ำกับลำดับ ${e.dupOf}` : dup.has(e.no) ? ` · ⚠️ สแกนซ้ำที่ลำดับ ${L.filter((x) => x.dupOf === e.no).map((x) => x.no).join(", ")}` : "";
+      return `<tr class="${dup.has(e.no) ? "dup" : ""}"><td class="no">${e.no}</td>
+        <td class="do">${esc(e.do)}<small>${esc(p.plant || "ไม่พบหน่วยผลิต " + p.code)} · ตั๋ว ${esc(thDate(p.date))} · สแกน ${esc(time(e.at).slice(11))}${again}</small></td>
+        <td class="del">${askDel === e.no ? `<button class="btn d" data-del="${e.no}" type="button">ยืนยันลบ</button>` : `<button class="x" data-ask="${e.no}" type="button" aria-label="ลบลำดับ ${e.no}">✕</button>`}</td></tr>`;
+    }).join("") : `<tr><td colspan="3" class="empty">ยังไม่มีรายการ — ยิงหรือสแกนตั๋วด้านบน</td></tr>`;
+    $("xlsx").disabled = !L.length;
+  }
+
+  // one ticket in: from the box (scanner / typing) or the camera
+  function addTicket(d) {
+    const e = Tickets.add(st.list, d, Date.now());
+    save(); render();
+    $("msg").className = e.dupOf ? "bad" : "ok";
+    $("msg").textContent = e.dupOf ? `⚠️ ลำดับ ${e.no}: ${d} ซ้ำกับลำดับ ${e.dupOf}` : `✓ ลำดับ ${e.no}: ${d}`;
+    if (navigator.vibrate) navigator.vibrate(e.dupOf ? [80, 60, 80] : 40);
+    return e;
+  }
+  $("doIn").addEventListener("input", () => {
+    const el = $("doIn"), d = Tickets.digits(el.value);
+    if (d !== el.value) el.value = d;
+    if (!Tickets.complete(d)) return;
+    el.value = ""; addTicket(d);
+  });
+  $("doIn").addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); }); // scanners end with Enter
+
+  $("list").addEventListener("click", (ev) => {
+    const a = ev.target.closest("[data-ask]"), del = ev.target.closest("[data-del]");
+    if (a) { askDel = Number(a.dataset.ask); render(); return; }
+    if (del) { const no = Number(del.dataset.del); Tickets.remove(st.list, no); askDel = null; save(); render(); $("msg").className = ""; $("msg").textContent = `ลบลำดับ ${no} แล้ว — เรียงลำดับใหม่`; return; }
+    if (askDel !== null) { askDel = null; render(); }
+  });
+
+  $("name").value = st.name || "";
+  $("name").addEventListener("input", () => { st.name = $("name").value; save(); });
+
+  // ---------- Excel: sheet "รายการ" (every scan) + sheet "สรุป" (counts) ----------
+  const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  $("xlsx").addEventListener("click", async () => {
+    if (!st.list.length) return;
+    try {
+      if (!window.XLSX) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+      const rows = Tickets.rows(st.list, time).map((r) => ({ ...r, "วันที่ตั๋ว": thDate(r["วันที่ตั๋ว"]) })), s = Tickets.summary(st.list);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // D/O as text: keep its leading zeros
+      rows.forEach((_, i) => { const c = ws[XLSX.utils.encode_cell({ r: i + 1, c: 1 })]; if (c) { c.t = "s"; c.z = "@"; } });
+      ws["!cols"] = [6, 16, 10, 26, 12, 8, 20, 16].map((w) => ({ wch: w }));
+      const sum = [["สรุปการสแกนตั๋ว", st.name || ""], ["ส่งออกเมื่อ", time(Date.now())], [],
+        ["สแกนทั้งหมด (ครั้ง)", s.scans], ["ตั๋ว (ไม่นับซ้ำ)", s.tickets], ["ตั๋วที่ซ้ำ (ใบ)", s.dupTickets], ["สแกนซ้ำ (ครั้ง)", s.repeats], [],
+        ["หน่วยผลิต", "จำนวนตั๋ว"], ...s.plants.map((x) => [x.key, x.n]), [], ["วันที่ตั๋ว", "จำนวนตั๋ว"], ...s.dates.map((x) => [thDate(x.key), x.n])];
+      const ws2 = XLSX.utils.aoa_to_sheet(sum); ws2["!cols"] = [{ wch: 28 }, { wch: 16 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "รายการ"); XLSX.utils.book_append_sheet(wb, ws2, "สรุป");
+      const d = new Date(), stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+      const file = `สแกนตั๋ว_${(st.name || "").trim() || stamp}${st.name ? "_" + stamp : ""}.xlsx`.replace(/[\\/:*?"<>|]+/g, "-");
+      const blob = new Blob([XLSX.write(wb, { type: "array", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      $("tools").textContent = `ส่งออก ${file} แล้ว (${s.scans} รายการ)`;
+    } catch (e) { $("tools").textContent = "ส่งออกไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่ (ต้องโหลดตัวสร้าง Excel ครั้งแรก)"; }
+  });
+
+  // ---------- start again (needs the code) ----------
+  const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  $("reset").addEventListener("click", () => { if (!st.list.length) return; $("resetBox").hidden = false; $("resetCode").value = ""; $("resetCode").focus(); });
+  $("resetNo").addEventListener("click", () => { $("resetBox").hidden = true; });
+  $("resetOk").addEventListener("click", async () => {
+    if ((await sha256($("resetCode").value.trim())) !== RESET_HASH) { $("tools").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ล้าง"; return; }
+    st.list = []; save(); render(); $("resetBox").hidden = true; $("tools").textContent = "เริ่มรายการใหม่แล้ว (ส่งออก Excel ก่อนล้างทุกครั้ง)"; $("msg").textContent = "";
+  });
+
+  // ---------- camera: keeps scanning; a ticket counts once it reads the same number twice ----------
+  let live = null, zx = null;
+  function decode(c) {
+    if (!window.ZXing) return null;
+    if (!zx) { const h = new Map(); h.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.QR_CODE]);
+      const r = new ZXing.MultiFormatReader(); r.setHints(h); zx = { r, h }; }
+    for (const Bin of [ZXing.HybridBinarizer, ZXing.GlobalHistogramBinarizer]) {
+      try { return zx.r.decode(new ZXing.BinaryBitmap(new Bin(new ZXing.HTMLCanvasElementLuminanceSource(c))), zx.h).getText(); } catch (e) {}
+    }
+    return null;
+  }
+  function stopLive() {
+    if (!live) return;
+    live.stop = true; clearTimeout(live.timer); live.stream.getTracks().forEach((t) => t.stop());
+    $("liveVideo").srcObject = null; $("live").hidden = true; live = null; $("doIn").focus();
+  }
+  $("camBtn").addEventListener("click", async () => {
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } }); }
+    catch (e) { $("msg").className = "bad"; $("msg").textContent = "เปิดกล้องไม่ได้ — อนุญาตการใช้กล้องในเบราว์เซอร์ หรือใช้เครื่องยิงบาร์โค้ด/พิมพ์แทน"; return; }
+    const v = $("liveVideo"); v.srcObject = stream; $("live").hidden = false; $("liveLast").textContent = "";
+    try { await v.play(); } catch (e) {}
+    const track = stream.getVideoTracks()[0], caps = track.getCapabilities ? track.getCapabilities() : {};
+    try { if (caps.focusMode && caps.focusMode.includes("continuous")) await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (e) {}
+    const det = "BarcodeDetector" in window ? (() => { try { return new BarcodeDetector({ formats: ["code_128", "code_39", "ean_13", "itf", "qr_code"] }); } catch (e) { return null; } })() : null;
+    live = { stream, stop: false, last: "", added: "", addedAt: 0, timer: 0 };
+    const me = live, c = document.createElement("canvas");
+    const frame = async () => {
+      if (me.stop) return;
+      const W = v.videoWidth, H = v.videoHeight; let text = null;
+      if (W && H) {
+        const r = v.getBoundingClientRect(), sc = Math.max(r.width / W, r.height / H);
+        const vw = r.width / sc, vh = r.height / sc, ox = (W - vw) / 2, oy = (H - vh) / 2, sh = vh * 0.28, sy = oy + vh / 2 - sh / 2, scale = Math.min(2, 1600 / vw);
+        c.width = Math.round(vw * scale); c.height = Math.round(sh * scale);
+        c.getContext("2d").drawImage(v, ox, sy, vw, sh, 0, 0, c.width, c.height);
+        if (det) { try { const f = await det.detect(c); if (f.length) text = f[0].rawValue; } catch (e) {} }
+        if (!text) text = decode(c);
+      }
+      if (me.stop) return;
+      const d = text ? Tickets.digits(text) : "";
+      if (Tickets.complete(d)) {
+        // the same ticket still in view is not counted again for 3 s
+        if (d === me.last && !(d === me.added && Date.now() - me.addedAt < 3000)) {
+          const e = addTicket(d); me.added = d; me.addedAt = Date.now();
+          const box = $("liveBox"); box.className = "box " + (e.dupOf ? "dup" : "hit"); setTimeout(() => { box.className = "box"; }, 700);
+          $("liveLast").textContent = e.dupOf ? `⚠️ ${d} ซ้ำกับลำดับ ${e.dupOf}` : `✓ ลำดับ ${e.no}: ${d}`;
+          $("liveHint").textContent = `สแกนแล้ว ${st.list.length} ครั้ง — เล็งใบถัดไปได้เลย`;
+        }
+        me.last = d;
+      }
+      me.timer = setTimeout(frame, 120);
+    };
+    frame();
+  });
+  $("liveClose").addEventListener("click", stopLive);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopLive(); });
+
+  render();
+  $("doIn").focus();
+</script>
+<script src="topbar.js"></script>
+</body>
+</html>
