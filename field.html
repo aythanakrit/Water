@@ -1396,6 +1396,15 @@
   function phMsg(el, html) { const k = phOf(el); if (k) k.querySelector(".phmsg").innerHTML = html ? `<div class="warn">${html}</div>` : ""; }
   // trucks of the report(s) of the chosen date, in report order
   const phTrucks = () => db.jobs.filter((j) => inProj(j) && !j.stub && j.header.date === ph.date).flatMap((j) => j.trucks);
+  // several reports can share one date: a photo belongs to the report it was attached in (p.job);
+  // an older photo without p.job goes with the report holding its D/O (a sample photo: with every report of the day)
+  function ownPhoto(p, j) {
+    if (!j) return true;
+    if (p.job) return p.job === j.id;
+    const d = FieldReport.cleanDO(p.do); if (!d) return true;
+    if (j.trucks.some((t) => FieldReport.cleanDO(t.do) === d)) return true;
+    return !db.jobs.some((o) => o.id !== j.id && inProj(o) && o.header.date === j.header.date && (o.trucks || []).some((t) => FieldReport.cleanDO(t.do) === d));
+  }
   function phList() {
     const by = new Map();
     (ph.server || []).forEach((p) => by.set(p.id, p));
@@ -1461,7 +1470,7 @@
   // photos of sample cubes/cylinders kept on site: for the whole report, next to "จบงาน"
   function renderSamples() {
     const box = $("phSamples"); if (!box || !SP || !job) return;
-    const mine = phList().filter((p) => p.kind === "samples").sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
+    const mine = phList().filter((p) => p.kind === "samples" && ownPhoto(p, job)).sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
     box.innerHTML = mine.length ? `<p class="note" style="margin:10px 0 4px">ภาพเก็บลูกปูนหน้างาน ${mine.length} ภาพ</p><div class="phgrid">${mine.map((p) => `<div class="phit${p.synced === false ? " pending" : ""}">
         ${p.data ? `<img src="data:image/jpeg;base64,${p.data}" alt="">` : `<button class="noimg" type="button" data-load="${esc(p.id)}">✓ มีภาพแล้ว<br>แตะเพื่อดู</button>`}
         <div class="cap"><button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}</div>
@@ -1592,7 +1601,7 @@
       const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       const canvases = isPdf ? await pdfCanvases(file) : [await imageCanvas(file, k.stamp ? takenAt : 0)];
       for (const c of canvases) {
-        await PDB.put({ id: "p-" + now.toString(36) + "-" + Math.random().toString(36).slice(2, 8), project: PROJ, date: ph.date,
+        await PDB.put({ id: "p-" + now.toString(36) + "-" + Math.random().toString(36).slice(2, 8), project: PROJ, date: ph.date, job: job ? job.id : "",
           kind: pick.kind, do: pick.do, takenAt: isPdf ? now : takenAt, data: toB64(c), synced: !SYNC ? null : false, created: Date.now() });
       }
       if (pick.el.classList.contains("phdo")) pick.el.value = "";
@@ -1607,7 +1616,7 @@
     try {
       for (const p of (await PDB.all()).filter((x) => x.synced === false)) {
         try {
-          const r = await api("photoUpload", { id: p.id, project: p.project, date: p.date, kind: p.kind, do: p.do, takenAt: p.takenAt, data: p.data });
+          const r = await api("photoUpload", { id: p.id, project: p.project, date: p.date, kind: p.kind, do: p.do, job: p.job || "", takenAt: p.takenAt, data: p.data });
           if (r.ok) { p.synced = true; await PDB.put(p); }
         } catch { break; }
       }
@@ -1635,6 +1644,7 @@
         if (r.ok) { const by = new Map(r.photos.map((p) => [p.id, p])); list.forEach((p) => by.set(p.id, { ...by.get(p.id), ...p })); list = [...by.values()]; }
       } catch {}
     }
+    list = list.filter((p) => ownPhoto(p, job)); // only this report's photos
     let failed = 0, done = 0;
     const queue = [...list];
     await Promise.all([0, 1, 2, 3].map(async () => {

@@ -39,7 +39,10 @@ const SCHEMA = [
 ];
 let ready = null;
 export function ensureSchema(db) {
-  if (!ready) ready = db.batch(SCHEMA.map((s) => db.prepare(s))).catch((e) => { ready = null; throw e; });
+  if (!ready) ready = db.batch(SCHEMA.map((s) => db.prepare(s)))
+    // added later: the report a photo belongs to (several reports may share one project + date)
+    .then(() => db.prepare("ALTER TABLE photos ADD COLUMN job TEXT").run().catch(() => {}))
+    .catch((e) => { ready = null; throw e; });
   return ready;
 }
 
@@ -173,7 +176,7 @@ function bytesToB64(buf) {
   for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
   return btoa(s);
 }
-const photoOut = (r) => ({ id: r.id, project: r.project, date: r.date, kind: r.kind, do: r.do || "", takenAt: Number(r.takenAt) || 0, created: Number(r.created) || 0 });
+const photoOut = (r) => ({ id: r.id, project: r.project, date: r.date, kind: r.kind, do: r.do || "", job: r.job || "", takenAt: Number(r.takenAt) || 0, created: Number(r.created) || 0 });
 
 export async function photoUpload(db, bucket, req, now = Date.now()) {
   const project = String(req.project || "").trim().slice(0, 100);
@@ -187,9 +190,10 @@ export async function photoUpload(db, bucket, req, now = Date.now()) {
   if (bytes.length > PHOTO_MAX_BYTES) return { ok: false, error: "too_large" };
   const rkey = `photos/${project.replace(/[\\/]+/g, "-")}/${req.date}/${id}.jpg`;
   await bucket.put(rkey, bytes, { httpMetadata: { contentType: "image/jpeg" } });
-  const row = { id, project, date: req.date, kind: req.kind, do: doNo, rkey, takenAt: Number(req.takenAt) || 0, created: now };
-  await db.prepare("INSERT INTO photos (id, project, date, kind, do, rkey, takenAt, created, removed) VALUES (?,?,?,?,?,?,?,?,NULL)")
-    .bind(row.id, row.project, row.date, row.kind, row.do, row.rkey, row.takenAt, row.created).run();
+  const job = /^[\w-]{1,60}$/.test(String(req.job || "")) ? String(req.job) : null;
+  const row = { id, project, date: req.date, kind: req.kind, do: doNo, job, rkey, takenAt: Number(req.takenAt) || 0, created: now };
+  await db.prepare("INSERT INTO photos (id, project, date, kind, do, job, rkey, takenAt, created, removed) VALUES (?,?,?,?,?,?,?,?,?,NULL)")
+    .bind(row.id, row.project, row.date, row.kind, row.do, row.job, row.rkey, row.takenAt, row.created).run();
   return { ok: true, photo: photoOut(row) };
 }
 export async function photoList(db, project, date, admin) {
