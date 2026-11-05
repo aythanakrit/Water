@@ -1,14 +1,15 @@
 /*
  * Code lock for a card: <script src="gate.js" data-gate="core" data-hash="<sha-256 hex of the code>"></script>
  * placed right after <body>. Add data-anycase to accept the code in capitals or small letters (hash of the lower-case code).
- * The page stays covered until the right code is typed; this device then
- * remembers it. The check runs in the browser only — it keeps casual users out, it does not protect data.
+ * The page stays covered until the right code is typed; it is then remembered
+ * until the app / tab is closed (sessionStorage), so the code is asked again on the next open. The check runs in the browser only — it keeps casual users out, it does not protect data.
  */
 (function () {
   const me = document.currentScript;
   const name = me.dataset.gate, hash = me.dataset.hash, anyCase = me.hasAttribute("data-anycase");
   const KEY = "gate-" + name;
-  try { if (localStorage.getItem(KEY) === hash) return; } catch {}
+  try { localStorage.removeItem(KEY); } catch {} // old "remember forever" mark
+  try { if (sessionStorage.getItem(KEY) === hash) return; } catch {}
 
   const st = document.createElement("style");
   st.textContent = `
@@ -42,7 +43,7 @@
     const inp = g.querySelector("input");
     const code = anyCase ? inp.value.trim().toLowerCase() : inp.value.trim();
     if ((await sha(code)) !== hash) { g.querySelector(".err").textContent = "รหัสไม่ถูกต้อง"; inp.select(); return; }
-    try { localStorage.setItem(KEY, hash); } catch {}
+    try { sessionStorage.setItem(KEY, hash); } catch {}
     g.remove(); document.documentElement.classList.remove("gated");
   });
 })();
