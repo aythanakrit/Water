@@ -116,19 +116,14 @@
   <div id="tab-docs" hidden>
     <section>
       <h2>เอกสาร</h2>
-      <div class="row"><select id="dFilter"><option value="">ทุกหมวด</option></select><input id="dSearch" type="text" placeholder="ค้นหาชื่อเอกสาร" style="flex:1"></div>
       <div id="docs"></div>
       <p class="note" id="printHint" style="margin:8px 0 0"></p>
     </section>
     <section>
-      <h2>อัปโหลดเอกสาร PDF</h2>
-      <div class="grid">
-        <label class="f">ชื่อเอกสาร<input id="uTitle" type="text" placeholder="เช่น Method Statement เทเสาเข็ม OR09"></label>
-        <label class="f">หมวด / สถานี<input id="uCat" type="text" list="cats" placeholder="เช่น OR09, แบบฟอร์ม, ทั่วไป"></label>
-      </div>
-      <datalist id="cats"></datalist>
-      <div class="row" style="margin-top:8px"><input id="uFile" type="file" accept="application/pdf,.pdf"><button class="btn b" id="uGo" type="button">อัปโหลด</button><span id="upMsg" class="note"></span></div>
-      <p class="note" style="margin:6px 0 0">ไฟล์ PDF ไม่เกิน 25 MB · ทุกคนที่มีลิงก์เว็บเปิดดู ดาวน์โหลด และพิมพ์ได้</p>
+      <h2>เพิ่ม / เปลี่ยนเอกสาร</h2>
+      <div class="row"><input id="uFile" type="file" accept="application/pdf,.pdf"><button class="btn b" id="uGo" type="button">อัปโหลด</button></div>
+      <div class="row"><input id="uTitle" type="text" placeholder="ชื่อเอกสาร (ไม่ใส่ = ใช้ชื่อไฟล์)" style="flex:1"></div>
+      <p class="note" id="upMsg" style="margin:6px 0 0">ไฟล์ PDF ไม่เกิน 25 MB · จะเปลี่ยนฉบับใหม่ ให้อัปโหลดฉบับใหม่แล้วลบฉบับเก่า</p>
     </section>
   </div>
 </main>
@@ -140,6 +135,8 @@
   const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const ITEM_LABEL = { "โมลคิว": "โมล Cube" }; // stored name → shown name
+  const itemName = (i) => ITEM_LABEL[i] || i;
   const placeName = (p) => p.startsWith("P-") ? "แพล้นท์" + p.slice(2) : p.startsWith("X-") ? p.slice(2) : p ? "สถานี " + p : "";
   const kindOf = (p) => p.startsWith("P-") ? ["แพล้นท์", "p"] : p.startsWith("X-") ? ["นอกการใช้งาน", "x"] : ["สถานี", ""];
   const pad = (n) => String(n).padStart(2, "0");
@@ -162,7 +159,7 @@
   function opts(sel, list, label = (x) => x) { const v = sel.value; sel.innerHTML = list.map((x) => `<option value="${esc(x)}">${esc(label(x))}</option>`).join(""); if (list.includes(v)) sel.value = v; }
   function renderStock() {
     if (!S) return;
-    $("stockHead").innerHTML = `<tr><th>ที่</th>${S.items.map((i) => `<th class="n">${esc(i)}</th>`).join("")}</tr>`;
+    $("stockHead").innerHTML = `<tr><th>ที่</th>${S.items.map((i) => `<th class="n">${esc(itemName(i))}</th>`).join("")}</tr>`;
     const sum = (ps, i) => ps.reduce((a, p) => a + S.stock[p][i], 0);
     const live = S.places.filter((p) => !p.startsWith("X-")), out = S.places.filter((p) => p.startsWith("X-"));
     const row = (p) => { const [k, c] = kindOf(p); return `<tr class="${c === "p" ? "plant" : c === "x" ? "out" : ""}"><td><span class="chip ${c}">${k}</span>${esc(p.replace(/^[PX]-/, ""))}</td>
@@ -172,10 +169,10 @@
       out.map(row).join("") +
       `<tr class="tot"><td>รวมทั้งหมด</td>${S.items.map((i) => `<td class="n">${sum(S.places, i)}</td>`).join("")}</tr>`;
     $("stockAt").textContent = `อัปเดต ${when(Date.now())} · อัปเดตเองทุก 15 วินาที`;
-    [$("mItem"), $("cItem")].forEach((s) => opts(s, S.items));
+    [$("mItem"), $("cItem")].forEach((s) => opts(s, S.items, itemName));
     [$("mFrom"), $("mTo"), $("cPlace")].forEach((s) => opts(s, S.places, placeName));
     if ($("mFrom").value === $("mTo").value) $("mTo").value = S.places.find((p) => p !== $("mFrom").value);
-    $("log").innerHTML = S.log.length ? S.log.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(m.item)} <b>${m.qty}</b> · ${esc(moveText(m))}${m.note ? ` <span class="note">(${esc(m.note)})</span>` : ""}${thumbs(m)}</td></tr>`).join("")
+    $("log").innerHTML = S.log.length ? S.log.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(itemName(m.item))} <b>${m.qty}</b> · ${esc(moveText(m))}${m.note ? ` <span class="note">(${esc(m.note)})</span>` : ""}${thumbs(m)}</td></tr>`).join("")
       : `<tr><td class="note">ยังไม่มีประวัติ — เริ่มจาก "ตั้งยอด / ตรวจนับ"</td></tr>`;
     preview();
   }
@@ -188,7 +185,7 @@
     if (!(q >= 1)) { el.className = "bad"; el.textContent = "ใส่จำนวนตั้งแต่ 1 ขึ้นไป"; return; }
     const a = S.stock[f][i], b = S.stock[t][i];
     el.className = a < q ? "bad" : "";
-    el.textContent = a < q ? `${placeName(f)} มี${i}แค่ ${a} — ย้าย ${q} ไม่ได้`
+    el.textContent = a < q ? `${placeName(f)} มี${itemName(i)}แค่ ${a} — ย้าย ${q} ไม่ได้`
       : `${placeName(f)}: ${a} → ${a - q} · ${placeName(t)}: ${b} → ${b + q}`;
   }
   ["mItem", "mFrom", "mTo", "mQty"].forEach((id) => { $(id).addEventListener("input", preview); $(id).addEventListener("change", preview); });
@@ -199,12 +196,12 @@
     try {
       const r = await api("railMove", body);
       if (r.ok) {
-        S = r; renderStock(); $("moveMsg").className = "ok"; $("moveMsg").textContent = `✓ ย้าย${body.item} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว`; $("mNote").value = "";
+        S = r; renderStock(); $("moveMsg").className = "ok"; $("moveMsg").textContent = `✓ ย้าย${itemName(body.item)} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว`; $("mNote").value = "";
         if (pics.length) {
           let up = 0, bad = 0;
           for (const b of pics) { try { const x = await (await fetch(`/api/railphoto?key=${encodeURIComponent(CLOUD.key)}&move=${encodeURIComponent(r.moveId)}`, { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: b })).json(); x.ok ? up++ : bad++; } catch (e) { bad++; }
             $("moveMsg").textContent = `✓ ย้ายแล้ว · กำลังส่งรูป ${up + bad}/${pics.length}`; }
-          $("moveMsg").textContent = `✓ ย้าย${body.item} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว · รูป ${up} รูป${bad ? ` (ส่งไม่ได้ ${bad})` : ""}`;
+          $("moveMsg").textContent = `✓ ย้าย${itemName(body.item)} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว · รูป ${up} รูป${bad ? ` (ส่งไม่ได้ ${bad})` : ""}`;
           pics = []; renderPics(); loadStock();
         }
       }
@@ -217,7 +214,7 @@
     if (n === "") { $("countMsg").textContent = "ใส่จำนวนที่นับได้"; return; }
     try {
       const r = await api("railSet", { place: $("cPlace").value, item: $("cItem").value, count: n, dev: DEV });
-      if (r.ok) { S = r; renderStock(); $("countMsg").textContent = `✓ ${placeName($("cPlace").value)} ${$("cItem").value} = ${n}`; $("cCount").value = ""; }
+      if (r.ok) { S = r; renderStock(); $("countMsg").textContent = `✓ ${placeName($("cPlace").value)} ${itemName($("cItem").value)} = ${n}`; $("cCount").value = ""; }
       else $("countMsg").textContent = "บันทึกไม่ได้ — ตรวจข้อมูลอีกครั้ง";
     } catch (e) { $("countMsg").textContent = "ออฟไลน์ — ยังไม่ได้บันทึก"; }
   });
@@ -246,12 +243,12 @@
   $("hTo").value = isoDay(new Date()); $("hFrom").value = isoDay(new Date(Date.now() - 30 * 864e5));
   async function loadHist() {
     if (!CLOUD) return;
-    if (S) { opts($("hPlace"), ["", ...S.places], (p) => p ? placeName(p) : "ทุกที่"); opts($("hItem"), ["", ...S.items], (i) => i || "ทุกอุปกรณ์"); }
+    if (S) { opts($("hPlace"), ["", ...S.places], (p) => p ? placeName(p) : "ทุกที่"); opts($("hItem"), ["", ...S.items], (i) => i ? itemName(i) : "ทุกอุปกรณ์"); }
     $("histMsg").textContent = "กำลังโหลด…";
     try {
       const r = await api("railHistory", { from: $("hFrom").value, to: $("hTo").value, place: $("hPlace").value, item: $("hItem").value });
       if (!r.ok) throw new Error("x");
-      $("hist").innerHTML = r.moves.length ? r.moves.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(m.item)}</td><td class="n"><b>${m.qty}</b></td>
+      $("hist").innerHTML = r.moves.length ? r.moves.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(itemName(m.item))}</td><td class="n"><b>${m.qty}</b></td>
           <td>${m.to_loc.startsWith("X-") ? `<b style="color:var(--bad)">${esc(moveText(m))}</b>` : esc(moveText(m))}${m.note ? `<div class="note">${esc(m.note)}</div>` : ""}${thumbs(m)}</td></tr>`).join("")
         : `<tr><td class="note" colspan="4">ไม่มีรายการในช่วงนี้</td></tr>`;
       $("histMsg").textContent = `${r.moves.length} รายการ`;
@@ -270,19 +267,13 @@
     try { const r = await api("railDocs"); if (r.ok) { DOCS = r.docs; renderDocs(); } } catch (e) { $("docs").innerHTML = `<p class="note">ออฟไลน์ — โหลดรายการเอกสารไม่ได้</p>`; }
   }
   function renderDocs() {
-    const cats = [...new Set(DOCS.map((d) => d.cat).filter(Boolean))].sort();
-    const f = $("dFilter").value; $("dFilter").innerHTML = `<option value="">ทุกหมวด</option>` + cats.map((c) => `<option${c === f ? " selected" : ""}>${esc(c)}</option>`).join("");
-    $("cats").innerHTML = [...new Set([...cats, "OR07", "OR08", "OR09", "OR10", "OR11", "OR12", "แบบฟอร์ม", "ทั่วไป"])].map((c) => `<option value="${esc(c)}">`).join("");
-    const q = $("dSearch").value.trim().toLowerCase();
-    const list = DOCS.filter((d) => (!f || d.cat === f) && (!q || d.title.toLowerCase().includes(q)));
-    $("docs").innerHTML = list.length ? list.map((d) => `<div class="doc"><div class="t"><b>${esc(d.title)}</b>
-        <span class="note">${d.cat ? `<span class="chip">${esc(d.cat)}</span>` : ""}${when(d.created)} · ${(d.size / 1048576).toFixed(1)} MB</span></div>
+    $("docs").innerHTML = DOCS.length ? DOCS.map((d) => `<div class="doc"><div class="t"><b>📄 ${esc(d.title)}</b>
+        <span class="note">${when(d.created)} · ${(d.size / 1048576).toFixed(1)} MB</span></div>
         <a class="btn b" href="${docURL(d.id, true)}" download>⬇️ ดาวน์โหลด</a>
-        <button class="btn" data-print="${esc(d.id)}" type="button">🖨️ พิมพ์</button>
+        <button class="btn o" data-print="${esc(d.id)}" type="button">🖨️ พิมพ์</button>
         <button class="btn d" data-del="${esc(d.id)}" type="button">ลบ</button></div>`).join("")
-      : `<p class="note">${DOCS.length ? "ไม่พบเอกสารที่ค้นหา" : "ยังไม่มีเอกสาร — อัปโหลดด้านล่าง"}</p>`;
+      : `<p class="note">ยังไม่มีเอกสาร — อัปโหลดด้านล่าง</p>`;
   }
-  ["dFilter", "dSearch"].forEach((id) => $(id).addEventListener("input", renderDocs));
   $("docs").addEventListener("click", async (e) => {
     const p = e.target.closest("[data-print]"), d = e.target.closest("[data-del]"), ok = e.target.closest("[data-delok]");
     if (p) {
@@ -310,7 +301,7 @@
     if (file.size > 25 * 1048576) { $("upMsg").textContent = "ไฟล์ใหญ่เกิน 25 MB"; return; }
     $("uGo").disabled = true; $("upMsg").textContent = "กำลังอัปโหลด…";
     try {
-      const r = await (await fetch(`/api/raildoc?key=${encodeURIComponent(CLOUD.key)}&title=${encodeURIComponent(title)}&cat=${encodeURIComponent($("uCat").value.trim())}`,
+      const r = await (await fetch(`/api/raildoc?key=${encodeURIComponent(CLOUD.key)}&title=${encodeURIComponent(title)}&cat=`,
         { method: "POST", headers: { "Content-Type": "application/pdf" }, body: file })).json();
       if (!r.ok) throw new Error(r.error === "not_pdf" ? "ไฟล์นี้ไม่ใช่ PDF" : r.error === "too_large" ? "ไฟล์ใหญ่เกิน 25 MB" : "อัปโหลดไม่สำเร็จ");
       $("upMsg").textContent = `✓ อัปโหลด "${title}" แล้ว`; $("uTitle").value = ""; $("uFile").value = ""; loadDocs();
