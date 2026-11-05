@@ -189,6 +189,11 @@
         นำเข้าไฟล์สำรอง<input id="restore" type="file" accept=".json,application/json" hidden></label>
       <span class="saved" id="listMsg"></span>
     </div>
+    <div class="row" id="dayChoice" hidden style="margin:-6px 0 14px;align-items:center;gap:8px">
+      <span>วันนี้มีรายงานแล้ว</span>
+      <button class="g" id="openToday" type="button">เปิดใบเดิม</button>
+      <button class="b" id="addToday" type="button">+ สร้างใบใหม่อีกใบ</button>
+    </div>
     <p class="sync" id="syncList"></p>
     <div class="row" style="margin:0 0 12px;gap:8px">
       <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ดูวันที่<input id="listDate" class="dth" style="max-width:150px"></label>
@@ -553,7 +558,7 @@
   if (SP) {
     document.title = `รายงาน โครงการ${SP.name}`;
     document.querySelector("#vList h1").textContent = document.title;
-    document.querySelector("#vList .sub").textContent = "รายงานประจำวัน 1 วัน = 1 ใบ (แบบเดียวกับใบรายงานสนาม FM-PQ-10) · บันทึกอัตโนมัติในเครื่องนี้";
+    document.querySelector("#vList .sub").textContent = "รายงานประจำวัน (แบบเดียวกับใบรายงานสนาม FM-PQ-10) · บันทึกอัตโนมัติในเครื่องนี้";
     $("newJob").textContent = "+ รายงานวันนี้";
     document.querySelector('[data-h="project"]').readOnly = true;
   }
@@ -561,7 +566,7 @@
   // ---------- job list ----------
   function showList() {
     job = null; editIdx = -1;
-    $("vJob").hidden = true; $("vList").hidden = false;
+    $("vJob").hidden = true; $("vList").hidden = false; $("dayChoice").hidden = true;
     showSync();
     const day = $("listDate").value;
     const jobs = PROJ
@@ -629,19 +634,25 @@
   $("jobs").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.dataset.delcode) e.target.parentNode.querySelector("[data-delok]").click(); });
   $("newJob").addEventListener("click", () => {
     if (PROJ) {
-      // today's report already started → open it; otherwise start one with the fixed details of the last report
-      const mine = db.jobs.filter(inProj);
-      const t = mine.find((x) => x.header.date === today());
-      if (t) return openJob(t.id);
-      const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
-      const last = mine.sort((a, b) => (b.header.date || "").localeCompare(a.header.date || ""))[0];
-      j.header.project = PROJ; j.header.customer = SP.customer;
-      if (last && !last.stub) ["tech", "phone", "productCode"].forEach((k) => { j.header[k] = last.header[k] || ""; });
-      db.jobs.push(j); persist(); markDirty(j.id); return openJob(j.id, true);
+      // today's report already started → offer: open it, or start another one for today
+      const t = db.jobs.filter(inProj).find((x) => x.header.date === today());
+      if (t) { const c = $("dayChoice"); c.hidden = !c.hidden; $("openToday").onclick = () => { c.hidden = true; openJob(t.id); }; return; }
+      newProjJob();
+      return;
     }
     const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
     db.jobs.push(j); persist(); markDirty(j.id); openJob(j.id, true);
   });
+  $("addToday").addEventListener("click", () => { $("dayChoice").hidden = true; newProjJob(); });
+  // a special-project report: starts with the fixed details of the last report
+  function newProjJob() {
+    const mine = db.jobs.filter(inProj);
+    const j = FieldSync.upgradeJob(FieldReport.newJob(FieldSync.newId("j"), today()));
+    const last = mine.sort((a, b) => (b.header.date || "").localeCompare(a.header.date || ""))[0];
+    j.header.project = PROJ; j.header.customer = SP.customer;
+    if (last && !last.stub) ["tech", "phone", "productCode"].forEach((k) => { j.header[k] = last.header[k] || ""; });
+    db.jobs.push(j); persist(); markDirty(j.id); openJob(j.id, true);
+  }
 
   // ---------- one job ----------
   async function openJob(id, isNew) {
