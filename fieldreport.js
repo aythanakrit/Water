@@ -149,8 +149,9 @@
    * forward from earlier pages, its own total and the running total, so the pages
    * reconcile: carried + total = cumulative = next page's carried.
    */
-  /** A truck sent back: remark says "Reject" (its volume is not counted as received). */
-  const isReject = (t) => !!t && /\breject\b/i.test(String(t.remark || ""));
+  /** A truck sent back: remark says "Reject", or its volume is 0 (not counted as received). */
+  const zeroVolume = (t) => !!t && String(t.volume ?? "").trim() !== "" && Number(t.volume) === 0;
+  const isReject = (t) => !!t && (/\breject\b/i.test(String(t.remark || "")) || zeroVolume(t));
 
   function pages(trucks, size = ROWS_PER_PAGE) {
     const out = [];
@@ -228,5 +229,5 @@
     };
   }
 
-  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, staleDO, staleMessage, truckGap, isReject, gapMessage, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
+  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, staleDO, staleMessage, truckGap, isReject, zeroVolume, gapMessage, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
 });

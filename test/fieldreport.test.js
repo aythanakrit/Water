@@ -122,6 +122,10 @@ test("a rejected truck (remark says Reject) is not counted as received or in pag
   assert.equal(F.isReject({ remark: "slump สูง reject" }), true);
   assert.equal(F.isReject({ remark: "Rejected?" }), false); // the word itself only
   assert.equal(F.isReject({ remark: "" }), false);
+  assert.equal(F.isReject({ volume: "0" }), true);   // volume 0 = rejected
+  assert.equal(F.isReject({ volume: "0.0" }), true);
+  assert.equal(F.isReject({ volume: "" }), false);   // not typed yet
+  assert.equal(F.isReject({ volume: "7" }), false);
   const trucks = [{ do: "1", volume: "7" }, { do: "2", volume: "7", remark: "Reject" }, { do: "3", volume: "5" }];
   assert.equal(F.summary({ header: {}, trucks }).received, 12);
   assert.equal(F.pages(trucks)[0].total, 12);

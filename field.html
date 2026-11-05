@@ -1074,7 +1074,7 @@
         [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k] || "") === v ? "on" : ""}" ${ro}>${esc(pickLabel(k, v))}</button>`).join("")}</div></div>`).join("")}
       <div class="fields" style="margin-top:12px">${t.sampleType ? F_MORE.map(inp).join("") : ""}</div>
       <div class="pick" style="margin-top:12px"><span class="pl">สถานะรถ</span><div class="chips">
-        <button type="button" data-reject class="${FieldReport.isReject(t) ? "on rj" : ""}" ${ro}>${FieldReport.isReject(t) ? "❌ Reject (กดเพื่อยกเลิก)" : "Reject — รถคันนี้ถูกตีกลับ"}</button></div></div>
+        <button type="button" data-reject class="${FieldReport.isReject(t) ? "on rj" : ""}" ${ro || (FieldReport.zeroVolume(t) ? "disabled" : "")}>${FieldReport.zeroVolume(t) ? "❌ Reject อัตโนมัติ (ปริมาณ 0 — แก้ปริมาณเพื่อยกเลิก)" : FieldReport.isReject(t) ? "❌ Reject (กดเพื่อยกเลิก)" : "Reject — รถคันนี้ถูกตีกลับ"}</button></div></div>
       ${SP && FieldReport.isReject(t) ? `<p class="note" style="margin:6px 0 0">ใบรายงานที่ดาวน์โหลดจะไม่มีรถคันนี้ · ผู้ดูแลรายงานเห็นเป็นแถวขีดฆ่าสีแดง · ไม่นับในยอดรับ</p>` : ""}
       <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะใส่ในช่องหมายเหตุของรายการและ PDF ให้เอง</p>
       ${SP ? `<div id="editPhotos" style="margin-top:14px"></div>` : ""}
