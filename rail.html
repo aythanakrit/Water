@@ -318,7 +318,7 @@
     finally { $("uGo").disabled = false; }
   });
 
-  if (!CLOUD) { $("offline").hidden = false; document.querySelectorAll("button, input, select").forEach((x) => { if (!x.closest(".tabs")) x.disabled = true; }); }
+  if (!CLOUD) { $("offline").hidden = false; document.querySelectorAll("main button, main input, main select").forEach((x) => { if (!x.closest(".tabs")) x.disabled = true; }); }
   else { loadStock(); setInterval(() => { if (!document.hidden && !$("tab-stock").hidden) loadStock(); }, 15000); }
 </script>
 <script src="topbar.js"></script>
