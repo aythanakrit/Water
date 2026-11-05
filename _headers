@@ -1,0 +1,6 @@
+# Cloudflare Pages: every device checks for a newer page/script on each open (a quick "not modified" when
+# nothing changed), so no device keeps running an old version after an update. Icons may be cached for a week.
+/*
+  Cache-Control: no-cache
+/icons/*
+  Cache-Control: public, max-age=604800
