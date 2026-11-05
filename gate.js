@@ -1,11 +1,12 @@
 /*
  * Code lock for a card: <script src="gate.js" data-gate="core" data-hash="<sha-256 hex of the code>"></script>
- * placed right after <body>. The page stays covered until the right code is typed; this device then
+ * placed right after <body>. Add data-anycase to accept the code in capitals or small letters (hash of the lower-case code).
+ * The page stays covered until the right code is typed; this device then
  * remembers it. The check runs in the browser only — it keeps casual users out, it does not protect data.
  */
 (function () {
   const me = document.currentScript;
-  const name = me.dataset.gate, hash = me.dataset.hash;
+  const name = me.dataset.gate, hash = me.dataset.hash, anyCase = me.hasAttribute("data-anycase");
   const KEY = "gate-" + name;
   try { if (localStorage.getItem(KEY) === hash) return; } catch {}
 
@@ -39,7 +40,8 @@
   g.addEventListener("submit", async (e) => {
     e.preventDefault();
     const inp = g.querySelector("input");
-    if ((await sha(inp.value.trim())) !== hash) { g.querySelector(".err").textContent = "รหัสไม่ถูกต้อง"; inp.select(); return; }
+    const code = anyCase ? inp.value.trim().toLowerCase() : inp.value.trim();
+    if ((await sha(code)) !== hash) { g.querySelector(".err").textContent = "รหัสไม่ถูกต้อง"; inp.select(); return; }
     try { localStorage.setItem(KEY, hash); } catch {}
     g.remove(); document.documentElement.classList.remove("gated");
   });
