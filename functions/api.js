@@ -74,6 +74,12 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "scanPull": return json(await S.scanPull(db, req.list, req.since));
       case "scanRemove": return json(await S.scanRemove(db, req.list, req.ids));
       case "scanClear": return json(await S.scanClear(db, req.list));
+      // ---- rail project: equipment and PDF library (files go up / down through /api/raildoc) ----
+      case "railStock": return json(await S.railStock(db));
+      case "railMove": return json(await S.railMove(db, req));
+      case "railSet": return json(await S.railSet(db, req));
+      case "railDocs": return json(await S.railDocs(db));
+      case "railDocDelete": return json(await S.railDocDelete(db, bucket, req.id));
       // ---- Trial Mix ----
       case "trialList": return json(await S.trialList(db));
       case "trialSave": return json(await S.trialSave(db, req.trial));

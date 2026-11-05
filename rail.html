@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Production">
+<title>งานรถไฟฟ้า สายสีส้ม</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7; --accent: #1f5fbf; --ok: #1d7a3e; --bad: #b42318; --orange: #e8730c; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --ok: #5cc98a; --bad: #ff8a80; --orange: #ff9d4d; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --ok: #5cc98a; --bad: #ff8a80; --orange: #ff9d4d; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 2px; } h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .sub, .note { color: var(--muted); } .sub { margin: 0 0 12px; font-size: .9rem; } .note { font-size: .82rem; }
+  .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button { flex: 1; font: inherit; font-weight: 600; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; }
+  .tabs button.on { background: var(--orange); border-color: var(--orange); color: #fff; }
+  input, select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; }
+  .btn { font: inherit; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--line); background: var(--card); color: var(--accent); cursor: pointer; white-space: nowrap; }
+  .btn.b { background: var(--accent); border-color: var(--accent); color: #fff; } .btn.o { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .btn.d { color: var(--bad); } .btn:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .row + .row { margin-top: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  label.f { display: flex; flex-direction: column; gap: 3px; font-size: .82rem; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; } th { font-size: .8rem; color: var(--muted); }
+  td.n, th.n { text-align: right; width: 6em; } td.n b { font-size: 1.15rem; }
+  tr.plant td:first-child { font-weight: 700; } tr.tot td { font-weight: 700; border-top: 2px solid var(--muted); }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; background: var(--orange); color: #fff; margin-right: 6px; }
+  .chip.p { background: var(--accent); }
+  #preview { margin-top: 8px; font-weight: 600; min-height: 1.5em; } #preview.bad { color: var(--bad); } #moveMsg.ok { color: var(--ok); } #moveMsg.bad { color: var(--bad); }
+  .doc { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .doc .t { flex: 1; min-width: 180px; } .doc .t b { display: block; } [hidden] { display: none !important; }
+  .log td { font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+  <h1>งานรถไฟฟ้า สายสีส้ม</h1>
+  <p class="sub">สถานี OR07–OR12 · เอกสาร PDF ให้ทุกคนดาวน์โหลด/พิมพ์ · อุปกรณ์เก็บลูกปูนแต่ละที่ และการย้ายของ</p>
+  <p class="note" id="offline" hidden style="color:var(--bad)">⚠️ หน้านี้ใช้ได้เมื่อต่อระบบกลางเท่านั้น (เว็บนี้ยังไม่ได้ต่อ หรือกำลังออฟไลน์)</p>
+
+  <div class="tabs"><button data-tab="stock" class="on" type="button">🧰 อุปกรณ์</button><button data-tab="docs" type="button">📄 เอกสาร PDF</button></div>
+
+  <!-- equipment -->
+  <div id="tab-stock">
+    <section>
+      <h2>ยอดคงเหลือแต่ละที่</h2>
+      <table><thead id="stockHead"></thead><tbody id="stockBody"></tbody></table>
+      <p class="note" id="stockAt" style="margin:8px 0 0"></p>
+    </section>
+
+    <section>
+      <h2>ย้ายอุปกรณ์</h2>
+      <div class="grid">
+        <label class="f">อุปกรณ์<select id="mItem"></select></label>
+        <label class="f">จำนวน<input id="mQty" type="number" inputmode="numeric" min="1" step="1" value="1"></label>
+        <label class="f">จาก<select id="mFrom"></select></label>
+        <label class="f">ไปที่<select id="mTo"></select></label>
+      </div>
+      <div class="row" style="margin-top:8px"><input id="mNote" type="text" placeholder="หมายเหตุ (ไม่บังคับ) เช่น ชื่อคนขนย้าย" style="flex:1"></div>
+      <div id="preview"></div>
+      <div class="row" style="margin-top:6px"><button class="btn o" id="mGo" type="button">ย้าย</button><span id="moveMsg" class="note"></span></div>
+    </section>
+
+    <section>
+      <h2>ตั้งยอด / ตรวจนับ</h2>
+      <p class="note" style="margin:-4px 0 8px">ใช้ใส่ยอดตั้งต้น หรือแก้ยอดหลังตรวจนับจริง (ระบบบันทึกส่วนต่างไว้ในประวัติ)</p>
+      <div class="grid">
+        <label class="f">ที่<select id="cPlace"></select></label>
+        <label class="f">อุปกรณ์<select id="cItem"></select></label>
+        <label class="f">นับได้จริง (ชิ้น/คัน)<input id="cCount" type="number" inputmode="numeric" min="0" step="1"></label>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="cGo" type="button">บันทึกยอด</button><span id="countMsg" class="note"></span></div>
+    </section>
+
+    <section>
+      <h2>ประวัติล่าสุด</h2>
+      <table class="log"><tbody id="log"></tbody></table>
+    </section>
+  </div>
+
+  <!-- PDF library -->
+  <div id="tab-docs" hidden>
+    <section>
+      <h2>เอกสาร</h2>
+      <div class="row"><select id="dFilter"><option value="">ทุกหมวด</option></select><input id="dSearch" type="text" placeholder="ค้นหาชื่อเอกสาร" style="flex:1"></div>
+      <div id="docs"></div>
+      <p class="note" id="printHint" style="margin:8px 0 0"></p>
+    </section>
+    <section>
+      <h2>อัปโหลดเอกสาร PDF</h2>
+      <div class="grid">
+        <label class="f">ชื่อเอกสาร<input id="uTitle" type="text" placeholder="เช่น Method Statement เทเสาเข็ม OR09"></label>
+        <label class="f">หมวด / สถานี<input id="uCat" type="text" list="cats" placeholder="เช่น OR09, แบบฟอร์ม, ทั่วไป"></label>
+      </div>
+      <datalist id="cats"></datalist>
+      <div class="row" style="margin-top:8px"><input id="uFile" type="file" accept="application/pdf,.pdf"><button class="btn b" id="uGo" type="button">อัปโหลด</button><span id="upMsg" class="note"></span></div>
+      <p class="note" style="margin:6px 0 0">ไฟล์ PDF ไม่เกิน 25 MB · ทุกคนที่มีลิงก์เว็บเปิดดู ดาวน์โหลด และพิมพ์ได้</p>
+    </section>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
+  const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
+  const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const placeName = (p) => p.startsWith("P-") ? "แพล้นท์" + p.slice(2) : "สถานี " + p;
+  const pad = (n) => String(n).padStart(2, "0");
+  const when = (ms) => { const d = new Date(ms); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() + 543} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  let DEV = ""; try { DEV = localStorage.getItem("rail-dev") || ""; if (!DEV) { DEV = Math.random().toString(36).slice(2, 6).toUpperCase(); localStorage.setItem("rail-dev", DEV); } } catch (e) {}
+  async function api(action, body = {}) {
+    const r = await fetch(CLOUD.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...body, action, key: CLOUD.key }) });
+    return r.json();
+  }
+
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+    $("tab-stock").hidden = b.dataset.tab !== "stock"; $("tab-docs").hidden = b.dataset.tab !== "docs";
+    if (b.dataset.tab === "docs") loadDocs();
+  }));
+
+  // ---------- equipment ----------
+  let S = null; // { places, items, stock, log }
+  function opts(sel, list, label = (x) => x) { const v = sel.value; sel.innerHTML = list.map((x) => `<option value="${esc(x)}">${esc(label(x))}</option>`).join(""); if (list.includes(v)) sel.value = v; }
+  function renderStock() {
+    if (!S) return;
+    $("stockHead").innerHTML = `<tr><th>ที่</th>${S.items.map((i) => `<th class="n">${esc(i)}</th>`).join("")}</tr>`;
+    $("stockBody").innerHTML = S.places.map((p) => `<tr class="${p.startsWith("P-") ? "plant" : ""}"><td><span class="chip${p.startsWith("P-") ? " p" : ""}">${p.startsWith("P-") ? "แพล้นท์" : "สถานี"}</span>${esc(p.startsWith("P-") ? p.slice(2) : p)}</td>
+      ${S.items.map((i) => `<td class="n"><b>${S.stock[p][i]}</b></td>`).join("")}</tr>`).join("") +
+      `<tr class="tot"><td>รวมทุกที่</td>${S.items.map((i) => `<td class="n">${S.places.reduce((a, p) => a + S.stock[p][i], 0)}</td>`).join("")}</tr>`;
+    $("stockAt").textContent = `อัปเดต ${when(Date.now())} · อัปเดตเองทุก 15 วินาที`;
+    [$("mItem"), $("cItem")].forEach((s) => opts(s, S.items));
+    [$("mFrom"), $("mTo"), $("cPlace")].forEach((s) => opts(s, S.places, placeName));
+    if ($("mFrom").value === $("mTo").value) $("mTo").value = S.places.find((p) => p !== $("mFrom").value);
+    $("log").innerHTML = S.log.length ? S.log.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${m.kind === "count"
+        ? `ตรวจนับ ${esc(placeName(m.to_loc || m.from_loc))}: ${m.to_loc ? "+" : "−"}${m.qty} ${esc(m.item)}`
+        : `${esc(m.item)} ${m.qty} · ${esc(placeName(m.from_loc))} → ${esc(placeName(m.to_loc))}`}${m.note ? ` <span class="note">(${esc(m.note)})</span>` : ""}</td></tr>`).join("")
+      : `<tr><td class="note">ยังไม่มีประวัติ — เริ่มจาก "ตั้งยอด / ตรวจนับ"</td></tr>`;
+    preview();
+  }
+  // what the move will do: place A x → y, place B x → y
+  function preview() {
+    if (!S) return;
+    const i = $("mItem").value, f = $("mFrom").value, t = $("mTo").value, q = Math.round(Number($("mQty").value));
+    const el = $("preview");
+    if (f === t) { el.className = "bad"; el.textContent = "ต้นทางกับปลายทางเป็นที่เดียวกัน"; return; }
+    if (!(q >= 1)) { el.className = "bad"; el.textContent = "ใส่จำนวนตั้งแต่ 1 ขึ้นไป"; return; }
+    const a = S.stock[f][i], b = S.stock[t][i];
+    el.className = a < q ? "bad" : "";
+    el.textContent = a < q ? `${placeName(f)} มี${i}แค่ ${a} — ย้าย ${q} ไม่ได้`
+      : `${placeName(f)}: ${a} → ${a - q} · ${placeName(t)}: ${b} → ${b + q}`;
+  }
+  ["mItem", "mFrom", "mTo", "mQty"].forEach((id) => { $(id).addEventListener("input", preview); $(id).addEventListener("change", preview); });
+  async function loadStock() { try { const r = await api("railStock"); if (r.ok) { S = r; renderStock(); $("offline").hidden = true; } } catch (e) { $("offline").hidden = false; } }
+  $("mGo").addEventListener("click", async () => {
+    const body = { item: $("mItem").value, qty: $("mQty").value, from: $("mFrom").value, to: $("mTo").value, note: $("mNote").value, dev: DEV };
+    $("mGo").disabled = true;
+    try {
+      const r = await api("railMove", body);
+      if (r.ok) { S = r; renderStock(); $("moveMsg").className = "ok"; $("moveMsg").textContent = `✓ ย้าย${body.item} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว`; $("mNote").value = ""; }
+      else { $("moveMsg").className = "bad"; $("moveMsg").textContent = r.error === "not_enough" ? `ต้นทางเหลือแค่ ${r.have} — ไม่ได้ย้าย` : "ย้ายไม่ได้ — ตรวจข้อมูลอีกครั้ง"; loadStock(); }
+    } catch (e) { $("moveMsg").className = "bad"; $("moveMsg").textContent = "ออฟไลน์ — ยังไม่ได้ย้าย ลองใหม่เมื่อมีสัญญาณ"; }
+    finally { $("mGo").disabled = false; }
+  });
+  $("cGo").addEventListener("click", async () => {
+    const n = $("cCount").value;
+    if (n === "") { $("countMsg").textContent = "ใส่จำนวนที่นับได้"; return; }
+    try {
+      const r = await api("railSet", { place: $("cPlace").value, item: $("cItem").value, count: n, dev: DEV });
+      if (r.ok) { S = r; renderStock(); $("countMsg").textContent = `✓ ${placeName($("cPlace").value)} ${$("cItem").value} = ${n}`; $("cCount").value = ""; }
+      else $("countMsg").textContent = "บันทึกไม่ได้ — ตรวจข้อมูลอีกครั้ง";
+    } catch (e) { $("countMsg").textContent = "ออฟไลน์ — ยังไม่ได้บันทึก"; }
+  });
+
+  // ---------- PDF library ----------
+  let DOCS = [];
+  const docURL = (id, dl) => `/api/raildoc?key=${encodeURIComponent(CLOUD.key)}&id=${encodeURIComponent(id)}${dl ? "&dl=1" : ""}`;
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  $("printHint").textContent = iOS ? "iPad/iPhone: กด \"พิมพ์\" แล้วเอกสารจะเปิดขึ้นมา → แตะปุ่มแชร์ (□↑) → พิมพ์" : "";
+  async function loadDocs() {
+    if (!CLOUD) return;
+    try { const r = await api("railDocs"); if (r.ok) { DOCS = r.docs; renderDocs(); } } catch (e) { $("docs").innerHTML = `<p class="note">ออฟไลน์ — โหลดรายการเอกสารไม่ได้</p>`; }
+  }
+  function renderDocs() {
+    const cats = [...new Set(DOCS.map((d) => d.cat).filter(Boolean))].sort();
+    const f = $("dFilter").value; $("dFilter").innerHTML = `<option value="">ทุกหมวด</option>` + cats.map((c) => `<option${c === f ? " selected" : ""}>${esc(c)}</option>`).join("");
+    $("cats").innerHTML = [...new Set([...cats, "OR07", "OR08", "OR09", "OR10", "OR11", "OR12", "แบบฟอร์ม", "ทั่วไป"])].map((c) => `<option value="${esc(c)}">`).join("");
+    const q = $("dSearch").value.trim().toLowerCase();
+    const list = DOCS.filter((d) => (!f || d.cat === f) && (!q || d.title.toLowerCase().includes(q)));
+    $("docs").innerHTML = list.length ? list.map((d) => `<div class="doc"><div class="t"><b>${esc(d.title)}</b>
+        <span class="note">${d.cat ? `<span class="chip">${esc(d.cat)}</span>` : ""}${when(d.created)} · ${(d.size / 1048576).toFixed(1)} MB</span></div>
+        <a class="btn b" href="${docURL(d.id, true)}" download>⬇️ ดาวน์โหลด</a>
+        <button class="btn" data-print="${esc(d.id)}" type="button">🖨️ พิมพ์</button>
+        <button class="btn d" data-del="${esc(d.id)}" type="button">ลบ</button></div>`).join("")
+      : `<p class="note">${DOCS.length ? "ไม่พบเอกสารที่ค้นหา" : "ยังไม่มีเอกสาร — อัปโหลดด้านล่าง"}</p>`;
+  }
+  ["dFilter", "dSearch"].forEach((id) => $(id).addEventListener("input", renderDocs));
+  $("docs").addEventListener("click", async (e) => {
+    const p = e.target.closest("[data-print]"), d = e.target.closest("[data-del]"), ok = e.target.closest("[data-delok]");
+    if (p) {
+      const url = docURL(p.dataset.print);
+      if (iOS) { window.open(url, "_blank"); return; } // iPad/iPhone: print from the PDF viewer's share menu
+      // elsewhere: load the PDF in a hidden frame and open the print dialog straight away
+      const f = document.createElement("iframe"); f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0"; f.src = url;
+      f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (x) { window.open(url, "_blank"); } setTimeout(() => f.remove(), 60000); };
+      document.body.appendChild(f);
+    }
+    if (d) {
+      const row = d.closest(".doc");
+      row.insertAdjacentHTML("beforeend", `<div class="row" style="width:100%"><input type="password" data-code placeholder="รหัสเพื่อลบ" autocomplete="off" style="max-width:170px"><button class="btn d" data-delok="${esc(d.dataset.del)}" type="button">ยืนยันลบ</button></div>`);
+      d.remove(); row.querySelector("[data-code]").focus();
+    }
+    if (ok) {
+      const row = ok.closest(".doc");
+      if ((await sha256(row.querySelector("[data-code]").value.trim())) !== DEL_HASH) { ok.textContent = "รหัสไม่ถูกต้อง"; return; }
+      await api("railDocDelete", { id: ok.dataset.delok }); loadDocs();
+    }
+  });
+  $("uGo").addEventListener("click", async () => {
+    const file = $("uFile").files[0], title = $("uTitle").value.trim() || (file && file.name.replace(/\.pdf$/i, ""));
+    if (!file) { $("upMsg").textContent = "เลือกไฟล์ PDF ก่อน"; return; }
+    if (file.size > 25 * 1048576) { $("upMsg").textContent = "ไฟล์ใหญ่เกิน 25 MB"; return; }
+    $("uGo").disabled = true; $("upMsg").textContent = "กำลังอัปโหลด…";
+    try {
+      const r = await (await fetch(`/api/raildoc?key=${encodeURIComponent(CLOUD.key)}&title=${encodeURIComponent(title)}&cat=${encodeURIComponent($("uCat").value.trim())}`,
+        { method: "POST", headers: { "Content-Type": "application/pdf" }, body: file })).json();
+      if (!r.ok) throw new Error(r.error === "not_pdf" ? "ไฟล์นี้ไม่ใช่ PDF" : r.error === "too_large" ? "ไฟล์ใหญ่เกิน 25 MB" : "อัปโหลดไม่สำเร็จ");
+      $("upMsg").textContent = `✓ อัปโหลด "${title}" แล้ว`; $("uTitle").value = ""; $("uFile").value = ""; loadDocs();
+    } catch (e) { $("upMsg").textContent = e.message && !/fetch/i.test(e.message) ? e.message : "ออฟไลน์ — อัปโหลดไม่ได้"; }
+    finally { $("uGo").disabled = false; }
+  });
+
+  if (!CLOUD) { $("offline").hidden = false; document.querySelectorAll("button, input, select").forEach((x) => { if (!x.closest(".tabs")) x.disabled = true; }); }
+  else { loadStock(); setInterval(() => { if (!document.hidden && !$("tab-stock").hidden) loadStock(); }, 15000); }
+</script>
+<script src="topbar.js"></script>
+</body>
+</html>

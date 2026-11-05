@@ -30,6 +30,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS scans (id TEXT PRIMARY KEY, list TEXT NOT NULL, do TEXT NOT NULL, at INTEGER NOT NULL, dev TEXT,
     removed INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS scans_list ON scans(list, updated)`,
+  `CREATE TABLE IF NOT EXISTS rail_moves (id TEXT PRIMARY KEY, at INTEGER NOT NULL, item TEXT NOT NULL, from_loc TEXT NOT NULL DEFAULT '',
+    to_loc TEXT NOT NULL DEFAULT '', qty INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'move', note TEXT, dev TEXT)`,
+  `CREATE TABLE IF NOT EXISTS rail_docs (id TEXT PRIMARY KEY, title TEXT NOT NULL, cat TEXT, size INTEGER, rkey TEXT NOT NULL, created INTEGER, removed INTEGER)`,
   `CREATE TABLE IF NOT EXISTS trials (id TEXT PRIMARY KEY, status TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
 ];
 let ready = null;
@@ -296,5 +299,51 @@ export async function scanRemove(db, list, ids, now = Date.now()) {
 }
 export async function scanClear(db, list, now = Date.now()) {
   await db.prepare("UPDATE scans SET removed = 1, updated = ? WHERE list = ? AND removed = 0").bind(now, LIST(list)).run();
+  return { ok: true };
+}
+
+// ---------- rail project (สายสีส้ม): equipment at plants and stations, and a shared PDF library ----------
+// Stock is never stored: it is the sum of moves (in to a place, out of a place), so every change has a record.
+export const RAIL_PLACES = ["P-คลองตัน", "P-เพชรพระราม", "OR07", "OR08", "OR09", "OR10", "OR11", "OR12"];
+export const RAIL_ITEMS = ["โมลคิว", "รถเข็น"];
+async function railBalances(db) {
+  const { results } = await db.prepare(`SELECT to_loc AS loc, item, SUM(qty) AS n FROM rail_moves WHERE to_loc != '' GROUP BY to_loc, item
+    UNION ALL SELECT from_loc AS loc, item, -SUM(qty) AS n FROM rail_moves WHERE from_loc != '' GROUP BY from_loc, item`).all();
+  const bal = {};
+  RAIL_PLACES.forEach((p) => { bal[p] = {}; RAIL_ITEMS.forEach((i) => { bal[p][i] = 0; }); });
+  results.forEach((r) => { if (bal[r.loc] && r.item in bal[r.loc]) bal[r.loc][r.item] += Number(r.n) || 0; });
+  return bal;
+}
+export async function railStock(db) {
+  const { results } = await db.prepare("SELECT * FROM rail_moves ORDER BY at DESC LIMIT 100").all();
+  return { ok: true, places: RAIL_PLACES, items: RAIL_ITEMS, stock: await railBalances(db), log: results };
+}
+/** Move qty of an item from one place to another (never below 0 at the place it leaves). */
+export async function railMove(db, req, now = Date.now()) {
+  const { item, from, to } = req, qty = Math.round(Number(req.qty));
+  if (!RAIL_ITEMS.includes(item) || !RAIL_PLACES.includes(from) || !RAIL_PLACES.includes(to) || from === to || !(qty >= 1 && qty <= 999))
+    return { ok: false, error: "bad_request" };
+  const bal = await railBalances(db);
+  if (bal[from][item] < qty) return { ok: false, error: "not_enough", have: bal[from][item] };
+  await db.prepare("INSERT INTO rail_moves (id, at, item, from_loc, to_loc, qty, kind, note, dev) VALUES (?,?,?,?,?,?,'move',?,?)")
+    .bind(crypto.randomUUID(), now, item, from, to, qty, String(req.note || "").slice(0, 200), String(req.dev || "").slice(0, 40)).run();
+  return railStock(db);
+}
+/** Count at a place (first stock, a count after checking): stored as the difference, so the record stays. */
+export async function railSet(db, req, now = Date.now()) {
+  const { item, place } = req, count = Math.round(Number(req.count));
+  if (!RAIL_ITEMS.includes(item) || !RAIL_PLACES.includes(place) || !(count >= 0 && count <= 9999)) return { ok: false, error: "bad_request" };
+  const diff = count - (await railBalances(db))[place][item];
+  if (diff) await db.prepare("INSERT INTO rail_moves (id, at, item, from_loc, to_loc, qty, kind, note, dev) VALUES (?,?,?,?,?,?,'count',?,?)")
+    .bind(crypto.randomUUID(), now, item, diff < 0 ? place : "", diff > 0 ? place : "", Math.abs(diff), String(req.note || "").slice(0, 200), String(req.dev || "").slice(0, 40)).run();
+  return railStock(db);
+}
+export async function railDocs(db) {
+  const { results } = await db.prepare("SELECT id, title, cat, size, created FROM rail_docs WHERE removed IS NULL ORDER BY created DESC").all();
+  return { ok: true, docs: results };
+}
+export async function railDocDelete(db, bucket, id, now = Date.now()) {
+  const r = await db.prepare("SELECT rkey FROM rail_docs WHERE id = ?").bind(String(id || "")).first();
+  if (r) { await db.prepare("UPDATE rail_docs SET removed = ? WHERE id = ?").bind(now, id).run(); if (bucket) await bucket.delete(r.rkey); }
   return { ok: true };
 }
