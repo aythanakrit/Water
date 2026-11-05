@@ -190,6 +190,12 @@
       <span class="saved" id="listMsg"></span>
     </div>
     <p class="sync" id="syncList"></p>
+    <div class="row" style="margin:0 0 12px;gap:8px">
+      <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ดูวันที่<input id="listDate" class="dth" style="max-width:150px"></label>
+      <button class="g" id="listToday" type="button">วันนี้</button>
+      <button class="g" id="listAll" type="button">ทั้งหมด</button>
+      <span class="note" id="listDateMsg"></span>
+    </div>
     <div class="jobs" id="jobs"></div>
 
     <!-- Special project: photos per truck (slump at plant, slump on site, printout) -->
@@ -488,8 +494,8 @@
       const onServer = new Set(r.jobs.map((j) => j.id));
       r.jobs.forEach(applyServer);
       // jobs removed on another device (never ones still waiting to be sent)
-      db.jobs.forEach((j) => { if (!onServer.has(j.id) && !db.dirty.includes(j.id)) dropped.add(j.id); });
-      db.jobs = db.jobs.filter((j) => onServer.has(j.id) || db.dirty.includes(j.id));
+      db.jobs.forEach((j) => { if (!onServer.has(j.id) && !db.dirty.includes(j.id) && !viewKeep.has(j.id)) dropped.add(j.id); });
+      db.jobs = db.jobs.filter((j) => onServer.has(j.id) || db.dirty.includes(j.id) || viewKeep.has(j.id));
       // back online; a server-side refusal of a waiting report stays on screen until it is sent
       if (syncState === "offline" && (!syncErr || /fetch|network|load failed|timeout/i.test(syncErr))) syncState = "idle";
       lastSync = FieldReport.nowHHMM(); persist(); showSync();
@@ -556,9 +562,10 @@
     job = null; editIdx = -1;
     $("vJob").hidden = true; $("vList").hidden = false;
     showSync();
+    const day = $("listDate").value;
     const jobs = PROJ
-      ? db.jobs.filter(inProj).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
-      : db.jobs.filter(inProj).sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
+      ? db.jobs.filter(inProj).filter((j) => !day || j.header.date === day).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
+      : db.jobs.filter(inProj).filter((j) => !day || j.header.date === day).sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     if (SP && typeof phRefresh === "function" && ph) phRefresh();
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
@@ -571,8 +578,30 @@
         <div class="row"><button class="b" data-open="${j.id}" type="button">${j.status === "done" ? "เปิดดู" : "บันทึกต่อ"}</button>
           <button class="g d" data-del="${j.id}" type="button">ลบ</button></div>
       </section>`;
-    }).join("") : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
+    }).join("") : day ? `<section><p class="note" style="margin:0">ไม่มีใบรายงานวันที่ ${esc(thaiDate(day))}</p></section>` : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
   }
+  // ---------- look at one day: reports of that date, also older ones the normal list no longer carries ----------
+  const viewKeep = new Set(); // reports fetched for a chosen day: kept in this tab although the job list (last 7 days) has no row for them
+  async function showDay() {
+    const day = $("listDate").value;
+    $("listDateMsg").textContent = "";
+    showList();
+    if (!day || !SYNC) return;
+    $("listDateMsg").textContent = "กำลังดึงใบรายงานวันนั้น…";
+    try {
+      const r = await api("report", { from: day, to: day });
+      if (!r.ok) throw new Error(r.error || "x");
+      const ids = r.jobs.map((j) => j.id).filter((id) => { const l = db.jobs.find((x) => x.id === id); return !l || l.stub; }).slice(0, 30);
+      for (const id of ids) { const g = await api("get", { id }); if (g.ok && g.job && g.job.status !== "deleted") { viewKeep.add(id); applyServer(g.job); } }
+      persist(); $("listDateMsg").textContent = ""; if (!job) showList();
+    } catch (e) { $("listDateMsg").textContent = "ดึงจากระบบกลางไม่ได้ — แสดงเฉพาะที่อยู่ในเครื่อง"; }
+  }
+  const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  $("listDate").addEventListener("change", showDay);
+  $("listDate").addEventListener("input", () => { if (/^\d{4}-\d{2}-\d{2}$/.test($("listDate").value)) showDay(); });
+  $("listToday").addEventListener("click", () => { $("listDate").value = isoToday(); showDay(); });
+  $("listAll").addEventListener("click", () => { $("listDate").value = ""; showDay(); });
+
   // Deleting a report needs the code (SHA-256 checked in this browser; keeps reports from being deleted by mistake)
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");

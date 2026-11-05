@@ -120,6 +120,7 @@
   .pp figcaption { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
   .pp .box { flex: 1; min-height: 0; border: 1px solid #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .pp .box img { max-width: 100%; max-height: 100%; display: block; }
+  .dayh { font-size: .95rem; margin: 14px 0 6px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -135,6 +136,11 @@
       <span class="saved" id="listMsg"></span>
     </div>
     <p class="note" id="syncNote" style="margin:-6px 0 12px"></p>
+    <div class="row" style="margin:0 0 12px;gap:8px">
+      <label style="display:inline-flex;flex-direction:row;align-items:center;gap:6px;margin:0">ดูวันที่<input id="listDate" class="dth" style="max-width:150px"></label>
+      <button class="g" id="listToday" type="button">วันนี้</button>
+      <button class="g" id="listAll" type="button">ทั้งหมด</button>
+    </div>
     <div class="jobs" id="trials"></div>
   </div>
 
@@ -453,13 +459,21 @@
   function showList() {
     trial = null;
     $("vTrial").hidden = true; $("vList").hidden = false;
-    const list = [...db.trials].sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
-    $("trials").innerHTML = list.length ? list.map((t) => `<section class="job">
+    // grouped by trial date (newest day first); a chosen day shows that day only
+    const day = $("listDate").value;
+    const list = db.trials.filter((t) => !day || t.header.date === day)
+      .sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
+    const card = (t) => `<section class="job">
         <div><b>${esc(t.header.project || "(ยังไม่ใส่ชื่อโครงการ)")}</b>
           <span class="chip ${t.status}">${t.status === "open" ? "กำลังบันทึก" : "จบงาน"}</span>
           <div class="meta">${esc([thaiDate(t.header.date), t.header.code, t.header.customer].filter(Boolean).join(" · "))} · บันทึกแล้ว ${TrialMix.filledRows(t)}/${t.rows.length} ช่วงเวลา${(t.photos || []).length ? ` · รูป ${t.photos.length}` : ""}${t.mailedAt ? " · ส่งเมลแล้ว ✓" : ""}</div></div>
         <button class="g" data-open="${esc(t.id)}" type="button">${t.status === "open" ? "บันทึกต่อ" : "เปิด"}</button>
-      </section>`).join("") : `<p class="note">ยังไม่มี Trial — กด "สร้าง Trial ใหม่"</p>`;
+      </section>`;
+    let last = null;
+    $("trials").innerHTML = list.length ? list.map((t) => {
+      const head = t.header.date !== last ? `<h2 class="dayh">${esc(t.header.date ? thaiDate(t.header.date) : "ไม่ระบุวันที่")} · ${list.filter((x) => x.header.date === t.header.date).length} Trial</h2>` : "";
+      last = t.header.date; return head + card(t);
+    }).join("") : day ? `<p class="note">ไม่มี Trial วันที่ ${esc(thaiDate(day))}</p>` : `<p class="note">ยังไม่มี Trial — กด "สร้าง Trial ใหม่"</p>`;
     showSync();
   }
   $("trials").addEventListener("click", (e) => {
@@ -471,6 +485,11 @@
     db.trials.push(t); markDirty(t.id); persist(); openTrial(t);
   });
   $("toList").addEventListener("click", showList);
+  const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  $("listDate").addEventListener("change", showList);
+  $("listDate").addEventListener("input", () => { if (/^\d{4}-\d{2}-\d{2}$/.test($("listDate").value) || !$("listDate").value) showList(); });
+  $("listToday").addEventListener("click", () => { $("listDate").value = isoToday(); showList(); });
+  $("listAll").addEventListener("click", () => { $("listDate").value = ""; showList(); });
 
   // ---------- one trial ----------
   function openTrial(t) {
