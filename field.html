@@ -309,6 +309,7 @@
         <button class="b" id="samplesBtn" type="button" hidden>📸 ภาพเก็บลูกปูนหน้างาน</button>
         <button class="b" id="finish" type="button">จบงาน</button>
         <button class="g" id="pdf" type="button">Export PDF</button>
+        <button class="g" id="xlsx" type="button" hidden>Export Excel</button>
         <button class="b" id="mail" type="button" hidden>📧 ส่งอีเมลรายงาน</button>
         <span class="saved" id="pdfMsg"></span>
       </div>
@@ -1252,6 +1253,28 @@
     job.mailedAt = Date.now(); persist();
   }
   $("pdf").addEventListener("click", () => runPdf(false));
+
+  // Excel of the trucks (normal field report only): ลำดับ · เลข D/O · เบอร์รถ · จำนวนคิว · เวลาผสม; rejected trucks are left out
+  if (!SP) $("xlsx").hidden = false;
+  $("xlsx").addEventListener("click", async () => {
+    const msg = $("pdfMsg");
+    try {
+      if (!window.XLSX) { msg.textContent = "กำลังโหลดตัวสร้าง Excel…"; await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"); }
+      const rows = job.trucks.filter((t) => FieldReport.cleanDO(t.do) && !FieldReport.isReject(t));
+      const num = (v) => (v === "" || v == null || !isFinite(Number(v)) ? v || "" : Number(v));
+      const h = job.header;
+      const aoa = [["ลำดับ", "เลข D/O", "เบอร์รถ", "จำนวนคิว", "เวลาผสม"],
+        ...rows.map((t, i) => [i + 1, FieldReport.cleanDO(t.do), String(t.truck || ""), num(t.volume), t.batching || ""]),
+        ["", "", "รวม", rows.reduce((a, t) => a + (Number(t.volume) || 0), 0), ""]];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      // D/O and truck number stay text (leading zeros), times stay "08:30"
+      rows.forEach((_, i) => [1, 2, 4].forEach((c) => { const x = ws[XLSX.utils.encode_cell({ r: i + 1, c })]; if (x) { x.t = "s"; x.z = "@"; } }));
+      ws["!cols"] = [{ wch: 7 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "รถ");
+      const name = ["ใบรายงานสนาม", h.project, h.structure, h.structureNo, h.date].filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "-") + ".xlsx";
+      await saveFile(name, new Blob([XLSX.write(wb, { type: "array", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), msg);
+    } catch { msg.textContent = "ส่งออก Excel ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่ (ครั้งแรกต้องโหลดตัวสร้าง Excel)"; }
+  });
   $("mail").addEventListener("click", () => runPdf(true));
   async function runPdf(withMail) {
     const msg = $("pdfMsg");
