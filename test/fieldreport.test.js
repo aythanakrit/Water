@@ -116,3 +116,13 @@ test("the same mixer truck needs at least 30 minutes between batching times", ()
   assert.equal(F.truckGap([{ truck: "1", batching: "08:00", created: at }], { truck: "1", batching: "08:10", created: at + 24 * 3600e3 }), null); // next day
   assert.equal(F.truckGap(trucks, trucks[0], 0), null); // a trip is not compared with itself
 });
+
+test("a rejected truck (remark says Reject) is not counted as received or in page totals", () => {
+  assert.equal(F.isReject({ remark: "Reject" }), true);
+  assert.equal(F.isReject({ remark: "slump สูง reject" }), true);
+  assert.equal(F.isReject({ remark: "Rejected?" }), false); // the word itself only
+  assert.equal(F.isReject({ remark: "" }), false);
+  const trucks = [{ do: "1", volume: "7" }, { do: "2", volume: "7", remark: "Reject" }, { do: "3", volume: "5" }];
+  assert.equal(F.summary({ header: {}, trucks }).received, 12);
+  assert.equal(F.pages(trucks)[0].total, 12);
+});

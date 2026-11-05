@@ -151,6 +151,9 @@
   #print { position: fixed; left: -10000px; top: 0; }
   .pg { width: 1123px; height: 794px; padding: 34px 30px; background: #fff; color: #000; font: 12px/1.15 "Sarabun", sans-serif; }
   .pg table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .pg tr.rj td.d { color: #c00; text-decoration: line-through; text-decoration-color: #c00; text-decoration-thickness: 1.5px; }
+  .chips button.rj { background: var(--bad); border-color: var(--bad); color: #fff; }
+  table.list tr.rej td { color: var(--bad); text-decoration: line-through; }
   .pg td { padding: 0 2px; height: 21px; white-space: nowrap; overflow: visible; vertical-align: middle; }
   .pg .c { text-align: center; } .pg .r { text-align: right; } .pg .bb { border-bottom: 1px solid #000; }
   .pg .fl { border-left: 1.5px solid #000; } .pg .fr { border-right: 1.5px solid #000; }
@@ -715,7 +718,7 @@
     $("list").innerHTML = `<thead><tr>${COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
       (job.trucks.length ? job.trucks.map((t, i) => {
         const al = FieldReport.timeAlerts(t), lv = al.some((x) => x.level === "bad") ? " t-bad" : al.length ? " t-warn" : "";
-        return `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}${lv}">${COLS.map(([k]) =>
+        return `<tr data-i="${i}" class="${i === editIdx ? "sel" : ""}${dups.has(i) ? " dup" : ""}${lv}${FieldReport.isReject(t) ? " rej" : ""}">${COLS.map(([k]) =>
           k === "remark" ? `<td class="rm">${esc(FieldReport.remarkWithAlerts(t))}</td>`
           : `<td>${k === "no" ? i + 1 : k === "sampleQty" && !t.sampleType ? "" : esc(t[k] || (k === "plant" ? "?" : ""))}</td>`).join("")}</tr>`;
       }).join("")
@@ -1070,6 +1073,9 @@
       ${F_PICK.map(([k, l, opts]) => `<div class="pick" style="margin-top:12px"><span class="pl">${l}</span><div class="chips">${
         [...opts, ...(t[k] && !opts.includes(String(t[k])) ? [String(t[k])] : [])].map((v) => `<button type="button" data-pick="${k}" data-v="${esc(v)}" class="${String(t[k] || "") === v ? "on" : ""}" ${ro}>${esc(pickLabel(k, v))}</button>`).join("")}</div></div>`).join("")}
       <div class="fields" style="margin-top:12px">${t.sampleType ? F_MORE.map(inp).join("") : ""}</div>
+      <div class="pick" style="margin-top:12px"><span class="pl">สถานะรถ</span><div class="chips">
+        <button type="button" data-reject class="${FieldReport.isReject(t) ? "on rj" : ""}" ${ro}>${FieldReport.isReject(t) ? "❌ Reject (กดเพื่อยกเลิก)" : "Reject — รถคันนี้ถูกตีกลับ"}</button></div></div>
+      ${SP && FieldReport.isReject(t) ? `<p class="note" style="margin:6px 0 0">ใบรายงานที่ดาวน์โหลดจะไม่มีรถคันนี้ · ผู้ดูแลรายงานเห็นเป็นแถวขีดฆ่าสีแดง · ไม่นับในยอดรับ</p>` : ""}
       <p class="note" style="margin:6px 0 0">ข้อความเตือนเรื่องเวลาจะใส่ในช่องหมายเหตุของรายการและ PDF ให้เอง</p>
       ${SP ? `<div id="editPhotos" style="margin-top:14px"></div>` : ""}
       <div class="row" style="margin-top:12px;justify-content:space-between">
@@ -1094,6 +1100,13 @@
   }
   let rmArmed = false;
   // sample type: tap to choose; tapping the chosen one again goes back to "ไม่เก็บตัวอย่าง"
+  // Reject: the word goes into the remark (kept with any other remark)
+  $("editBox").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-reject]"); if (!b || b.disabled) return;
+    const t = job.trucks[editIdx], r = String(t.remark || "");
+    t.remark = FieldReport.isReject(t) ? r.replace(/\s*\breject\b\s*/ig, " ").trim() : (r ? r + " Reject" : "Reject");
+    t.updated = Date.now(); touch(); renderJob(); renderEdit();
+  });
   $("editBox").addEventListener("click", (e) => {
     const b = e.target.closest("[data-pick]"); if (!b || b.disabled) return;
     const t = job.trucks[editIdx], k = b.dataset.pick;
@@ -1167,7 +1180,7 @@
     const hrow = (k) => HD.map((c) => td(`h${k === 0 ? " h1" : k === 2 ? " h3" : ""}${k === 0 && c[0] === "No." ? " fl" : ""}`, e(c[k]), c[3] || 1)).join("");
     const rows = Array.from({ length: FieldReport.ROWS_PER_PAGE }, (_, r) => {
       const t = p.rows[r], v = (k) => (t ? e(t[k] || "-") : "");
-      return `<tr>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
+      return `<tr${FieldReport.isReject(t) ? ' class="rj"' : ""}>${td("d fl", t ? p.start + r + 1 : "")}${td("d", v("truck"))}${td("d", v("do"))}${td("d", v("volume"))}${td("d p", v("plant"), 3)}
         ${td("d", v("batching"))}${td("d", v("arrival"))}${td("d", v("start"))}${td("d", v("end"))}${td("d", v("airTemp"))}${td("d", v("conTemp"))}
         ${td("d", v("slump"))}${["sampleType", "sampleQty", "label"].map((k) => td("d", t && !t.sampleType ? "" : v(k))).join("")}${td("d l", t ? e(FieldReport.remarkWithAlerts(t) || "-") : "")}${td("d fr", v("operator"), 2)}</tr>`;
     }).join("");
@@ -1213,7 +1226,8 @@
     if (!window.html2canvas || !window.jspdf) { msg.textContent = "โหลดตัวสร้าง PDF ไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่"; return; }
     $("pdf").disabled = $("mail").disabled = true; msg.textContent = "กำลังสร้าง PDF…";
     try {
-      const ps = FieldReport.pages(job.trucks);
+      // special project: a rejected truck is left out of the report, except the report administrator's copy (struck through in red)
+      const ps = FieldReport.pages(SP && !phAdmin ? job.trucks.filter((t) => !FieldReport.isReject(t)) : job.trucks);
       const host = $("print");
       // photo pages (Printout, slump photos) only for the report administrator; everyone else gets the field report
       host.innerHTML = ps.map((p) => pageHTML(p)).join("") + (SP && phAdmin ? await photoPagesHTML(msg) : "");

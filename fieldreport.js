@@ -134,7 +134,7 @@
   function summary(job) {
     const ordered = num(job.header.ordered);
     const produced = num(job.header.produced);
-    const received = job.trucks.filter((t) => cleanDO(t.do)).reduce((s, t) => s + num(t.volume), 0);
+    const received = job.trucks.filter((t) => cleanDO(t.do) && !isReject(t)).reduce((s, t) => s + num(t.volume), 0);
     return {
       ordered, produced, received,
       inTransit: produced - received,
@@ -149,12 +149,15 @@
    * forward from earlier pages, its own total and the running total, so the pages
    * reconcile: carried + total = cumulative = next page's carried.
    */
+  /** A truck sent back: remark says "Reject" (its volume is not counted as received). */
+  const isReject = (t) => !!t && /\breject\b/i.test(String(t.remark || ""));
+
   function pages(trucks, size = ROWS_PER_PAGE) {
     const out = [];
     let carried = 0;
     for (let i = 0; i < Math.max(trucks.length, 1); i += size) {
       const rows = trucks.slice(i, i + size);
-      const total = rows.reduce((s, t) => s + num(t.volume), 0);
+      const total = rows.reduce((s, t) => s + (isReject(t) ? 0 : num(t.volume)), 0);
       out.push({ start: i, rows, carried, total, cumulative: carried + total });
       carried += total;
     }
@@ -225,5 +228,5 @@
     };
   }
 
-  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, staleDO, staleMessage, truckGap, gapMessage, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
+  return { PLANTS, ROWS_PER_PAGE, LIMITS, timeAlerts, remarkWithAlerts, cleanDO, plantFromDO, staleDO, staleMessage, truckGap, isReject, gapMessage, checkDO, findDO, dupMessage, duplicateRows, summary, pages, nowHHMM, newTruck, newJob };
 });
