@@ -67,6 +67,12 @@
     </div>
     <div id="msg" role="status" aria-live="polite"></div>
     <p class="note" id="syncNote" style="margin:4px 0 0"></p>
+    <div class="row" id="listRow">
+      <label for="pick" style="margin:0">รายการ</label>
+      <select id="pick" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);flex:1;min-width:180px"></select>
+      <input id="name" type="text" placeholder="หรือพิมพ์ชื่อรายการใหม่ แล้วกด Enter" style="flex:1;min-width:180px">
+    </div>
+    <p class="note" style="margin:4px 0 0">ทุกเครื่องที่อยู่ในรายการเดียวกันเห็นรายการเดียวกัน · เปิดหน้าครั้งแรกจะเข้ารายการของวันนี้เอง</p>
   </section>
 
   <section>
@@ -81,8 +87,6 @@
       <div><h2>จำนวนตั๋วรายวันที่ตั๋ว</h2><table><tbody id="byDate"></tbody></table></div>
     </div>
     <div class="row">
-      <input id="name" type="text" list="lists" placeholder="ชื่อรายการ เช่น ตั๋ว P037 3 พ.ย. (เครื่องอื่นใส่ชื่อเดียวกัน = สแกนรวมกัน)" style="flex:1;min-width:200px">
-      <datalist id="lists"></datalist>
       <button class="btn b" id="xlsx" type="button">⬇️ ส่งออก Excel</button>
       <button class="btn d" id="reset" type="button">เริ่มรายการใหม่</button>
     </div>
@@ -145,7 +149,7 @@
   function render() {
     const L = numbered(), dup = Tickets.duplicates(L), s = Tickets.summary(L);
     const devs = new Set(cur().scans.filter((x) => !x.removed && x.dev).map((x) => x.dev));
-    $("syncNote").textContent = !CLOUD ? "💾 เก็บในเครื่องนี้เท่านั้น"
+    $("syncNote").textContent = !CLOUD ? "💾 เก็บในเครื่องนี้เท่านั้น (เว็บนี้ยังไม่ได้ต่อระบบกลาง)"
       : !store.name ? "ใส่ชื่อรายการก่อนสแกน — เครื่องอื่นใส่ชื่อเดียวกันจะสแกนรวมรายการเดียวกัน"
       : `${syncBad || "☁️ ออนไลน์"} · รายการ "${store.name}" · เครื่องนี้ ${DEV}${devs.size > 1 ? ` · สแกนร่วม ${devs.size} เครื่อง` : ""}${cur().pending.length ? ` · รอส่ง ${cur().pending.length}` : ""}`;
     $("kScans").textContent = s.scans; $("kTickets").textContent = s.tickets; $("kDup").textContent = s.dupTickets; $("kRep").textContent = s.repeats;
@@ -193,9 +197,23 @@
   });
 
   // the list name: devices using the same name scan into one list
-  $("name").value = store.name || "";
-  $("name").addEventListener("change", () => { store.name = $("name").value.trim(); save(); askDel = null; render(); syncNow(); });
-  $("name").addEventListener("focus", loadLists);
+  // with the central storage every device lands in today's list unless another one is chosen
+  const todayList = () => `สแกน ${time(Date.now()).slice(0, 10)}`;
+  if (CLOUD && !store.name) { store.name = todayList(); save(); }
+  function useList(n) {
+    n = String(n || "").trim(); if (!n || n === store.name) return;
+    store.name = n; save(); askDel = null; render(); fillPick(); syncNow();
+  }
+  $("name").addEventListener("change", () => { useList($("name").value); $("name").value = ""; });
+  $("name").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("name").blur(); } });
+  $("pick").addEventListener("change", () => useList($("pick").value));
+  let serverLists = [];
+  function fillPick() {
+    const names = new Map(serverLists.map((x) => [x.list, x.n]));
+    [store.name, todayList(), ...Object.keys(store.lists).filter((k) => k && cur && store.lists[k].scans.some((x) => !x.removed))]
+      .forEach((n) => { if (n && !names.has(n)) names.set(n, null); });
+    $("pick").innerHTML = [...names.entries()].map(([n, c]) => `<option value="${esc(n)}"${n === store.name ? " selected" : ""}>${esc(n)}${c != null ? ` (${c} สแกน)` : ""}</option>`).join("");
+  }
 
   // ---------- Excel: sheet "รายการ" (every scan) + sheet "สรุป" (counts) ----------
   const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
@@ -323,14 +341,17 @@
   }
   async function loadLists() {
     if (!CLOUD) return;
-    try { const r = await api("scanLists", {}); if (r.ok) $("lists").innerHTML = r.lists.map((x) => `<option value="${esc(x.list)}">${x.n} สแกน</option>`).join(""); } catch (e) {}
+    try { const r = await api("scanLists", {}); if (r.ok) { serverLists = r.lists; fillPick(); } } catch (e) {}
   }
   if (CLOUD) {
     setInterval(() => { if (!document.hidden) syncNow(); }, 2500);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) syncNow(); });
     window.addEventListener("online", syncNow);
     loadLists(); syncNow();
+    setInterval(() => { if (!document.hidden) loadLists(); }, 30000);
   }
+  fillPick();
+  $("listRow").hidden = !CLOUD;
 
   render();
   $("doIn").focus();
