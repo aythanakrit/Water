@@ -32,6 +32,8 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS scans_list ON scans(list, updated)`,
   `CREATE TABLE IF NOT EXISTS rail_moves (id TEXT PRIMARY KEY, at INTEGER NOT NULL, item TEXT NOT NULL, from_loc TEXT NOT NULL DEFAULT '',
     to_loc TEXT NOT NULL DEFAULT '', qty INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'move', note TEXT, dev TEXT)`,
+  `CREATE TABLE IF NOT EXISTS rail_photos (id TEXT PRIMARY KEY, move_id TEXT NOT NULL, rkey TEXT NOT NULL, created INTEGER)`,
+  `CREATE INDEX IF NOT EXISTS rail_photos_move ON rail_photos(move_id)`,
   `CREATE TABLE IF NOT EXISTS rail_docs (id TEXT PRIMARY KEY, title TEXT NOT NULL, cat TEXT, size INTEGER, rkey TEXT NOT NULL, created INTEGER, removed INTEGER)`,
   `CREATE TABLE IF NOT EXISTS trials (id TEXT PRIMARY KEY, status TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
 ];
@@ -304,7 +306,8 @@ export async function scanClear(db, list, now = Date.now()) {
 
 // ---------- rail project (สายสีส้ม): equipment at plants and stations, and a shared PDF library ----------
 // Stock is never stored: it is the sum of moves (in to a place, out of a place), so every change has a record.
-export const RAIL_PLACES = ["P-คลองตัน", "P-เพชรพระราม", "OR07", "OR08", "OR09", "OR10", "OR11", "OR12"];
+// X- places hold what is out of use: damaged (can come back after repair) and lost
+export const RAIL_PLACES = ["P-คลองตัน", "P-เพชรพระราม", "OR07", "OR08", "OR09", "OR10", "OR11", "OR12", "X-ชำรุด", "X-สูญหาย"];
 export const RAIL_ITEMS = ["โมลคิว", "รถเข็น"];
 async function railBalances(db) {
   const { results } = await db.prepare(`SELECT to_loc AS loc, item, SUM(qty) AS n FROM rail_moves WHERE to_loc != '' GROUP BY to_loc, item
@@ -314,9 +317,28 @@ async function railBalances(db) {
   results.forEach((r) => { if (bal[r.loc] && r.item in bal[r.loc]) bal[r.loc][r.item] += Number(r.n) || 0; });
   return bal;
 }
+async function withPhotos(db, moves) {
+  if (!moves.length) return moves;
+  const ids = moves.map((m) => m.id), by = new Map();
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90);
+    const { results } = await db.prepare(`SELECT id, move_id FROM rail_photos WHERE move_id IN (${part.map(() => "?").join(",")}) ORDER BY created`).bind(...part).all();
+    results.forEach((r) => { if (!by.has(r.move_id)) by.set(r.move_id, []); by.get(r.move_id).push(r.id); });
+  }
+  return moves.map((m) => ({ ...m, photos: by.get(m.id) || [] }));
+}
 export async function railStock(db) {
-  const { results } = await db.prepare("SELECT * FROM rail_moves ORDER BY at DESC LIMIT 100").all();
-  return { ok: true, places: RAIL_PLACES, items: RAIL_ITEMS, stock: await railBalances(db), log: results };
+  const { results } = await db.prepare("SELECT * FROM rail_moves ORDER BY at DESC LIMIT 10").all();
+  return { ok: true, places: RAIL_PLACES, items: RAIL_ITEMS, stock: await railBalances(db), log: await withPhotos(db, results) };
+}
+/** History between two days (yyyy-mm-dd, Thai time), optionally one place / one item. */
+export async function railHistory(db, req) {
+  const day = (s, end) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); return m ? Date.UTC(+m[1], m[2] - 1, +m[3] + (end ? 1 : 0)) - 7 * 3600e3 : null; };
+  const from = day(req.from) ?? 0, to = day(req.to, true) ?? 9e15;
+  const place = RAIL_PLACES.includes(req.place) ? req.place : "", item = RAIL_ITEMS.includes(req.item) ? req.item : "";
+  const { results } = await db.prepare(`SELECT * FROM rail_moves WHERE at >= ? AND at < ? AND (? = '' OR from_loc = ? OR to_loc = ?) AND (? = '' OR item = ?)
+    ORDER BY at DESC LIMIT 1000`).bind(from, to, place, place, place, item, item).all();
+  return { ok: true, moves: await withPhotos(db, results) };
 }
 /** Move qty of an item from one place to another (never below 0 at the place it leaves). */
 export async function railMove(db, req, now = Date.now()) {
@@ -325,9 +347,10 @@ export async function railMove(db, req, now = Date.now()) {
     return { ok: false, error: "bad_request" };
   const bal = await railBalances(db);
   if (bal[from][item] < qty) return { ok: false, error: "not_enough", have: bal[from][item] };
+  const id = crypto.randomUUID();
   await db.prepare("INSERT INTO rail_moves (id, at, item, from_loc, to_loc, qty, kind, note, dev) VALUES (?,?,?,?,?,?,'move',?,?)")
-    .bind(crypto.randomUUID(), now, item, from, to, qty, String(req.note || "").slice(0, 200), String(req.dev || "").slice(0, 40)).run();
-  return railStock(db);
+    .bind(id, now, item, from, to, qty, String(req.note || "").slice(0, 200), String(req.dev || "").slice(0, 40)).run();
+  return { ...(await railStock(db)), moveId: id };
 }
 /** Count at a place (first stock, a count after checking): stored as the difference, so the record stays. */
 export async function railSet(db, req, now = Date.now()) {

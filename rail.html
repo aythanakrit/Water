@@ -36,7 +36,10 @@
   td.n, th.n { text-align: right; width: 6em; } td.n b { font-size: 1.15rem; }
   tr.plant td:first-child { font-weight: 700; } tr.tot td { font-weight: 700; border-top: 2px solid var(--muted); }
   .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; background: var(--orange); color: #fff; margin-right: 6px; }
-  .chip.p { background: var(--accent); }
+  .chip.p { background: var(--accent); } .chip.x { background: var(--bad); }
+  tr.out td { color: var(--bad); }
+  .thumbs { display: flex; gap: 6px; flex-wrap: wrap; } .thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); cursor: pointer; }
+  .thumbs .x { position: relative; } .thumbs .x button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--bad); color: #fff; font-size: 12px; cursor: pointer; }
   #preview { margin-top: 8px; font-weight: 600; min-height: 1.5em; } #preview.bad { color: var(--bad); } #moveMsg.ok { color: var(--ok); } #moveMsg.bad { color: var(--bad); }
   .doc { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .doc .t { flex: 1; min-width: 180px; } .doc .t b { display: block; } [hidden] { display: none !important; }
@@ -50,7 +53,7 @@
   <p class="sub">สถานี OR07–OR12 · เอกสาร PDF ให้ทุกคนดาวน์โหลด/พิมพ์ · อุปกรณ์เก็บลูกปูนแต่ละที่ และการย้ายของ</p>
   <p class="note" id="offline" hidden style="color:var(--bad)">⚠️ หน้านี้ใช้ได้เมื่อต่อระบบกลางเท่านั้น (เว็บนี้ยังไม่ได้ต่อ หรือกำลังออฟไลน์)</p>
 
-  <div class="tabs"><button data-tab="stock" class="on" type="button">🧰 อุปกรณ์</button><button data-tab="docs" type="button">📄 เอกสาร PDF</button></div>
+  <div class="tabs"><button data-tab="stock" class="on" type="button">🧰 อุปกรณ์</button><button data-tab="hist" type="button">📜 ประวัติ</button><button data-tab="docs" type="button">📄 เอกสาร PDF</button></div>
 
   <!-- equipment -->
   <div id="tab-stock">
@@ -68,7 +71,11 @@
         <label class="f">จาก<select id="mFrom"></select></label>
         <label class="f">ไปที่<select id="mTo"></select></label>
       </div>
-      <div class="row" style="margin-top:8px"><input id="mNote" type="text" placeholder="หมายเหตุ (ไม่บังคับ) เช่น ชื่อคนขนย้าย" style="flex:1"></div>
+      <div class="row" style="margin-top:8px"><input id="mNote" type="text" placeholder="หมายเหตุ (ไม่บังคับ) เช่น ชื่อคนขนย้าย / สาเหตุที่ชำรุด" style="flex:1"></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="mCam" type="button">📷 ถ่ายรูป</button><button class="btn" id="mPick" type="button">🖼 เลือกรูป</button>
+        <span class="note">แนบรูปได้ (ไม่บังคับ)</span><input id="mCamIn" type="file" accept="image/*" capture="environment" hidden><input id="mPickIn" type="file" accept="image/*" multiple hidden></div>
+      <div class="thumbs" id="mThumbs" style="margin-top:6px"></div>
+      <p class="note" style="margin:6px 0 0">ของชำรุด/สูญหาย: เลือก "ไปที่" = ชำรุด หรือ สูญหาย · ซ่อมเสร็จแล้วย้ายจาก "ชำรุด" กลับไปที่ใช้งานได้</p>
       <div id="preview"></div>
       <div class="row" style="margin-top:6px"><button class="btn o" id="mGo" type="button">ย้าย</button><span id="moveMsg" class="note"></span></div>
     </section>
@@ -85,8 +92,22 @@
     </section>
 
     <section>
-      <h2>ประวัติล่าสุด</h2>
+      <div class="row" style="justify-content:space-between;margin-bottom:6px"><h2 style="margin:0">ประวัติล่าสุด</h2><button class="btn" id="goHist" type="button">ดูประวัติทั้งหมด →</button></div>
       <table class="log"><tbody id="log"></tbody></table>
+    </section>
+  </div>
+
+  <!-- history -->
+  <div id="tab-hist" hidden>
+    <section>
+      <div class="grid">
+        <label class="f">ตั้งแต่วันที่<input id="hFrom" type="date"></label>
+        <label class="f">ถึงวันที่<input id="hTo" type="date"></label>
+        <label class="f">ที่<select id="hPlace"><option value="">ทุกที่</option></select></label>
+        <label class="f">อุปกรณ์<select id="hItem"><option value="">ทุกอุปกรณ์</option></select></label>
+      </div>
+      <p class="note" id="histMsg" style="margin:8px 0"></p>
+      <table class="log"><thead><tr><th>วันที่ลงบันทึก</th><th>อุปกรณ์</th><th class="n">จำนวน</th><th>จาก → ไปที่</th></tr></thead><tbody id="hist"></tbody></table>
     </section>
   </div>
 
@@ -118,7 +139,8 @@
   const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-  const placeName = (p) => p.startsWith("P-") ? "แพล้นท์" + p.slice(2) : "สถานี " + p;
+  const placeName = (p) => p.startsWith("P-") ? "แพล้นท์" + p.slice(2) : p.startsWith("X-") ? p.slice(2) : p ? "สถานี " + p : "";
+  const kindOf = (p) => p.startsWith("P-") ? ["แพล้นท์", "p"] : p.startsWith("X-") ? ["นอกการใช้งาน", "x"] : ["สถานี", ""];
   const pad = (n) => String(n).padStart(2, "0");
   const when = (ms) => { const d = new Date(ms); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() + 543} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   let DEV = ""; try { DEV = localStorage.getItem("rail-dev") || ""; if (!DEV) { DEV = Math.random().toString(36).slice(2, 6).toUpperCase(); localStorage.setItem("rail-dev", DEV); } } catch (e) {}
@@ -129,8 +151,9 @@
 
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-    $("tab-stock").hidden = b.dataset.tab !== "stock"; $("tab-docs").hidden = b.dataset.tab !== "docs";
+    ["stock", "hist", "docs"].forEach((t) => { $("tab-" + t).hidden = b.dataset.tab !== t; });
     if (b.dataset.tab === "docs") loadDocs();
+    if (b.dataset.tab === "hist") loadHist();
   }));
 
   // ---------- equipment ----------
@@ -139,16 +162,19 @@
   function renderStock() {
     if (!S) return;
     $("stockHead").innerHTML = `<tr><th>ที่</th>${S.items.map((i) => `<th class="n">${esc(i)}</th>`).join("")}</tr>`;
-    $("stockBody").innerHTML = S.places.map((p) => `<tr class="${p.startsWith("P-") ? "plant" : ""}"><td><span class="chip${p.startsWith("P-") ? " p" : ""}">${p.startsWith("P-") ? "แพล้นท์" : "สถานี"}</span>${esc(p.startsWith("P-") ? p.slice(2) : p)}</td>
-      ${S.items.map((i) => `<td class="n"><b>${S.stock[p][i]}</b></td>`).join("")}</tr>`).join("") +
-      `<tr class="tot"><td>รวมทุกที่</td>${S.items.map((i) => `<td class="n">${S.places.reduce((a, p) => a + S.stock[p][i], 0)}</td>`).join("")}</tr>`;
+    const sum = (ps, i) => ps.reduce((a, p) => a + S.stock[p][i], 0);
+    const live = S.places.filter((p) => !p.startsWith("X-")), out = S.places.filter((p) => p.startsWith("X-"));
+    const row = (p) => { const [k, c] = kindOf(p); return `<tr class="${c === "p" ? "plant" : c === "x" ? "out" : ""}"><td><span class="chip ${c}">${k}</span>${esc(p.replace(/^[PX]-/, ""))}</td>
+      ${S.items.map((i) => `<td class="n"><b>${S.stock[p][i]}</b></td>`).join("")}</tr>`; };
+    $("stockBody").innerHTML = live.map(row).join("") +
+      `<tr class="tot"><td>รวมที่ใช้งานได้</td>${S.items.map((i) => `<td class="n">${sum(live, i)}</td>`).join("")}</tr>` +
+      out.map(row).join("") +
+      `<tr class="tot"><td>รวมทั้งหมด</td>${S.items.map((i) => `<td class="n">${sum(S.places, i)}</td>`).join("")}</tr>`;
     $("stockAt").textContent = `อัปเดต ${when(Date.now())} · อัปเดตเองทุก 15 วินาที`;
     [$("mItem"), $("cItem")].forEach((s) => opts(s, S.items));
     [$("mFrom"), $("mTo"), $("cPlace")].forEach((s) => opts(s, S.places, placeName));
     if ($("mFrom").value === $("mTo").value) $("mTo").value = S.places.find((p) => p !== $("mFrom").value);
-    $("log").innerHTML = S.log.length ? S.log.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${m.kind === "count"
-        ? `ตรวจนับ ${esc(placeName(m.to_loc || m.from_loc))}: ${m.to_loc ? "+" : "−"}${m.qty} ${esc(m.item)}`
-        : `${esc(m.item)} ${m.qty} · ${esc(placeName(m.from_loc))} → ${esc(placeName(m.to_loc))}`}${m.note ? ` <span class="note">(${esc(m.note)})</span>` : ""}</td></tr>`).join("")
+    $("log").innerHTML = S.log.length ? S.log.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(m.item)} <b>${m.qty}</b> · ${esc(moveText(m))}${m.note ? ` <span class="note">(${esc(m.note)})</span>` : ""}${thumbs(m)}</td></tr>`).join("")
       : `<tr><td class="note">ยังไม่มีประวัติ — เริ่มจาก "ตั้งยอด / ตรวจนับ"</td></tr>`;
     preview();
   }
@@ -171,7 +197,16 @@
     $("mGo").disabled = true;
     try {
       const r = await api("railMove", body);
-      if (r.ok) { S = r; renderStock(); $("moveMsg").className = "ok"; $("moveMsg").textContent = `✓ ย้าย${body.item} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว`; $("mNote").value = ""; }
+      if (r.ok) {
+        S = r; renderStock(); $("moveMsg").className = "ok"; $("moveMsg").textContent = `✓ ย้าย${body.item} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว`; $("mNote").value = "";
+        if (pics.length) {
+          let up = 0, bad = 0;
+          for (const b of pics) { try { const x = await (await fetch(`/api/railphoto?key=${encodeURIComponent(CLOUD.key)}&move=${encodeURIComponent(r.moveId)}`, { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: b })).json(); x.ok ? up++ : bad++; } catch (e) { bad++; }
+            $("moveMsg").textContent = `✓ ย้ายแล้ว · กำลังส่งรูป ${up + bad}/${pics.length}`; }
+          $("moveMsg").textContent = `✓ ย้าย${body.item} ${body.qty} จาก ${placeName(body.from)} ไป ${placeName(body.to)} แล้ว · รูป ${up} รูป${bad ? ` (ส่งไม่ได้ ${bad})` : ""}`;
+          pics = []; renderPics(); loadStock();
+        }
+      }
       else { $("moveMsg").className = "bad"; $("moveMsg").textContent = r.error === "not_enough" ? `ต้นทางเหลือแค่ ${r.have} — ไม่ได้ย้าย` : "ย้ายไม่ได้ — ตรวจข้อมูลอีกครั้ง"; loadStock(); }
     } catch (e) { $("moveMsg").className = "bad"; $("moveMsg").textContent = "ออฟไลน์ — ยังไม่ได้ย้าย ลองใหม่เมื่อมีสัญญาณ"; }
     finally { $("mGo").disabled = false; }
@@ -185,6 +220,44 @@
       else $("countMsg").textContent = "บันทึกไม่ได้ — ตรวจข้อมูลอีกครั้ง";
     } catch (e) { $("countMsg").textContent = "ออฟไลน์ — ยังไม่ได้บันทึก"; }
   });
+
+  // photos for the next move: shrunk to 1600 px JPEG on this device, sent after the move is saved
+  let pics = [];
+  const shrink = (file) => new Promise((ok, no) => {
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); c.toBlob((b) => (b ? ok(b) : no(new Error("x"))), "image/jpeg", 0.8); };
+    img.onerror = () => { URL.revokeObjectURL(u); no(new Error("x")); }; img.src = u; });
+  function renderPics() { $("mThumbs").innerHTML = pics.map((b, i) => `<span class="x"><img src="${URL.createObjectURL(b)}" alt=""><button type="button" data-rmpic="${i}">×</button></span>`).join(""); }
+  async function addPics(files) { for (const f of files) { try { pics.push(await shrink(f)); } catch (e) {} } renderPics(); }
+  $("mCam").addEventListener("click", () => $("mCamIn").click()); $("mPick").addEventListener("click", () => $("mPickIn").click());
+  ["mCamIn", "mPickIn"].forEach((id) => $(id).addEventListener("change", (e) => { addPics([...e.target.files]).finally(() => { e.target.value = ""; }); }));
+  $("mThumbs").addEventListener("click", (e) => { const b = e.target.closest("[data-rmpic]"); if (b) { pics.splice(+b.dataset.rmpic, 1); renderPics(); } });
+  const photoURL = (id) => `/api/railphoto?key=${encodeURIComponent(CLOUD.key)}&id=${encodeURIComponent(id)}`;
+  const moveText = (m) => m.kind === "count"
+    ? `ตรวจนับ ${placeName(m.to_loc || m.from_loc)}: ${m.to_loc ? "+" : "−"}${m.qty}`
+    : `${placeName(m.from_loc)} → ${placeName(m.to_loc)}`;
+  const thumbs = (m) => (m.photos || []).length ? `<div class="thumbs">${m.photos.map((id) => `<a href="${photoURL(id)}" target="_blank" rel="noopener"><img src="${photoURL(id)}" alt="" loading="lazy"></a>`).join("")}</div>` : "";
+
+  // ---------- history ----------
+  const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  $("hTo").value = isoDay(new Date()); $("hFrom").value = isoDay(new Date(Date.now() - 30 * 864e5));
+  async function loadHist() {
+    if (!CLOUD) return;
+    if (S) { opts($("hPlace"), ["", ...S.places], (p) => p ? placeName(p) : "ทุกที่"); opts($("hItem"), ["", ...S.items], (i) => i || "ทุกอุปกรณ์"); }
+    $("histMsg").textContent = "กำลังโหลด…";
+    try {
+      const r = await api("railHistory", { from: $("hFrom").value, to: $("hTo").value, place: $("hPlace").value, item: $("hItem").value });
+      if (!r.ok) throw new Error("x");
+      $("hist").innerHTML = r.moves.length ? r.moves.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(m.item)}</td><td class="n"><b>${m.qty}</b></td>
+          <td>${m.to_loc.startsWith("X-") ? `<b style="color:var(--bad)">${esc(moveText(m))}</b>` : esc(moveText(m))}${m.note ? `<div class="note">${esc(m.note)}</div>` : ""}${thumbs(m)}</td></tr>`).join("")
+        : `<tr><td class="note" colspan="4">ไม่มีรายการในช่วงนี้</td></tr>`;
+      $("histMsg").textContent = `${r.moves.length} รายการ`;
+    } catch (e) { $("histMsg").textContent = "ออฟไลน์ — โหลดประวัติไม่ได้"; }
+  }
+  ["hFrom", "hTo", "hPlace", "hItem"].forEach((id) => $(id).addEventListener("change", loadHist));
+  $("goHist").addEventListener("click", () => document.querySelector('.tabs [data-tab="hist"]').click());
 
   // ---------- PDF library ----------
   let DOCS = [];

@@ -78,6 +78,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "railStock": return json(await S.railStock(db));
       case "railMove": return json(await S.railMove(db, req));
       case "railSet": return json(await S.railSet(db, req));
+      case "railHistory": return json(await S.railHistory(db, req));
       case "railDocs": return json(await S.railDocs(db));
       case "railDocDelete": return json(await S.railDocDelete(db, bucket, req.id));
       // ---- Trial Mix ----
