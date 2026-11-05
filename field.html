@@ -92,7 +92,11 @@
   .pg.ph .phc4 { border: 1px solid #000; height: 330px; display: flex; flex-direction: column; padding: 4px; }
   .pg.ph .phc4 .im { flex: 1; min-height: 0; width: 100%; background: center / contain no-repeat; }
   .pg.ph .phc4 .cap { font-size: 12px; text-align: center; padding-top: 2px; }
-  .pg.ph .ph3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pg.ph .ph3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; position: relative; }
+  .pg.ph.rjp .phcol { height: 620px; border: 2px solid #c00; }
+  .pg.ph .rjbar { background: #c00; color: #fff; font-size: 20px; font-weight: 700; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px; }
+  .pg.ph .rjstamp { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-18deg); z-index: 2; pointer-events: none;
+    font-size: 150px; font-weight: 900; letter-spacing: 12px; color: rgba(204, 0, 0, .38); border: 12px solid rgba(204, 0, 0, .38); border-radius: 18px; padding: 0 30px; line-height: 1.25; }
   .pg.ph .phcol { border: 1px solid #000; height: 670px; display: flex; flex-direction: column; padding: 6px; }
   .pg.ph .phcol .kt { font-weight: 700; font-size: 14px; text-align: center; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 6px; }
   .pg.ph .phcol .im { flex: 1; min-height: 0; width: 100%; background: center / contain no-repeat; }
@@ -1585,12 +1589,15 @@
         <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${sPages.length}</span></div>
       <div class="ph4">${items.map((p) => `<div class="phc4"><div class="im" style="background-image:url(data:image/jpeg;base64,${p.data})"></div>
         <div class="cap">${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}</div></div>`).join("")}</div></div>`).join("");
-    const html = sHtml + pages.map((pg, i) => `<div class="pg ph"><div class="phh">
+    // a rejected truck's page: red banner with the reason and a REJECT stamp across the photos
+    const rejOf = (d) => job.trucks.find((t) => FieldReport.cleanDO(t.do) === FieldReport.cleanDO(d) && FieldReport.isReject(t));
+    const html = sHtml + pages.map((pg, i) => { const rj = rejOf(pg.do); return `<div class="pg ph${rj ? " rjp" : ""}"><div class="phh">
         <b>${pg.no ? `ลำดับ ${pg.no} · ` : ""}${pg.truck ? `รถ ${esc(pg.truck)} · ` : ""}D/O ${esc(pg.do)}${pg.no ? "" : " (ไม่อยู่ในใบรายงาน)"}</b>
         <span>${esc(project)} · ${esc(thaiDate(date))} · หน้า ${i + 1}/${pages.length}</span></div>
-      <div class="ph3">${PK.map((k) => `<div class="phcol"><div class="kt">${esc(k.title)}</div>${pg.photos[k.key].length
+      ${rj ? `<div class="rjbar">❌ REJECT — รถคันนี้ถูกตีกลับ ไม่นับในยอดรับ${FieldReport.zeroVolume(rj) ? " (ปริมาณ 0)" : ""}${String(rj.remark || "").replace(/\breject\b/ig, "").trim() ? ` · หมายเหตุ: ${esc(String(rj.remark).replace(/\breject\b/ig, "").trim())}` : ""}</div>` : ""}
+      <div class="ph3">${rj ? `<div class="rjstamp">REJECT</div>` : ""}${PK.map((k) => `<div class="phcol"><div class="kt">${esc(k.title)}</div>${pg.photos[k.key].length
         ? pg.photos[k.key].map((p) => `<div class="im" style="background-image:url(data:image/jpeg;base64,${p.data})"></div>${k.stamp && p.takenAt ? `<div class="cap">${ReportPhotos.stampText(p.takenAt)}</div>` : ""}`).join("")
-        : `<div class="none">ไม่มีภาพ</div>`}</div>`).join("")}</div></div>`).join("");
+        : `<div class="none">ไม่มีภาพ</div>`}</div>`).join("")}</div></div>`; }).join("");
     msg.textContent = failed ? `⚠️ โหลดภาพไม่ได้ ${failed} ภาพ — PDF จะไม่มีภาพเหล่านั้น` : "กำลังสร้าง PDF…";
     return html;
   }
