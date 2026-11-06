@@ -66,7 +66,9 @@
   .full { width: 100%; } textarea { width: 100%; min-height: 70px; resize: vertical; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .pick { display: flex; gap: 6px; flex-wrap: wrap; } .pick button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
-  .pick button.on { border-color: var(--accent); background: var(--accent); color: #fff; } .pick.u button.on[data-v="stop"] { background: var(--bad); border-color: var(--bad); }
+  .pick button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .pick.st button[data-v="done"] { color: var(--ok); } .pick.st button[data-v="done"].on { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .pick.st button[data-v="rejected"] { color: var(--muted); } .pick.st button[data-v="rejected"].on { background: var(--muted); border-color: var(--muted); color: #fff; } .pick.u button.on[data-v="stop"] { background: var(--bad); border-color: var(--bad); }
   .photos { display: flex; gap: 8px; flex-wrap: wrap; } .photos .ph { width: 76px; height: 76px; border-radius: 10px; background: var(--info-bg) center/cover; display: grid; place-items: center; font-size: 1.6rem; }
   .photos .add { border: 2px dashed var(--line); background: none; color: var(--muted); font-size: 1.4rem; cursor: pointer; }
   .btns { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
@@ -322,24 +324,18 @@
       <h2 style="margin-top:14px">ความคืบหน้า</h2>
       <ul class="tl">${j.log.map(([t, s]) => `<li>${esc(s)}<small>${thd(t)}</small></li>`).join("")}</ul>
       ${closed ? "" : `<label>อัปเดตสถานะ</label>
-      <div class="pick" id="uSt">${["new", "fix", "part"].map((k) => `<button data-v="${k}" class="${j.status === k ? "on" : ""}">${STATUS[k][0]}</button>`).join("")}</div>
-      <label>ความเร่งด่วน</label>
-      <div class="pick u" id="uUrg">${["stop", "soon", "wait"].map((k) => `<button data-v="${k}" class="${j.urg === k ? "on" : ""}">${k === "stop" ? "🛑 หยุดผลิต" : k === "soon" ? "ใช้ได้ แต่ต้องซ่อม" : "รอได้"}</button>`).join("")}</div>
-      <label>บันทึก (ถ้ามี)</label><input type="text" class="full" id="uNote" placeholder="เช่น สั่งอะไหล่แล้ว คาดว่าได้ศุกร์">
-      <div class="btns"><button class="btn b" id="uSave">บันทึกความคืบหน้า</button></div>
-      <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--ok);font-weight:600">✓ ซ่อมเสร็จ — ปิดงาน</summary>
-        <label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…">
-        <label>สิ่งที่ทำ</label><input type="text" class="full" id="cWhat" placeholder="เช่น เปลี่ยนลูกปืน 2 ตัว">
-        <details class="adm"><summary><span class="lockT">🔒 ปิดงานย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่ซ่อมเสร็จเอง</span></summary>
-          <div class="two"><div><label>วันที่ซ่อมเสร็จ</label><input type="date" class="full" id="cDate"></div><div><label>เวลา</label><input type="time" class="full" id="cTime" value="17:00"></div></div>
-          <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="cAdm" value="${esc(admGet())}" autocomplete="off"></div></details>
-        <div class="btns"><button class="btn ok" id="cSave">ปิดงาน</button></div></details>
-      <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-weight:600">✕ ไม่อนุมัติ — ปิดงาน</summary>
-        <label>เหตุผล (ถ้ามี)</label><input type="text" class="full" id="jWhat" placeholder="เช่น ซ้ำกับใบเดิม / ไม่ใช่งานซ่อม">
-        <details class="adm"><summary><span class="lockT">🔒 ย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่เอง</span></summary>
-          <div class="two"><div><label>วันที่</label><input type="date" class="full" id="jDate"></div><div><label>เวลา</label><input type="time" class="full" id="jTime" value="17:00"></div></div>
-          <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="jAdm" value="${esc(admGet())}" autocomplete="off"></div></details>
-        <div class="btns"><button class="btn" id="jSave">ไม่อนุมัติ — ปิดงาน</button></div></details>`}
+      <div class="pick st" id="uSt">${["new", "fix", "part", "done", "rejected"].map((k) => `<button data-v="${k}" class="${j.status === k ? "on" : ""}">${k === "done" ? "✓ ซ่อมเสร็จ" : k === "rejected" ? "✕ ไม่อนุมัติ" : STATUS[k][0]}</button>`).join("")}</div>
+      <div id="uOpen">
+        <label>ความเร่งด่วน</label>
+        <div class="pick u" id="uUrg">${["stop", "soon", "wait"].map((k) => `<button data-v="${k}" class="${j.urg === k ? "on" : ""}">${k === "stop" ? "🛑 หยุดผลิต" : k === "soon" ? "ใช้ได้ แต่ต้องซ่อม" : "รอได้"}</button>`).join("")}</div>
+        <label>บันทึก (ถ้ามี)</label><input type="text" class="full" id="uNote" placeholder="เช่น สั่งอะไหล่แล้ว คาดว่าได้ศุกร์"></div>
+      <div id="uClose" hidden>
+        <div id="uByBox"><label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…"></div>
+        <label id="cWhatL">สิ่งที่ทำ</label><input type="text" class="full" id="cWhat" placeholder="เช่น เปลี่ยนลูกปืน 2 ตัว">
+        <details class="adm"><summary><span class="lockT">🔒 ปิดงานย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่ปิดงานเอง</span></summary>
+          <div class="two"><div><label>วันที่</label><input type="date" class="full" id="cDate"></div><div><label>เวลา</label><input type="time" class="full" id="cTime" value="17:00"></div></div>
+          <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="cAdm" value="${esc(admGet())}" autocomplete="off"></div></details></div>
+      <div class="btns"><button class="btn b" id="uSave">บันทึกความคืบหน้า</button></div>`}
       <div class="note" id="vMsg" style="margin-top:8px"></div>
       <details style="margin-top:14px"><summary class="note" style="cursor:pointer">ลบงานนี้ (แจ้งผิด / ซ้ำ)</summary>
         <div class="row2"><input type="password" id="dCode" placeholder="รหัสลบ" autocomplete="off"><button class="btn" id="dGo" style="color:var(--bad);flex:0 0 auto">ลบ</button></div></details>`;
@@ -356,26 +352,30 @@
     if (closed) return;
     let st = j.status, ug = j.urg;
     const pick = (box, set) => (e) => { const b = e.target.closest("button"); if (!b) return; set(b.dataset.v); box.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); };
-    $("uSt").onclick = pick($("uSt"), (v) => (st = v)); $("uUrg").onclick = pick($("uUrg"), (v) => (ug = v));
+    // choosing "repaired" or "not approved" shows the close fields; the one button saves either way
+    const showSt = () => {
+      const close = st === "done" || st === "rejected";
+      $("uOpen").hidden = close; $("uClose").hidden = !close; $("uByBox").hidden = st !== "done";
+      $("cWhatL").textContent = st === "rejected" ? "เหตุผล (ถ้ามี)" : "สิ่งที่ทำ";
+      $("cWhat").placeholder = st === "rejected" ? "เช่น ซ้ำกับใบเดิม / ไม่ใช่งานซ่อม" : "เช่น เปลี่ยนลูกปืน 2 ตัว";
+      $("uSave").textContent = st === "done" ? "✓ ปิดงาน — ซ่อมเสร็จ" : st === "rejected" ? "✕ ปิดงาน — ไม่อนุมัติ" : "บันทึกความคืบหน้า";
+      $("uSave").className = "btn " + (st === "done" ? "ok" : st === "rejected" ? "" : "b");
+    };
+    $("uSt").onclick = (e) => { pick($("uSt"), (v) => (st = v))(e); showSt(); }; $("uUrg").onclick = pick($("uUrg"), (v) => (ug = v));
     $("uSave").onclick = async () => {
-      if (busy) return; busy = true; $("vMsg").textContent = "กำลังบันทึก…";
+      if (busy) return;
+      if (st === "done" || st === "rejected") {
+        const at = atOf($("cDate").value, $("cTime").value), adm = $("cAdm").value.trim();
+        if (at && !adm && !backdateOpen) { $("vMsg").textContent = "ปิดงานย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
+        busy = true; $("vMsg").textContent = "กำลังปิดงาน…";
+        try { await api("repairClose", { id: j.id, result: st, what: $("cWhat").value.trim(), by: st === "done" ? $("cBy").value.trim() : "", ...(at ? { at, adminKey: adm } : {}) });
+          if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
+        catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
+        return;
+      }
+      busy = true; $("vMsg").textContent = "กำลังบันทึก…";
       try { await api("repairUpdate", { id: j.id, status: st, urg: ug, note: $("uNote").value.trim() }); $("uNote").blur(); vDirty = false; await load(); openView(j.id); }
       catch (e) { $("vMsg").textContent = "บันทึกไม่ได้ — ลองใหม่"; } finally { busy = false; }
-    };
-    $("cSave").onclick = async () => {
-      if (busy) return; busy = true; $("vMsg").textContent = "กำลังปิดงาน…";
-      const at = atOf($("cDate").value, $("cTime").value), adm = $("cAdm").value.trim();
-      if (at && !adm && !backdateOpen) { busy = false; $("vMsg").textContent = "ปิดงานย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
-      try { await api("repairClose", { id: j.id, what: $("cWhat").value.trim(), by: $("cBy").value.trim(), ...(at ? { at, adminKey: adm } : {}) }); if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
-      catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
-    };
-    $("jSave").onclick = async () => {
-      if (busy) return;
-      const at = atOf($("jDate").value, $("jTime").value), adm = $("jAdm").value.trim();
-      if (at && !adm && !backdateOpen) { $("vMsg").textContent = "ย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
-      busy = true; $("vMsg").textContent = "กำลังปิดงาน…";
-      try { await api("repairClose", { id: j.id, result: "rejected", what: $("jWhat").value.trim(), ...(at ? { at, adminKey: adm } : {}) }); if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
-      catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
     };
   }
   $("vBody").addEventListener("input", () => { vDirty = true; });
