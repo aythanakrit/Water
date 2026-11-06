@@ -1476,6 +1476,7 @@
         <div class="cap"><button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>${p.takenAt ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}</div>
       <div class="phmsg"></div>` : `<div class="phmsg"></div>`;
   }
+  var touchOnly = matchMedia("(hover: none) and (pointer: coarse)").matches; // phone / tablet: no paste button
   function renderEditPhotos() {
     const el = $("editPhotos"), t = job && job.trucks[editIdx];
     if (!el || !t) return;
@@ -1491,6 +1492,7 @@
           <div class="cap">${locked ? "" : `<button class="del" type="button" data-del="${esc(p.id)}">ลบ</button>`}${p.takenAt && k.stamp ? ReportPhotos.stampText(p.takenAt) : ""}${p.synced === false ? " · ⏳ รอส่ง" : ""}</div></div>`).join("")}
         ${mine.length ? `<button class="g phmore" type="button" data-shoot="${esc(d)}">+ ${key === "printout" ? "แนบเพิ่ม" : "ถ่ายเพิ่ม"}</button>`
           : `<button class="phshoot" type="button" data-shoot="${esc(d)}">${key === "printout" ? "📎<br>แนบ Printout" : "📸<br>แตะเพื่อถ่าย/แนบ"}</button>`}
+        ${key === "printout" && !touchOnly ? `<button class="g phmore" type="button" data-paste="1" title="แคปหน้าจอ (Win+Shift+S) แล้วกด Ctrl+V ที่หน้านี้ได้เลย">📋 วางภาพที่แคป (Ctrl+V)</button>` : ""}
         <div class="phmsg" style="padding:0 6px"></div></div>`;
     }).join("")}</div>`;
   }
@@ -1593,6 +1595,34 @@
     const file = e.target.files[0]; e.target.value = "";
     const pick = phPick; phPick = null;
     if (!file || !pick) return;
+    addPhotoFile(file, pick);
+  });
+  // Printout from a screen capture on a computer (Win+Shift+S, then Ctrl+V): pasted into the truck being edited
+  function pastePick() {
+    const t = SP && phAdmin && job && !$("vJob").hidden && job.trucks[editIdx];
+    if (!t) return null;
+    const el = document.querySelector('#editPhotos .phk[data-k="printout"]');
+    const d = FieldReport.cleanDO(t.do);
+    return el && d ? { kind: "printout", do: d, el } : null;
+  }
+  document.addEventListener("paste", (e) => {
+    const pick = pastePick(); if (!pick) return;
+    const it = [...(e.clipboardData ? e.clipboardData.items : [])].find((x) => x.kind === "file" && /^image\//.test(x.type));
+    const file = it && it.getAsFile(); if (!file) return;
+    e.preventDefault(); addPhotoFile(file, pick);
+  });
+  $("editBox").addEventListener("click", async (e) => {
+    if (!e.target.closest("[data-paste]")) return;
+    const pick = pastePick(); if (!pick) return;
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find((x) => /^image\//.test(x));
+        if (type) return addPhotoFile(new File([await item.getType(type)], "printout.png", { type }), pick);
+      }
+      phMsg(pick.el, "ยังไม่มีภาพในคลิปบอร์ด — แคปหน้าจอก่อน (Windows: Win+Shift+S · Mac: Cmd+Ctrl+Shift+4)");
+    } catch { phMsg(pick.el, "เบราว์เซอร์นี้ไม่ให้อ่านคลิปบอร์ด — กด Ctrl+V (Mac: Cmd+V) แทน"); }
+  });
+  async function addPhotoFile(file, pick) {
     const k = [...PK, ReportPhotos.SAMPLES].find((x) => x.key === pick.kind);
     phMsg(pick.el, "กำลังเตรียมภาพ…");
     try {
@@ -1608,7 +1638,7 @@
       phMsg(pick.el, "");
       await phRefresh(); phSend();
     } catch { phMsg(pick.el, "เปิดไฟล์ไม่ได้ — ลองใหม่ หรือใช้ไฟล์ภาพ/PDF อื่น"); }
-  });
+  }
   // send what is waiting on this device; kept and retried if it fails
   async function phSend() {
     if (!SYNC || ph.sending || !navigator.onLine) return;
