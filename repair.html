@@ -69,12 +69,44 @@
   .tl small { display: block; color: var(--muted); font-size: .78rem; }
   .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: .92rem; } .facts dt { color: var(--muted); } .facts dd { margin: 0; }
   .note { font-size: .8rem; color: var(--muted); }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .top .btn { flex: 0 0 auto; min-height: 40px; padding: 8px 14px; }
+  /* report (A4) */
+  #rep { position: fixed; inset: 0; z-index: 60; background: #6b7280; overflow: auto; padding: 16px 8px 40px; }
+  #rep[hidden] { display: none; }
+  #rep .bar { max-width: 210mm; margin: 0 auto 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #rep .bar select { flex: 1 1 160px; min-width: 0; background: #fff; color: #1d2330; }
+  #rep .bar .btn { flex: 0 0 auto; background: #fff; }
+  #rep .bar .btn.b { background: var(--accent); color: #fff; }
+  .a4 { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff; color: #111; width: 100%; max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 12mm; font-size: 12px; line-height: 1.45;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+  .a4 .hd { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; gap: 8px; }
+  .a4 .hd b { font-size: 18px; display: block; } .a4 .hd .r { text-align: right; font-size: 11px; color: #444; }
+  .a4 .sum { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+  .a4 .sum div { border: 1px solid #bbb; border-radius: 6px; padding: 5px 8px; } .a4 .sum b { display: block; font-size: 18px; }
+  .a4 .sum .red b { color: #b42318; }
+  .a4 h3 { font-size: 13px; margin: 14px 0 4px; padding: 3px 8px; background: #eef1f5; border-left: 4px solid #1f5fbf; }
+  .a4 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .a4 th, .a4 td { border: 1px solid #bbb; padding: 3px 5px; vertical-align: top; text-align: left; }
+  .a4 th { background: #f3f4f6; font-size: 11px; } .a4 td.n { text-align: right; white-space: nowrap; } .a4 td.c { text-align: center; white-space: nowrap; }
+  .a4 tr.stop td { background: #fde4e1; } .a4 .old { color: #b42318; font-weight: 700; }
+  .a4 .tot td { font-weight: 700; background: #f3f4f6; }
+  .a4 .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 28px; text-align: center; font-size: 11px; }
+  .a4 .sign div { border-top: 1px dotted #555; padding-top: 4px; margin-top: 30px; }
+  .a4 .ft { margin-top: 16px; font-size: 10px; color: #666; }
+  @media (max-width: 560px) { .a4 { padding: 8mm 5mm; font-size: 10.5px; } .a4 .sum { grid-template-columns: repeat(3, 1fr); } }
+  @media print {
+    @page { size: A4; margin: 10mm; }
+    body > *:not(#rep) { display: none !important; }
+    #rep { position: static; background: none; padding: 0; overflow: visible; } #rep .bar { display: none; }
+    .a4 { box-shadow: none; padding: 0; min-height: 0; max-width: none; }
+  }
 </style>
 </head>
 <body>
 <main>
   <a class="back" href="index.html">← หน้าหลัก</a>
-  <h1>รายการค้างซ่อม</h1>
+  <div class="top"><h1>รายการค้างซ่อม</h1><button class="btn" id="repBtn" type="button">📄 รายงาน</button></div>
   <p class="sub">เครื่องจักรในแพล้น และรถตัก · แจ้งซ่อม → ติดตาม → ปิดงาน</p>
   <div class="proto">🧪 ต้นแบบดีไซน์ — ข้อมูลในหน้านี้เป็นตัวอย่างสมมติ กดเล่นได้ แต่ยังไม่บันทึกจริง</div>
 
@@ -111,6 +143,17 @@
   <div class="btns"><button class="btn" data-close>ยกเลิก</button><button class="btn b" id="nSave">บันทึกแจ้งซ่อม</button></div>
 </div></div>
 
+<!-- report -->
+<div id="rep" hidden>
+  <div class="bar">
+    <select id="rPlant"><option value="">ทุกแพล้น</option></select>
+    <select id="rMonth"></select>
+    <button class="btn b" id="rPrint" type="button">🖨 พิมพ์ / บันทึก PDF</button>
+    <button class="btn" id="rClose" type="button">ปิด</button>
+  </div>
+  <div class="a4" id="rPage"></div>
+</div>
+
 <!-- detail -->
 <div class="sheet" id="sView" hidden><div class="panel" id="vBody"></div></div>
 
@@ -132,7 +175,7 @@
     { id: 3, plant: "P014 เพชรพระราม", type: "เครื่องจักร", machine: "ปั๊มน้ำ", symptom: "แรงดันตก", urg: "soon", status: "new", by: "ตัวอย่าง ค.", at: ago(4), log: [[ago(4), "แจ้งซ่อม"]] },
     { id: 4, plant: "P106 บางพลี3", type: "รถตัก", machine: "รถตัก L-03", symptom: "ไฟหน้าดับ 1 ดวง", urg: "wait", status: "new", by: "ตัวอย่าง ง.", at: ago(2), log: [[ago(2), "แจ้งซ่อม"]] },
     { id: 5, plant: "P027 บางพลี", type: "เครื่องจักร", machine: "เครื่องอัดลม", symptom: "รั่วที่ข้อต่อ", urg: "soon", status: "done", by: "ตัวอย่าง ก.", at: ago(9), doneAt: ago(6), cost: 1200,
-      log: [[ago(9), "แจ้งซ่อม"], [ago(6), "เปลี่ยนข้อต่อ — ปิดงาน"]] },
+      log: [[ago(9), "แจ้งซ่อม"], [ago(6), "ปิดงาน — เปลี่ยนข้อต่อ"]] },
   ];
   let view = "open", kpiFilter = "";
   PLANTS.forEach((p) => { $("fPlant").add(new Option(p, p)); $("nPlant").add(new Option(p, p)); });
@@ -213,6 +256,41 @@
       by: $("nBy").value.trim() || "-", at: t, log: [[t, "แจ้งซ่อม"]] });
     ["nMachine", "nSymptom", "nBy"].forEach((id) => ($(id).value = "")); $("sNew").hidden = true; view = "open"; kpiFilter = ""; render();
   };
+  // ---------- report (A4) ----------
+  const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+  const dmy = (t) => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543) % 100}`; };
+  const RANK = { stop: 0, soon: 1, wait: 2 };
+  PLANTS.forEach((p) => $("rPlant").add(new Option(p, p)));
+  for (let i = 0; i < 6; i++) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); $("rMonth").add(new Option(`ปิดงานเดือน ${MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`, d.getFullYear() + "-" + d.getMonth())); }
+  function renderReport() {
+    const P = $("rPlant").value, [y, m] = $("rMonth").value.split("-").map(Number);
+    const mine = jobs.filter((j) => !P || j.plant === P);
+    const open = mine.filter((j) => j.status !== "done").sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
+    const done = mine.filter((j) => j.status === "done" && new Date(j.doneAt).getFullYear() === y && new Date(j.doneAt).getMonth() === m).sort((a, b) => a.doneAt - b.doneAt);
+    const cost = done.reduce((s, j) => s + (j.cost || 0), 0);
+    const avg = done.length ? (done.reduce((s, j) => s + days(j), 0) / done.length).toFixed(1) : "-";
+    const last = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
+    $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้างซ่อม เครื่องจักร / รถตัก</b>${esc(P || "ทุกแพล้น")}</div>
+        <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
+      <div class="sum"><div><b>${open.length}</b>ค้างซ่อม</div><div class="red"><b>${open.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
+        <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div><div><b>${done.length}</b>ปิดงานในเดือน</div><div><b>${cost.toLocaleString()}</b>ค่าซ่อม (บาท)</div></div>
+      <h3>1. งานค้างซ่อม (${open.length} รายการ)</h3>
+      ${open.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
+        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${i + 1}</td><td>${esc(j.plant)}</td><td>${esc(j.machine)}<br><small>${esc(j.type)}</small></td>
+          <td>${esc(j.symptom)}</td><td class="c">${URG[j.urg][0]}</td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
+          <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`}
+      <h3>2. งานที่ซ่อมเสร็จในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${done.length} รายการ · เฉลี่ย ${avg} วัน/งาน)</h3>
+      ${done.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th><th>ค่าซ่อม (บาท)</th></tr></thead><tbody>
+        ${done.map((j, i) => `<tr><td class="c">${i + 1}</td><td>${esc(j.plant)}</td><td>${esc(j.machine)}</td><td>${esc(j.symptom)}</td><td>${esc(last(j).replace(/^ปิดงาน( — )?/, ""))}</td>
+          <td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td><td class="n">${days(j)}</td><td class="n">${(j.cost || 0).toLocaleString()}</td></tr>`).join("")}
+        <tr class="tot"><td colspan="8" style="text-align:right">รวมค่าซ่อม</td><td class="n">${cost.toLocaleString()}</td></tr></tbody></table>` : `<p>ไม่มีงานที่ปิดในเดือนนี้</p>`}
+      <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
+      <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
+  }
+  $("repBtn").onclick = () => { renderReport(); $("rep").hidden = false; };
+  $("rClose").onclick = () => { $("rep").hidden = true; };
+  $("rPlant").onchange = $("rMonth").onchange = renderReport;
+  $("rPrint").onclick = () => window.print();
   render();
 })();
 </script>
