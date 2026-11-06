@@ -385,7 +385,7 @@ export async function railDocDelete(db, bucket, id, now = Date.now()) {
 // ---------- repair backlog: plant machinery and loaders (photos in R2 under repair/<job id>/) ----------
 const REPAIR_TYPES = ["เครื่องจักร", "รถตัก"], REPAIR_URG = ["stop", "soon", "wait"], REPAIR_STATUS = ["new", "fix", "part"];
 // TEMPORARY: anyone may pick the report / close date (first entry of old jobs). Set to false to need the administrator code again.
-export const REPAIR_BACKDATE_OPEN = true;
+export const REPAIR_BACKDATE_OPEN = false;
 const REPAIR_KEEP_DAYS = 400; // closed jobs older than this are not listed
 const txt = (s, n) => String(s || "").trim().slice(0, n);
 /** A past time sent by the administrator, or null: not in the future, at most 3 years back, not before `min`. */
