@@ -27,6 +27,7 @@
     background: var(--bad); color: #fff; font-size: 14px; line-height: 24px; padding: 0; cursor: pointer; }
   .row2 { display: flex; gap: 8px; margin-top: 8px; } .row2 input { flex: 1; min-width: 0; }
   .doc { display: inline-block; font-size: .78rem; font-weight: 700; color: var(--accent); background: var(--info-bg); border-radius: 6px; padding: 0 6px; margin-right: 6px; vertical-align: 2px; }
+  .openT { display: none; } body.bdopen .openT { display: inline; } body.bdopen div.openT { display: block; } body.bdopen .lockT { display: none; }
   details.adm { margin-top: 12px; border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; } details.adm summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
   input[type=date], input[type=time], input[type=password] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
   #nMsg { color: var(--bad); font-size: .9rem; margin-top: 8px; min-height: 1.2em; }
@@ -147,9 +148,9 @@
   <label>รูป (ถ่าย/แนบ)</label>
   <div class="photos" id="nPhotos"></div>
   <input type="file" id="nFile" accept="image/*" multiple hidden>
-  <details class="adm" id="nAdmBox"><summary>🔒 ลงย้อนหลัง (ผู้ดูแล)</summary>
+  <details class="adm" id="nAdmBox"><summary><span class="lockT">🔒 ลงย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่แจ้งซ่อมเอง</span></summary>
     <div class="two"><div><label>วันที่แจ้งซ่อม</label><input type="date" class="full" id="nDate"></div><div><label>เวลา</label><input type="time" class="full" id="nTime" value="08:00"></div></div>
-    <label>รหัสผู้ดูแล</label><input type="password" class="full" id="nAdm" autocomplete="off">
+    <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="nAdm" autocomplete="off"></div>
     <p class="note" style="margin:6px 0 0">เว้นวันที่ว่าง = แจ้งวันนี้ตามปกติ</p></details>
   <div id="nMsg" role="alert"></div>
   <div class="btns"><button class="btn" data-close>ยกเลิก</button><button class="btn b" id="nSave">บันทึกแจ้งซ่อม</button></div>
@@ -197,7 +198,7 @@
   const photoURL = (id) => `/api/repairphoto?key=${encodeURIComponent(CLOUD.key)}&id=${encodeURIComponent(id)}`;
   const store = { get: (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
 
-  let jobs = [], view = "open", kpiFilter = "", openId = null, busy = false, vDirty = false;
+  let jobs = [], view = "open", kpiFilter = "", openId = null, busy = false, vDirty = false, backdateOpen = false;
   const say = (t, bad) => { $("msg").textContent = t || ""; $("msg").className = bad ? "msg bad" : "msg"; };
 
   async function api(action, body = {}) {
@@ -210,7 +211,7 @@
     if (!CLOUD) return say("ยังไม่ได้ต่อระบบออนไลน์ — บันทึกไม่ได้", true);
     try {
       const x = await api("repairList");
-      jobs = x.jobs; say(""); render();
+      jobs = x.jobs; backdateOpen = !!x.backdateOpen; document.body.classList.toggle("bdopen", backdateOpen); say(""); render();
       // the open job is redrawn with what other devices saved, unless something is being typed in it
       if (openId && !$("sView").hidden && !vDirty && !document.activeElement.closest("#vBody input, #vBody textarea, #vBody details[open]")) openView(openId);
       if (!$("rep").hidden) renderReport();
@@ -282,7 +283,7 @@
     busy = true; $("nSave").disabled = true; $("nMsg").textContent = "กำลังบันทึก…";
     try {
       const at = atOf($("nDate").value, $("nTime").value), adm = $("nAdm").value.trim();
-      if (at && !adm) { $("nMsg").textContent = "ลงย้อนหลังต้องใส่รหัสผู้ดูแล"; $("nAdm").focus(); return; }
+      if (at && !adm && !backdateOpen) { $("nMsg").textContent = "ลงย้อนหลังต้องใส่รหัสผู้ดูแล"; $("nAdm").focus(); return; }
       const x = await api("repairAdd", { docNo: $("nDoc").value.trim(), plant: $("nPlant").value, type: $("nType").value, machine: m, symptom: s, urg: $("nUrg").querySelector(".on").dataset.v,
         ...(at ? { at, adminKey: adm } : {}) });
       if (at) admSet(adm);
@@ -320,9 +321,9 @@
       <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--ok);font-weight:600">✓ ซ่อมเสร็จ — ปิดงาน</summary>
         <label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…">
         <label>สิ่งที่ทำ</label><input type="text" class="full" id="cWhat" placeholder="เช่น เปลี่ยนลูกปืน 2 ตัว">
-        <details class="adm"><summary>🔒 ปิดงานย้อนหลัง (ผู้ดูแล)</summary>
+        <details class="adm"><summary><span class="lockT">🔒 ปิดงานย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่ซ่อมเสร็จเอง</span></summary>
           <div class="two"><div><label>วันที่ซ่อมเสร็จ</label><input type="date" class="full" id="cDate"></div><div><label>เวลา</label><input type="time" class="full" id="cTime" value="17:00"></div></div>
-          <label>รหัสผู้ดูแล</label><input type="password" class="full" id="cAdm" value="${esc(admGet())}" autocomplete="off"></details>
+          <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="cAdm" value="${esc(admGet())}" autocomplete="off"></div></details>
         <div class="btns"><button class="btn ok" id="cSave">ปิดงาน</button></div></details>`}
       <div class="note" id="vMsg" style="margin-top:8px"></div>
       <details style="margin-top:14px"><summary class="note" style="cursor:pointer">ลบงานนี้ (แจ้งผิด / ซ้ำ)</summary>
@@ -349,7 +350,7 @@
     $("cSave").onclick = async () => {
       if (busy) return; busy = true; $("vMsg").textContent = "กำลังปิดงาน…";
       const at = atOf($("cDate").value, $("cTime").value), adm = $("cAdm").value.trim();
-      if (at && !adm) { busy = false; $("vMsg").textContent = "ปิดงานย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
+      if (at && !adm && !backdateOpen) { busy = false; $("vMsg").textContent = "ปิดงานย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
       try { await api("repairClose", { id: j.id, what: $("cWhat").value.trim(), by: $("cBy").value.trim(), ...(at ? { at, adminKey: adm } : {}) }); if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
       catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
     };

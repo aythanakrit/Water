@@ -384,6 +384,8 @@ export async function railDocDelete(db, bucket, id, now = Date.now()) {
 
 // ---------- repair backlog: plant machinery and loaders (photos in R2 under repair/<job id>/) ----------
 const REPAIR_TYPES = ["เครื่องจักร", "รถตัก"], REPAIR_URG = ["stop", "soon", "wait"], REPAIR_STATUS = ["new", "fix", "part"];
+// TEMPORARY: anyone may pick the report / close date (first entry of old jobs). Set to false to need the administrator code again.
+export const REPAIR_BACKDATE_OPEN = true;
 const REPAIR_KEEP_DAYS = 400; // closed jobs older than this are not listed
 const txt = (s, n) => String(s || "").trim().slice(0, n);
 /** A past time sent by the administrator, or null: not in the future, at most 3 years back, not before `min`. */
@@ -400,7 +402,7 @@ export async function repairList(db, now = Date.now()) {
     .bind(now - REPAIR_KEEP_DAYS * DAY).all();
   const ph = (await db.prepare("SELECT id, repair_id FROM repair_photos WHERE removed IS NULL ORDER BY created").all()).results;
   const photos = {}; ph.forEach((p) => (photos[p.repair_id] = photos[p.repair_id] || []).push(p.id));
-  return { ok: true, jobs: results.map((r) => repairOut(r, photos)) };
+  return { ok: true, backdateOpen: REPAIR_BACKDATE_OPEN, jobs: results.map((r) => repairOut(r, photos)) };
 }
 async function repairRow(db, id) { return db.prepare("SELECT * FROM repairs WHERE id = ? AND removed IS NULL").bind(String(id || "")).first(); }
 export async function repairAdd(db, req, admin, now = Date.now()) {
@@ -408,7 +410,7 @@ export async function repairAdd(db, req, admin, now = Date.now()) {
   if (!plant || !REPAIR_TYPES.includes(type) || !symptom || !REPAIR_URG.includes(urg) || (type === "รถตัก" && !machine)) return { ok: false, error: "bad_request" };
   let at = now;
   if (req.at != null && req.at !== "") {
-    if (!admin) return { ok: false, error: "not_admin" };
+    if (!admin && !REPAIR_BACKDATE_OPEN) return { ok: false, error: "not_admin" };
     at = pastTime(req.at, now); if (at == null) return { ok: false, error: "bad_date" };
   }
   const id = crypto.randomUUID();
@@ -442,7 +444,7 @@ export async function repairClose(db, req, admin, now = Date.now()) {
   if (r.status === "done") return { ok: true };
   let done = now;
   if (req.at != null && req.at !== "") {
-    if (!admin) return { ok: false, error: "not_admin" };
+    if (!admin && !REPAIR_BACKDATE_OPEN) return { ok: false, error: "not_admin" };
     done = pastTime(req.at, now, Number(r.at)); if (done == null) return { ok: false, error: "bad_date" };
   }
   const what = txt(req.what, 300), by = txt(req.by, 100);
