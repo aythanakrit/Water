@@ -45,11 +45,12 @@
   .item { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
   .item:first-of-type { border-top: 0; }
   .thumb { width: 56px; height: 56px; border-radius: 10px; background: var(--info-bg); display: grid; place-items: center; font-size: 1.6rem; overflow: hidden; }
-  .item b { display: block; } .item .meta { color: var(--muted); font-size: .82rem; }
+  .item b { display: block; } .item > div:nth-child(2) > b { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .item .meta { color: var(--muted); font-size: .82rem; }
   .age { text-align: right; font-variant-numeric: tabular-nums; } .age b { font-size: 1.3rem; } .age small { display: block; color: var(--muted); font-size: .75rem; }
   .age.bad b { color: var(--bad); } .age.warn b { color: var(--warn); }
   .chip { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: .78rem; font-weight: 600; margin-right: 4px; }
   .s-new { background: var(--info-bg); color: var(--accent); } .s-fix { background: var(--warn-bg); color: var(--warn); } .s-part { background: var(--bad-bg); color: var(--bad); } .s-done { background: var(--ok-bg); color: var(--ok); }
+  .s-rej { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
   .u-stop { background: var(--bad); color: #fff; } .u-soon { background: var(--warn-bg); color: var(--warn); } .u-wait { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
   .empty { color: var(--muted); padding: 18px 0; text-align: center; }
   .fab { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); font: inherit; font-size: 1.05rem; font-weight: 600;
@@ -123,11 +124,18 @@
     <div class="filters">
       <select id="fPlant"><option value="">ทุกแพล้น</option></select>
       <select id="fType"><option value="">เครื่องจักร + รถตัก</option><option>เครื่องจักร</option><option>รถตัก</option></select>
-      <div class="seg" id="fOpen"><button data-v="open" class="on">ค้างอยู่</button><button data-v="done">ปิดแล้ว</button></div>
+      <div class="seg" id="fOpen"><button data-v="open" class="on">ค้างอยู่</button><button data-v="done">ปิดแล้ว</button><button data-v="rejected">ไม่อนุมัติ</button></div>
     </div>
     <div id="list"></div>
   </section>
   <p class="note">เรียงงานหยุดผลิตก่อน แล้วตามจำนวนวันที่ค้าง · สีแดง = ค้างเกิน 7 วัน · สีส้ม = 3–7 วัน</p>
+  <details class="adm" id="impBox" style="margin-bottom:80px"><summary>📥 นำเข้าข้อมูลจากไฟล์ (ผู้ดูแล)</summary>
+    <p class="note" style="margin:6px 0">ไฟล์ .json ที่เตรียมให้ · งานที่มีเลขที่เอกสารอยู่ในระบบแล้วจะข้าม (นำเข้าซ้ำได้ไม่ซ้อน)</p>
+    <input type="file" id="impFile" accept=".json,application/json">
+    <div id="impPrev" class="note" style="margin-top:6px"></div>
+    <label>รหัสผู้ดูแล</label><input type="password" class="full" id="impAdm" autocomplete="off">
+    <div class="btns"><button class="btn b" id="impGo" disabled>นำเข้า</button></div>
+    <div id="impMsg" class="note" style="margin-top:6px;white-space:pre-line"></div></details>
 </main>
 
 <button class="fab" id="newBtn" type="button">+ แจ้งซ่อม</button>
@@ -181,11 +189,12 @@
   const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-  const STATUS = { new: ["แจ้งแล้ว", "s-new"], fix: ["กำลังซ่อม", "s-fix"], part: ["รออะไหล่", "s-part"], done: ["ซ่อมเสร็จ", "s-done"] };
+  const STATUS = { new: ["แจ้งแล้ว", "s-new"], fix: ["กำลังซ่อม", "s-fix"], part: ["รออะไหล่", "s-part"], done: ["ซ่อมเสร็จ", "s-done"], rejected: ["ไม่อนุมัติ", "s-rej"] };
   const URG = { stop: ["หยุดผลิต", "u-stop"], soon: ["ต้องซ่อม", "u-soon"], wait: ["รอได้", "u-wait"] };
   const RANK = { stop: 0, soon: 1, wait: 2 };
   const PLANTS = [...((window.FieldReport && FieldReport.PLANTS) || [])].sort((a, b) => a[0].localeCompare(b[0])).map(([c, n]) => `P${c} ${n}`);
   const isLoader = (j) => j.type === "รถตัก";
+  const isClosed = (j) => j.status === "done" || j.status === "rejected";
   const title = (j) => isLoader(j) ? j.machine : j.symptom;
   const docTag = (j) => j.docNo ? `<span class="doc">${esc(j.docNo)}</span>` : "";
   const ADM = "repair-admin"; // the administrator code, kept until the tab is closed
@@ -229,22 +238,22 @@
   function render() {
     syncFilter($("fPlant"), "ทุกแพล้น");
     $("machines").innerHTML = [...new Set(jobs.filter(isLoader).map((j) => j.machine))].map((m) => `<option value="${esc(m)}">`).join("");
-    const open = jobs.filter((j) => j.status !== "done"), m = new Date();
+    const open = jobs.filter((j) => !isClosed(j)), m = new Date();
     const doneMonth = jobs.filter((j) => j.status === "done" && new Date(j.doneAt).getMonth() === m.getMonth() && new Date(j.doneAt).getFullYear() === m.getFullYear());
     const K = [["all", open.length, "ค้างซ่อมทั้งหมด", ""], ["stop", open.filter((j) => j.urg === "stop").length, "หยุดผลิตอยู่", "bad"],
       ["old", open.filter((j) => days(j) > 7).length, "ค้างเกิน 7 วัน", "warn"], ["done", doneMonth.length, "ปิดงานเดือนนี้", "ok"]];
     $("kpis").innerHTML = K.map(([k, n, t, c]) => `<button class="kpi ${c}${kpiFilter === k ? " on" : ""}" data-k="${k}"><b>${n}</b><span>${t}</span></button>`).join("");
     const P = $("fPlant").value, T = $("fType").value;
-    let list = jobs.filter((j) => (view === "done") === (j.status === "done") && (!P || j.plant === P) && (!T || j.type === T));
+    let list = jobs.filter((j) => (view === "open" ? !isClosed(j) : j.status === view) && (!P || j.plant === P) && (!T || j.type === T));
     if (kpiFilter === "stop") list = list.filter((j) => j.urg === "stop");
     if (kpiFilter === "old") list = list.filter((j) => days(j) > 7);
-    list.sort((a, b) => view === "done" ? b.doneAt - a.doneAt : RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
-    $("list").innerHTML = list.length ? list.map((j) => { const d = days(j), cls = j.status === "done" ? "" : d > 7 ? "bad" : d >= 3 ? "warn" : "";
+    list.sort((a, b) => view !== "open" ? b.doneAt - a.doneAt : RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
+    $("list").innerHTML = list.length ? list.map((j) => { const d = days(j), cls = isClosed(j) ? "" : d > 7 ? "bad" : d >= 3 ? "warn" : "";
       return `<div class="item" data-id="${esc(j.id)}"><div class="thumb"${j.photos.length ? ` style="background:center/cover url('${photoURL(j.photos[0])}')"` : ""}>${j.photos.length ? "" : isLoader(j) ? "🚜" : "⚙️"}</div>
         <div><b>${docTag(j)}${esc(title(j))}</b><div class="meta">${esc(j.plant)} · ${isLoader(j) ? esc(j.symptom) : "เครื่องจักร"}</div>
         <div style="margin-top:4px"><span class="chip ${URG[j.urg][1]}">${URG[j.urg][0]}</span><span class="chip ${STATUS[j.status][1]}">${STATUS[j.status][0]}</span></div></div>
-        <div class="age ${cls}"><b>${d}</b><small>${j.status === "done" ? "วันที่ใช้ซ่อม" : "วันที่ค้าง"}</small></div></div>`; }).join("")
-      : `<div class="empty">${!CLOUD ? "" : view === "done" ? "ยังไม่มีงานที่ปิด" : "ไม่มีงานค้าง 🎉"}</div>`;
+        <div class="age ${cls}"><b>${d}</b><small>${j.status === "done" ? "วันที่ใช้ซ่อม" : j.status === "rejected" ? "วันก่อนปิด" : "วันที่ค้าง"}</small></div></div>`; }).join("")
+      : `<div class="empty">${!CLOUD ? "" : view === "done" ? "ยังไม่มีงานที่ปิด" : view === "rejected" ? "ไม่มีงานที่ไม่อนุมัติ" : "ไม่มีงานค้าง 🎉"}</div>`;
   }
 
   // ---------- photos: shrunk to 1600 px JPEG on this device ----------
@@ -300,13 +309,13 @@
   function openView(id) {
     const j = jobs.find((x) => x.id === id); if (!j) { $("sView").hidden = true; openId = null; return; }
     openId = id; vDirty = false;
-    const closed = j.status === "done";
+    const closed = isClosed(j), rej = j.status === "rejected";
     $("vBody").innerHTML = `<h2><span>${docTag(j)}${esc(title(j))}</span> <button class="x" data-close>✕</button></h2>
       <div><span class="chip ${URG[j.urg][1]}">${URG[j.urg][0]}</span><span class="chip ${STATUS[j.status][1]}">${STATUS[j.status][0]}</span>
-        <b style="margin-left:6px">${closed ? `ซ่อม ${days(j)} วัน` : `ค้าง ${days(j)} วัน`}</b></div>
+        <b style="margin-left:6px">${rej ? "" : closed ? `ซ่อม ${days(j)} วัน` : `ค้าง ${days(j)} วัน`}</b></div>
       <div class="row2"><input type="text" id="vDoc" value="${esc(j.docNo)}" placeholder="เลขที่เอกสาร" autocomplete="off"><button class="btn" id="vDocGo" style="flex:0 0 auto">บันทึกเลขที่</button></div>
       <dl class="facts" style="margin-top:10px"><dt>แพล้น</dt><dd>${esc(j.plant)}</dd><dt>ประเภท</dt><dd>${esc(j.type)}${isLoader(j) ? " · " + esc(j.machine) : ""}</dd><dt>อาการ</dt><dd>${esc(j.symptom)}</dd>
-        <dt>แจ้งเมื่อ</dt><dd>${thd(j.at)}</dd>${closed ? `<dt>ซ่อมเสร็จ</dt><dd>${thd(j.doneAt)}</dd>` : ""}</dl>
+        <dt>แจ้งเมื่อ</dt><dd>${thd(j.at)}</dd>${closed ? `<dt>${rej ? "ไม่อนุมัติเมื่อ" : "ซ่อมเสร็จ"}</dt><dd>${thd(j.doneAt)}</dd>` : ""}</dl>
       <div class="photos" style="margin-top:10px">${j.photos.map((p) => `<a class="ph" href="${photoURL(p)}" target="_blank" rel="noopener" style="background-image:url('${photoURL(p)}')"></a>`).join("")}
         <button class="ph add" type="button" id="vAdd" title="เพิ่มรูป">📷</button></div>
       <div class="note" id="vPhMsg"></div>
@@ -324,7 +333,13 @@
         <details class="adm"><summary><span class="lockT">🔒 ปิดงานย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่ซ่อมเสร็จเอง</span></summary>
           <div class="two"><div><label>วันที่ซ่อมเสร็จ</label><input type="date" class="full" id="cDate"></div><div><label>เวลา</label><input type="time" class="full" id="cTime" value="17:00"></div></div>
           <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="cAdm" value="${esc(admGet())}" autocomplete="off"></div></details>
-        <div class="btns"><button class="btn ok" id="cSave">ปิดงาน</button></div></details>`}
+        <div class="btns"><button class="btn ok" id="cSave">ปิดงาน</button></div></details>
+      <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-weight:600">✕ ไม่อนุมัติ — ปิดงาน</summary>
+        <label>เหตุผล (ถ้ามี)</label><input type="text" class="full" id="jWhat" placeholder="เช่น ซ้ำกับใบเดิม / ไม่ใช่งานซ่อม">
+        <details class="adm"><summary><span class="lockT">🔒 ย้อนหลัง (ผู้ดูแล)</span><span class="openT">📅 เลือกวันที่เอง</span></summary>
+          <div class="two"><div><label>วันที่</label><input type="date" class="full" id="jDate"></div><div><label>เวลา</label><input type="time" class="full" id="jTime" value="17:00"></div></div>
+          <div class="lockT"><label>รหัสผู้ดูแล</label><input type="password" class="full" id="jAdm" value="${esc(admGet())}" autocomplete="off"></div></details>
+        <div class="btns"><button class="btn" id="jSave">ไม่อนุมัติ — ปิดงาน</button></div></details>`}
       <div class="note" id="vMsg" style="margin-top:8px"></div>
       <details style="margin-top:14px"><summary class="note" style="cursor:pointer">ลบงานนี้ (แจ้งผิด / ซ้ำ)</summary>
         <div class="row2"><input type="password" id="dCode" placeholder="รหัสลบ" autocomplete="off"><button class="btn" id="dGo" style="color:var(--bad);flex:0 0 auto">ลบ</button></div></details>`;
@@ -354,6 +369,14 @@
       try { await api("repairClose", { id: j.id, what: $("cWhat").value.trim(), by: $("cBy").value.trim(), ...(at ? { at, adminKey: adm } : {}) }); if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
       catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
     };
+    $("jSave").onclick = async () => {
+      if (busy) return;
+      const at = atOf($("jDate").value, $("jTime").value), adm = $("jAdm").value.trim();
+      if (at && !adm && !backdateOpen) { $("vMsg").textContent = "ย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
+      busy = true; $("vMsg").textContent = "กำลังปิดงาน…";
+      try { await api("repairClose", { id: j.id, result: "rejected", what: $("jWhat").value.trim(), ...(at ? { at, adminKey: adm } : {}) }); if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
+      catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
+    };
   }
   $("vBody").addEventListener("input", () => { vDirty = true; });
   $("vFile").addEventListener("change", async (e) => {
@@ -376,6 +399,41 @@
     $("fOpen").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); render(); };
   $("fPlant").onchange = $("fType").onchange = render;
 
+  // ---------- import (administrator): { source, jobs: [{ docNo, plant, type, machine, symptom, urg, status, at, doneAt, closeText, photos: [base64 JPEG] }] } ----------
+  let impJobs = null;
+  $("impFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; impJobs = null; $("impGo").disabled = true; $("impMsg").textContent = "";
+    if (!f) return ($("impPrev").textContent = "");
+    try {
+      const d = JSON.parse(await f.text()); impJobs = Array.isArray(d.jobs) ? d.jobs : null; if (!impJobs) throw new Error("x");
+      const c = {}; impJobs.forEach((j) => (c[j.status] = (c[j.status] || 0) + 1));
+      const have = new Set(jobs.map((j) => j.docNo).filter(Boolean)), dup = impJobs.filter((j) => j.docNo && have.has(j.docNo)).length;
+      $("impPrev").textContent = `${d.source ? d.source + " · " : ""}${impJobs.length} รายการ — ` + ["new", "fix", "part", "done", "rejected"].filter((k) => c[k]).map((k) => `${STATUS[k][0]} ${c[k]}`).join(" · ")
+        + ` · มีรูป ${impJobs.filter((j) => (j.photos || []).length).length} รายการ` + (dup ? ` · อยู่ในระบบแล้ว ${dup} (จะข้าม)` : "");
+      $("impGo").disabled = false; $("impAdm").value = $("impAdm").value || admGet();
+    } catch (x) { $("impPrev").textContent = "อ่านไฟล์ไม่ได้ — ต้องเป็นไฟล์ .json ที่เตรียมไว้"; }
+  });
+  const b64Blob = (b) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type: "image/jpeg" }); };
+  $("impGo").onclick = async () => {
+    if (!impJobs || busy) return;
+    const adm = $("impAdm").value.trim(); if (!adm) { $("impMsg").textContent = "ใส่รหัสผู้ดูแล"; return $("impAdm").focus(); }
+    try { await api("reportAdminCheck", { adminKey: adm }); } catch (e) { $("impMsg").textContent = "รหัสผู้ดูแลไม่ถูกต้อง"; return; }
+    admSet(adm); busy = true; $("impGo").disabled = true;
+    let added = 0, skipped = 0, photoBad = 0; const failed = [];
+    for (let i = 0; i < impJobs.length; i++) {
+      const j = impJobs[i]; $("impMsg").textContent = `กำลังนำเข้า ${i + 1}/${impJobs.length} …`;
+      try {
+        const { photos, ...job } = j;
+        const x = await api("repairImport", { job, adminKey: adm });
+        if (x.skipped) { skipped++; continue; }
+        added++;
+        if ((photos || []).length) photoBad += await upload(x.id, photos.map(b64Blob));
+      } catch (e) { failed.push(`${j.docNo || "(ไม่มีเลขที่)"}: ${e.message}`); }
+    }
+    busy = false; $("impGo").disabled = false; await load();
+    $("impMsg").textContent = `เสร็จแล้ว — นำเข้า ${added} · ข้าม (มีอยู่แล้ว) ${skipped}` + (photoBad ? ` · ส่งรูปไม่ได้ ${photoBad}` : "") + (failed.length ? `\nไม่สำเร็จ ${failed.length}:\n` + failed.join("\n") : "");
+  };
+
   // ---------- report (A4) ----------
   const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
   const dmy = (t) => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543) % 100}`; };
@@ -384,8 +442,9 @@
     syncFilter($("rPlant"), "ทุกแพล้น");
     const P = $("rPlant").value, [y, m] = $("rMonth").value.split("-").map(Number);
     const mine = jobs.filter((j) => !P || j.plant === P);
-    const open = mine.filter((j) => j.status !== "done").sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
+    const open = mine.filter((j) => !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
     const done = mine.filter((j) => j.status === "done" && new Date(j.doneAt).getFullYear() === y && new Date(j.doneAt).getMonth() === m).sort((a, b) => a.doneAt - b.doneAt);
+    const rejected = mine.filter((j) => j.status === "rejected" && new Date(j.doneAt).getFullYear() === y && new Date(j.doneAt).getMonth() === m).sort((a, b) => a.doneAt - b.doneAt);
     const avg = done.length ? (done.reduce((s, j) => s + days(j), 0) / done.length).toFixed(1) : "-";
     const last = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
     $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้างซ่อม เครื่องจักร / รถตัก</b>${esc(P || "ทุกแพล้น")}</div>
@@ -401,6 +460,10 @@
       ${done.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th></tr></thead><tbody>
         ${done.map((j, i) => `<tr><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td><td>${esc(j.symptom)}</td><td>${esc(last(j).replace(/^ปิดงาน( — )?/, ""))}</td>
           <td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td><td class="n">${days(j)}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานที่ปิดในเดือนนี้</p>`}
+      <h3>3. งานไม่อนุมัติในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${rejected.length} รายการ)</h3>
+      ${rejected.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>เหตุผล</th><th>แจ้ง</th><th>ไม่อนุมัติ</th></tr></thead><tbody>
+        ${rejected.map((j) => `<tr><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td><td>${esc(j.symptom)}</td>
+          <td>${esc(last(j).replace(/^ไม่อนุมัติ( — )?/, ""))}</td><td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานที่ไม่อนุมัติในเดือนนี้</p>`}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
   }

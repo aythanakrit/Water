@@ -388,6 +388,7 @@ const REPAIR_TYPES = ["เครื่องจักร", "รถตัก"], R
 export const REPAIR_BACKDATE_OPEN = false;
 const REPAIR_KEEP_DAYS = 400; // closed jobs older than this are not listed
 const txt = (s, n) => String(s || "").trim().slice(0, n);
+const CLOSED = (r) => r.status === "done" || r.status === "rejected";
 /** A past time sent by the administrator, or null: not in the future, at most 3 years back, not before `min`. */
 function pastTime(v, now, min = 0) {
   const t = Math.round(Number(v));
@@ -398,7 +399,7 @@ function repairOut(r, photos) {
     at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, log: parse(r.log, []), updated: Number(r.updated), photos: photos[r.id] || [] };
 }
 export async function repairList(db, now = Date.now()) {
-  const { results } = await db.prepare("SELECT * FROM repairs WHERE removed IS NULL AND (status != 'done' OR done_at >= ?) ORDER BY at")
+  const { results } = await db.prepare("SELECT * FROM repairs WHERE removed IS NULL AND (status NOT IN ('done', 'rejected') OR done_at >= ?) ORDER BY at")
     .bind(now - REPAIR_KEEP_DAYS * DAY).all();
   const ph = (await db.prepare("SELECT id, repair_id FROM repair_photos WHERE removed IS NULL ORDER BY created").all()).results;
   const photos = {}; ph.forEach((p) => (photos[p.repair_id] = photos[p.repair_id] || []).push(p.id));
@@ -423,9 +424,9 @@ export async function repairUpdate(db, req, now = Date.now()) {
   if (!r) return { ok: false, error: "not_found" };
   if (req.docNo != null && txt(req.docNo, 40) !== (r.doc_no || "")) {
     await db.prepare("UPDATE repairs SET doc_no = ?, updated = ? WHERE id = ?").bind(txt(req.docNo, 40), now, r.id).run();
-    if (r.status === "done") return { ok: true };
+    if (CLOSED(r)) return { ok: true };
   }
-  if (r.status === "done") return req.docNo != null ? { ok: true } : { ok: false, error: "closed" };
+  if (CLOSED(r)) return req.docNo != null ? { ok: true } : { ok: false, error: "closed" };
   const status = REPAIR_STATUS.includes(req.status) ? req.status : r.status, note = txt(req.note, 300);
   const urg = REPAIR_URG.includes(req.urg) ? req.urg : r.urg;
   const NAMES = { new: "แจ้งแล้ว", fix: "กำลังซ่อม", part: "รออะไหล่" }, U = { stop: "หยุดผลิต", soon: "ใช้ได้ แต่ต้องซ่อม", wait: "รอได้" };
@@ -441,15 +442,17 @@ export async function repairUpdate(db, req, now = Date.now()) {
 export async function repairClose(db, req, admin, now = Date.now()) {
   const r = await repairRow(db, req.id);
   if (!r) return { ok: false, error: "not_found" };
-  if (r.status === "done") return { ok: true };
+  if (CLOSED(r)) return { ok: true };
+  const rejected = req.result === "rejected";
   let done = now;
   if (req.at != null && req.at !== "") {
     if (!admin && !REPAIR_BACKDATE_OPEN) return { ok: false, error: "not_admin" };
     done = pastTime(req.at, now, Number(r.at)); if (done == null) return { ok: false, error: "bad_date" };
   }
   const what = txt(req.what, 300), by = txt(req.by, 100);
-  const log = parse(r.log, []); log.push([done, "ปิดงาน" + (what ? " — " + what : "") + (by ? ` (${by})` : "")]);
-  await db.prepare("UPDATE repairs SET status = 'done', done_at = ?, log = ?, updated = ? WHERE id = ?").bind(done, JSON.stringify(log.sort((a, b) => a[0] - b[0])), now, r.id).run();
+  const log = parse(r.log, []);
+  log.push([done, rejected ? "ไม่อนุมัติ" + (what ? " — " + what : "") : "ปิดงาน" + (what ? " — " + what : "") + (by ? ` (${by})` : "")]);
+  await db.prepare("UPDATE repairs SET status = ?, done_at = ?, log = ?, updated = ? WHERE id = ?").bind(rejected ? "rejected" : "done", done, JSON.stringify(log.sort((a, b) => a[0] - b[0])), now, r.id).run();
   return { ok: true };
 }
 export async function repairDelete(db, bucket, id, now = Date.now()) {
@@ -460,4 +463,30 @@ export async function repairDelete(db, bucket, id, now = Date.now()) {
     db.prepare("UPDATE repair_photos SET removed = ? WHERE repair_id = ?").bind(now, r.id)]);
   if (bucket) await Promise.all(ph.map((p) => bucket.delete(p.rkey).catch(() => {})));
   return { ok: true };
+}
+
+/**
+ * Administrator import of one job from another system (e-doc): kept with its own report / close times.
+ * A job whose document number is already here is skipped, so a file can be imported again safely.
+ * job: { docNo, plant, type, machine, symptom, urg, status: new|fix|part|done|rejected, at, doneAt, note }
+ */
+export async function repairImport(db, job, now = Date.now()) {
+  const j = job || {};
+  const docNo = txt(j.docNo, 40), plant = txt(j.plant, 60), type = j.type, machine = type === "รถตัก" ? txt(j.machine, 60) : "", symptom = txt(j.symptom, 500);
+  const status = ["new", "fix", "part", "done", "rejected"].includes(j.status) ? j.status : null;
+  if (!plant || !REPAIR_TYPES.includes(type) || !symptom || !REPAIR_URG.includes(j.urg) || !status || (type === "รถตัก" && !machine)) return { ok: false, error: "bad_request" };
+  const at = pastTime(j.at, now); if (at == null) return { ok: false, error: "bad_date" };
+  const closed = status === "done" || status === "rejected";
+  const doneAt = closed ? pastTime(j.doneAt, now, at) : null; if (closed && doneAt == null) return { ok: false, error: "bad_date" };
+  if (docNo) { const had = await db.prepare("SELECT id FROM repairs WHERE doc_no = ? AND removed IS NULL").bind(docNo).first(); if (had) return { ok: true, id: had.id, skipped: true }; }
+  const src = txt(j.note, 100) || "นำเข้า";
+  const log = [[at, `แจ้งซ่อม (${src})`]];
+  if (status === "fix") log.push([at, "สถานะ: กำลังซ่อม"]);
+  if (status === "part") log.push([at, "สถานะ: รออะไหล่"]);
+  if (status === "done") log.push([doneAt, "ปิดงาน" + (j.closeText ? " — " + txt(j.closeText, 200) : "")]);
+  if (status === "rejected") log.push([doneAt, "ไม่อนุมัติ" + (j.closeText ? " — " + txt(j.closeText, 200) : "")]);
+  const id = crypto.randomUUID();
+  await db.prepare("INSERT INTO repairs (id, doc_no, plant, type, machine, symptom, urg, status, at, done_at, log, updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, docNo, plant, type, machine, symptom, j.urg, status, at, doneAt, JSON.stringify(log), now).run();
+  return { ok: true, id };
 }
