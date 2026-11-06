@@ -319,6 +319,8 @@
         <button class="b" id="mail" type="button" hidden>📧 ส่งอีเมลรายงาน</button>
         <span class="saved" id="pdfMsg"></span>
       </div>
+      <p class="warn" id="doneNote" hidden>🔒 งานนี้จบแล้ว — แก้ไขหรือลบได้เฉพาะผู้ดูแล · หากต้องการแก้ไขหลังจากจบงานแล้ว ให้ติดต่อช่างกันต์</p>
+      <div id="reopenBox"></div>
       <div id="phSamples" class="phk" data-k="samples"></div>
       <div id="phAdminBox" style="margin-top:10px">
       </div>
@@ -460,7 +462,11 @@
     if (!SYNC || syncState === "busy") return;
     syncState = "busy"; showSync();
     try {
-      for (const id of [...db.deleted]) { await api("delete", { id }); sentDeleted.add(id); dropped.add(id); db.deleted = db.deleted.filter((x) => x !== id); }
+      for (const id of [...db.deleted]) {
+        const r = await api("delete", { id }); db.deleted = db.deleted.filter((x) => x !== id);
+        if (r && r.ok === false && r.error === "not_admin") { dropped.delete(id); syncErr = "ลบใบที่จบงานแล้วไม่ได้ — ต้องใช้รหัสผู้ดูแล"; continue; }
+        sentDeleted.add(id); dropped.add(id);
+      }
       for (const id of [...db.dirty]) {
         const local = db.jobs.find((j) => j.id === id);
         if (!local) { db.dirty = db.dirty.filter((x) => x !== id); continue; }
@@ -611,12 +617,42 @@
 
   // Deleting a report needs the code (SHA-256 checked in this browser; keeps reports from being deleted by mistake)
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
+  // finished reports: reopening or deleting needs the administrator code (checked by the server, kept for this tab)
+  const CONTACT = "หากต้องการแก้ไขหลังจากจบงานแล้ว ให้ติดต่อช่างกันต์";
+  const phAdminOn = () => !!phKey && !!phAdmin;
+  function adminPrompt(host, label, onOk) {
+    host.innerHTML = `<div style="width:100%"><span class="note">🔒 ${label} · ${CONTACT}</span></div>
+      <input type="password" data-amcode placeholder="รหัสผู้ดูแล" autocomplete="off" style="max-width:180px">
+      <button class="b" data-amok type="button">ยืนยัน</button><button class="g" data-amno type="button">ยกเลิก</button><span class="note" data-ammsg></span>`;
+    const inp = host.querySelector("[data-amcode]"), msg = host.querySelector("[data-ammsg]"); inp.focus();
+    const go = async () => {
+      const v = inp.value.trim(); if (!v) return inp.focus();
+      if (!SYNC || !navigator.onLine) { msg.textContent = "ต้องต่ออินเทอร์เน็ตเพื่อตรวจรหัส"; return; }
+      msg.textContent = "กำลังตรวจ…";
+      try {
+        const old = phKey; phKey = "";
+        const r = await api("reportAdminCheck", { adminKey: v });
+        if (!r.ok) { phKey = old; msg.textContent = "รหัสผู้ดูแลไม่ถูกต้อง"; return; }
+      } catch { msg.textContent = "ตรวจรหัสไม่ได้ — ลองใหม่"; return; }
+      phKey = v; phAdmin = true; try { sessionStorage.setItem("phAdminKey", v); } catch {}
+      if (SP) renderAdmin();
+      onOk();
+    };
+    host.querySelector("[data-amok]").onclick = go;
+    inp.onkeydown = (e) => { if (e.key === "Enter") go(); };
+    host.querySelector("[data-amno]").onclick = () => (job ? renderJob() : showList());
+  }
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
   $("jobs").addEventListener("click", async (e) => {
     const o = e.target.dataset.open, d = e.target.dataset.del, ok = e.target.dataset.delok, no = e.target.dataset.delno;
     if (o) openJob(o);
     if (d) {
-      const row = e.target.parentNode;
+      const row = e.target.parentNode, jd = db.jobs.find((j) => j.id === d);
+      // a finished report: administrator only
+      if (jd && jd.status === "done") {
+        if (phAdminOn()) { row.innerHTML = `<button class="g d" data-delok="${d}" data-adm="1" type="button">ยืนยันลบ (ผู้ดูแล)</button><button class="g" data-delno="1" type="button">ยกเลิก</button>`; return; }
+        return adminPrompt(row, "ใบที่จบงานแล้ว ลบได้เฉพาะผู้ดูแล", () => { row.innerHTML = `<button class="g d" data-delok="${d}" data-adm="1" type="button">ยืนยันลบ (ผู้ดูแล)</button><button class="g" data-delno="1" type="button">ยกเลิก</button>`; });
+      }
       row.innerHTML = `<input type="password" data-delcode="${d}" placeholder="รหัสเพื่อลบใบรายงาน" autocomplete="off" style="max-width:180px">
         <button class="g d" data-delok="${d}" type="button">ยืนยันลบ</button><button class="g" data-delno="1" type="button">ยกเลิก</button>
         <span class="note" data-delmsg></span>`;
@@ -624,8 +660,8 @@
     }
     if (no) showList();
     if (ok) {
-      const row = e.target.parentNode, code = row.querySelector("input").value.trim();
-      if ((await sha256(code)) !== DEL_HASH) { row.querySelector("[data-delmsg]").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ลบ"; return; }
+      const row = e.target.parentNode, code = e.target.dataset.adm ? "" : row.querySelector("input").value.trim();
+      if (!e.target.dataset.adm && (await sha256(code)) !== DEL_HASH) { row.querySelector("[data-delmsg]").textContent = "รหัสไม่ถูกต้อง — ไม่ได้ลบ"; return; }
       dropped.add(ok); db.jobs = db.jobs.filter((j) => j.id !== ok);
       db.dirty = db.dirty.filter((x) => x !== ok);
       if (SYNC) { db.deleted.push(ok); syncNow(); }
@@ -657,6 +693,7 @@
 
   // ---------- one job ----------
   async function openJob(id, isNew) {
+    $("reopenBox").innerHTML = "";
     let j = db.jobs.find((x) => x.id === id); if (!j) return showList();
     // a job listed from the sheet is fetched in full before it can be edited
     if (j.stub) {
@@ -691,7 +728,9 @@
     document.querySelectorAll("#sum [data-h]").forEach((el) => { if (document.activeElement !== el) el.value = h[el.dataset.h] ?? ""; });
     renderTimeSum();
     $("addBox").hidden = done;
-    $("finish").textContent = done ? "เปิดงานแก้ไขต่อ" : "จบงาน";
+    $("finish").textContent = done ? (phAdminOn() ? "เปิดงานแก้ไขต่อ (ผู้ดูแล)" : "🔒 เปิดงานแก้ไขต่อ (ผู้ดูแล)") : "จบงาน";
+    $("doneNote").hidden = !done; if (!done || phAdminOn()) $("reopenBox").innerHTML = ""; // keep a code being typed across a sync redraw
+    document.querySelectorAll("#vJob [data-h]").forEach((el) => { el.disabled = done; });
     if (!$("newVol").value) $("newVol").value = job.trucks.length ? job.trucks[job.trucks.length - 1].volume : 7;
     renderList(); renderEdit(); renderRecheck(); showSync();
   }
@@ -1206,6 +1245,7 @@
   }
   $("finish").addEventListener("click", () => {
     if (job.status !== "done" && blockedByDuplicates()) return;
+    if (job.status === "done" && !phAdminOn()) return adminPrompt($("reopenBox"), "ใบที่จบงานแล้ว แก้ไขได้เฉพาะผู้ดูแล", () => $("finish").click());
     job.status = job.status === "done" ? "open" : "done"; job.statusUpdated = Date.now(); touch(); renderJob();
     if (job.status === "done") $("pdfMsg").textContent = "จบงานแล้ว — กด Export PDF เพื่อบันทึกใบรายงาน";
   });
@@ -1365,7 +1405,7 @@
   const PK = ReportPhotos.KINDS;
   const UI_ORDER = ["plant", "site", "printout"];
   var ph = { date: today(), server: null, at: 0, local: [], sending: false }; // var: showList may run before this line
-  let phAdmin = !!phKey;
+  var phAdmin = !!phKey; // var: used by the finished-report lock before this line runs
   // printouts: administrator only (also enforced by the Apps Script)
   const kindsFor = () => UI_ORDER.filter((k) => k !== "printout" || phAdmin);
   function renderAdmin() {

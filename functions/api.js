@@ -61,7 +61,12 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "get": return json({ ok: true, job: await S.getJob(db, req.id) });
       case "save": { const r = await S.saveJob(db, req.job); if (r.ok) mirror(req); return json(r); }
       case "checkDO": return json({ ok: true, hit: await S.checkDO(db, req.do, req.jobId) });
-      case "delete": await S.deleteJob(db, req.id); mirror(req); return json({ ok: true });
+      case "delete": {
+        // a finished report can be deleted by the administrator only
+        const st = await db.prepare("SELECT status FROM jobs WHERE id = ?").bind(String(req.id || "")).first();
+        if (st && st.status === "done" && !admin) return json({ ok: false, error: "not_admin" });
+        await S.deleteJob(db, req.id); mirror(req); return json({ ok: true });
+      }
       case "report": return json({ ok: true, jobs: await S.reportJobs(db, req.from, req.to) });
       case "reportAdminCheck": return json(admin ? { ok: true } : { ok: false, error: "not_admin" });
       case "photoUpload": return json(req.kind === "printout" && !admin ? { ok: false, error: "not_admin" } : await S.photoUpload(db, bucket, req));
