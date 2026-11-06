@@ -174,7 +174,7 @@
       log: [[ago(1, 3), "แจ้งซ่อม"], [ago(0, 20), "ช่างภายนอกเข้าซ่อม"]] },
     { id: 3, plant: "P014 เพชรพระราม", type: "เครื่องจักร", machine: "ปั๊มน้ำ", symptom: "แรงดันตก", urg: "soon", status: "new", by: "ตัวอย่าง ค.", at: ago(4), log: [[ago(4), "แจ้งซ่อม"]] },
     { id: 4, plant: "P106 บางพลี3", type: "รถตัก", machine: "รถตัก L-03", symptom: "ไฟหน้าดับ 1 ดวง", urg: "wait", status: "new", by: "ตัวอย่าง ง.", at: ago(2), log: [[ago(2), "แจ้งซ่อม"]] },
-    { id: 5, plant: "P027 บางพลี", type: "เครื่องจักร", machine: "เครื่องอัดลม", symptom: "รั่วที่ข้อต่อ", urg: "soon", status: "done", by: "ตัวอย่าง ก.", at: ago(9), doneAt: ago(6), cost: 1200,
+    { id: 5, plant: "P027 บางพลี", type: "เครื่องจักร", machine: "เครื่องอัดลม", symptom: "รั่วที่ข้อต่อ", urg: "soon", status: "done", by: "ตัวอย่าง ก.", at: ago(9), doneAt: ago(6),
       log: [[ago(9), "แจ้งซ่อม"], [ago(6), "ปิดงาน — เปลี่ยนข้อต่อ"]] },
   ];
   let view = "open", kpiFilter = "";
@@ -210,7 +210,7 @@
       <div><span class="chip ${URG[j.urg][1]}">${URG[j.urg][0]}</span><span class="chip ${STATUS[j.status][1]}">${STATUS[j.status][0]}</span>
         <b style="margin-left:6px">${closed ? `ซ่อม ${days(j)} วัน` : `ค้าง ${days(j)} วัน`}</b></div>
       <dl class="facts" style="margin-top:10px"><dt>แพล้น</dt><dd>${esc(j.plant)}</dd><dt>ประเภท</dt><dd>${esc(j.type)}</dd><dt>อาการ</dt><dd>${esc(j.symptom)}</dd>
-        <dt>ผู้แจ้ง</dt><dd>${esc(j.by)} · ${thd(j.at)}</dd>${closed ? `<dt>ค่าซ่อม</dt><dd>${(j.cost || 0).toLocaleString()} บาท</dd>` : ""}</dl>
+        <dt>ผู้แจ้ง</dt><dd>${esc(j.by)} · ${thd(j.at)}</dd>${closed ? `<dt>ซ่อมเสร็จ</dt><dd>${thd(j.doneAt)}</dd>` : ""}</dl>
       <div class="photos" style="margin-top:10px"><div class="ph">📷</div><div class="ph">📷</div></div>
       <h2 style="margin-top:14px">ความคืบหน้า</h2>
       <ul class="tl">${j.log.map(([t, s]) => `<li>${esc(s)}<small>${thd(t)}</small></li>`).join("")}</ul>
@@ -219,8 +219,7 @@
       <label>บันทึก (ถ้ามี)</label><input type="text" class="full" id="uNote" placeholder="เช่น สั่งอะไหล่แล้ว คาดว่าได้ศุกร์">
       <div class="btns"><button class="btn b" id="uSave">บันทึกความคืบหน้า</button></div>
       <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--ok);font-weight:600">✓ ซ่อมเสร็จ — ปิดงาน</summary>
-        <div class="two"><div><label>ค่าซ่อม (บาท)</label><input type="number" class="full" id="cCost" inputmode="decimal"></div>
-        <div><label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…"></div></div>
+        <label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…">
         <label>สิ่งที่ทำ</label><input type="text" class="full" id="cWhat" placeholder="เช่น เปลี่ยนลูกปืน 2 ตัว">
         <div class="btns"><button class="btn ok" id="cSave">ปิดงาน</button></div></details>`}`;
     $("sView").hidden = false;
@@ -230,7 +229,7 @@
     $("uSave").onclick = () => { const note = $("uNote").value.trim();
       if (st !== j.status) j.log.push([Date.now(), "สถานะ: " + STATUS[st][0] + (note ? " — " + note : "")]); else if (note) j.log.push([Date.now(), note]);
       j.status = st; render(); openView(j.id); };
-    $("cSave").onclick = () => { j.status = "done"; j.doneAt = Date.now(); j.cost = Number($("cCost").value) || 0;
+    $("cSave").onclick = () => { j.status = "done"; j.doneAt = Date.now();
       j.log.push([j.doneAt, "ปิดงาน" + ($("cWhat").value.trim() ? " — " + $("cWhat").value.trim() : "") + ($("cBy").value.trim() ? " (" + $("cBy").value.trim() + ")" : "")]);
       $("sView").hidden = true; render(); };
   }
@@ -267,23 +266,21 @@
     const mine = jobs.filter((j) => !P || j.plant === P);
     const open = mine.filter((j) => j.status !== "done").sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
     const done = mine.filter((j) => j.status === "done" && new Date(j.doneAt).getFullYear() === y && new Date(j.doneAt).getMonth() === m).sort((a, b) => a.doneAt - b.doneAt);
-    const cost = done.reduce((s, j) => s + (j.cost || 0), 0);
     const avg = done.length ? (done.reduce((s, j) => s + days(j), 0) / done.length).toFixed(1) : "-";
     const last = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
     $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้างซ่อม เครื่องจักร / รถตัก</b>${esc(P || "ทุกแพล้น")}</div>
         <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
       <div class="sum"><div><b>${open.length}</b>ค้างซ่อม</div><div class="red"><b>${open.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
-        <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div><div><b>${done.length}</b>ปิดงานในเดือน</div><div><b>${cost.toLocaleString()}</b>ค่าซ่อม (บาท)</div></div>
+        <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div><div><b>${done.length}</b>ปิดงานในเดือน</div><div><b>${avg}</b>วันซ่อมเฉลี่ย</div></div>
       <h3>1. งานค้างซ่อม (${open.length} รายการ)</h3>
       ${open.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
         ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${i + 1}</td><td>${esc(j.plant)}</td><td>${esc(j.machine)}<br><small>${esc(j.type)}</small></td>
           <td>${esc(j.symptom)}</td><td class="c">${URG[j.urg][0]}</td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`}
       <h3>2. งานที่ซ่อมเสร็จในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${done.length} รายการ · เฉลี่ย ${avg} วัน/งาน)</h3>
-      ${done.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th><th>ค่าซ่อม (บาท)</th></tr></thead><tbody>
+      ${done.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th></tr></thead><tbody>
         ${done.map((j, i) => `<tr><td class="c">${i + 1}</td><td>${esc(j.plant)}</td><td>${esc(j.machine)}</td><td>${esc(j.symptom)}</td><td>${esc(last(j).replace(/^ปิดงาน( — )?/, ""))}</td>
-          <td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td><td class="n">${days(j)}</td><td class="n">${(j.cost || 0).toLocaleString()}</td></tr>`).join("")}
-        <tr class="tot"><td colspan="8" style="text-align:right">รวมค่าซ่อม</td><td class="n">${cost.toLocaleString()}</td></tr></tbody></table>` : `<p>ไม่มีงานที่ปิดในเดือนนี้</p>`}
+          <td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td><td class="n">${days(j)}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานที่ปิดในเดือนนี้</p>`}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
   }
