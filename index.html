@@ -14,7 +14,7 @@
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7;
     --accent: #1f5fbf; --chip: #e8eefa; --star: #d99a00;
-    --g-calc: #3b6fd8; --g-qc: #1f9d6b; --g-site: #d9822b; --g-soon: #7b61c9;
+    --g-calc: #3b6fd8; --g-qc: #1f9d6b; --g-site: #d9822b; --g-soon: #7b61c9; --g-mt: #c2410c;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -37,7 +37,7 @@
   /* icon: coloured square by group, white line icon */
   .ic { width: 42px; height: 42px; flex: none; border-radius: 11px; display: grid; place-items: center; color: #fff; }
   .ic svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .calc .ic { background: var(--g-calc); } .qc .ic { background: var(--g-qc); } .site .ic { background: var(--g-site); } .soon .ic { background: var(--g-soon); }
+  .calc .ic { background: var(--g-calc); } .qc .ic { background: var(--g-qc); } .site .ic { background: var(--g-site); } .soon .ic { background: var(--g-soon); } .mt .ic { background: var(--g-mt); }
   /* favourites */
   .fav { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
   .fav a { display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
@@ -114,13 +114,14 @@
       { icon: "report", title: "รายงาน โครงการหลังสวน", desc: "รายงานประจำวัน 1 วัน 1 ใบ แบบใบรายงานสนาม", href: "field.html?p=langsuan" },
       { icon: "train", title: "งานรถไฟฟ้า สายสีส้ม", desc: "🔒 เอกสาร PDF ดาวน์โหลด/พิมพ์ · โมล Cube รถเข็น OR07–OR12 ย้ายของระหว่างที่ (ต้องใส่รหัส)", href: "rail.html" },
       { icon: "report", title: "สแกนตั๋ว D/O", desc: "สแกน/ยิงตั๋ว เช็คซ้ำ นับจำนวนรายแพล้นท์ ส่งออก Excel", href: "tickets.html" } ] },
+    { key: "mt", name: "ซ่อมบำรุง", tools: [
+      { icon: "wrench", title: "รายการค้างซ่อม เครื่องจักร / รถตัก", desc: "แจ้งซ่อม ติดตามสถานะ ค้างกี่วัน ปิดงาน รายงาน A4 · เห็นทุกเครื่อง", href: "repair.html" } ] },
     { key: "soon", name: "กำลังพัฒนา", tools: [
       { icon: "iso", title: "Mconcrete - ISO", desc: "ระบบเอกสารคุณภาพ ISO" },
       { icon: "stock", title: "ระบบจัดการ Stock", desc: "รับเข้า–ใช้ไป–คงเหลือ ปูน แอช หิน ทราย น้ำยา แยกแพล้นท์" },
       { icon: "plan", title: "วางแผนการผลิตและจัดส่ง", desc: "วางคิวงานรายวัน จัดรถโม่ตามแพล้นและเวลาเท" },
       { icon: "factory", title: "Checklist เครื่องจักรประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" },
-      { icon: "loader", title: "Checklist รถตักประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" },
-      { icon: "wrench", title: "รายการค้างซ่อม เครื่องจักร / รถตัก", desc: "แจ้งซ่อม ติดตามสถานะ ค้างกี่วัน ซ่อมเสร็จแล้วปิดงาน" } ] },
+      { icon: "loader", title: "Checklist รถตักประจำวัน", desc: "ติ๊กรายการตรวจ ถ่ายรูปจุดที่มีปัญหา ออก PDF" } ] },
   ];
 
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

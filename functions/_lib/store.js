@@ -35,6 +35,11 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS rail_photos (id TEXT PRIMARY KEY, move_id TEXT NOT NULL, rkey TEXT NOT NULL, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS rail_photos_move ON rail_photos(move_id)`,
   `CREATE TABLE IF NOT EXISTS rail_docs (id TEXT PRIMARY KEY, title TEXT NOT NULL, cat TEXT, size INTEGER, rkey TEXT NOT NULL, created INTEGER, removed INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS repairs (id TEXT PRIMARY KEY, plant TEXT NOT NULL, type TEXT NOT NULL, machine TEXT, symptom TEXT NOT NULL, urg TEXT NOT NULL,
+    status TEXT NOT NULL, at INTEGER NOT NULL, done_at INTEGER, log TEXT NOT NULL DEFAULT '[]', updated INTEGER NOT NULL, removed INTEGER)`,
+  `CREATE INDEX IF NOT EXISTS repairs_updated ON repairs(updated)`,
+  `CREATE TABLE IF NOT EXISTS repair_photos (id TEXT PRIMARY KEY, repair_id TEXT NOT NULL, rkey TEXT NOT NULL, created INTEGER, removed INTEGER)`,
+  `CREATE INDEX IF NOT EXISTS repair_photos_job ON repair_photos(repair_id)`,
   `CREATE TABLE IF NOT EXISTS trials (id TEXT PRIMARY KEY, status TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
 ];
 let ready = null;
@@ -372,5 +377,64 @@ export async function railDocs(db) {
 export async function railDocDelete(db, bucket, id, now = Date.now()) {
   const r = await db.prepare("SELECT rkey FROM rail_docs WHERE id = ?").bind(String(id || "")).first();
   if (r) { await db.prepare("UPDATE rail_docs SET removed = ? WHERE id = ?").bind(now, id).run(); if (bucket) await bucket.delete(r.rkey); }
+  return { ok: true };
+}
+
+// ---------- repair backlog: plant machinery and loaders (photos in R2 under repair/<job id>/) ----------
+const REPAIR_TYPES = ["เครื่องจักร", "รถตัก"], REPAIR_URG = ["stop", "soon", "wait"], REPAIR_STATUS = ["new", "fix", "part"];
+const REPAIR_KEEP_DAYS = 400; // closed jobs older than this are not listed
+const txt = (s, n) => String(s || "").trim().slice(0, n);
+function repairOut(r, photos) {
+  return { id: r.id, plant: r.plant, type: r.type, machine: r.machine || "", symptom: r.symptom, urg: r.urg, status: r.status,
+    at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, log: parse(r.log, []), updated: Number(r.updated), photos: photos[r.id] || [] };
+}
+export async function repairList(db, now = Date.now()) {
+  const { results } = await db.prepare("SELECT * FROM repairs WHERE removed IS NULL AND (status != 'done' OR done_at >= ?) ORDER BY at")
+    .bind(now - REPAIR_KEEP_DAYS * DAY).all();
+  const ph = (await db.prepare("SELECT id, repair_id FROM repair_photos WHERE removed IS NULL ORDER BY created").all()).results;
+  const photos = {}; ph.forEach((p) => (photos[p.repair_id] = photos[p.repair_id] || []).push(p.id));
+  return { ok: true, jobs: results.map((r) => repairOut(r, photos)) };
+}
+async function repairRow(db, id) { return db.prepare("SELECT * FROM repairs WHERE id = ? AND removed IS NULL").bind(String(id || "")).first(); }
+export async function repairAdd(db, req, now = Date.now()) {
+  const plant = txt(req.plant, 60), type = req.type, machine = type === "รถตัก" ? txt(req.machine, 60) : "", symptom = txt(req.symptom, 500), urg = req.urg;
+  if (!plant || !REPAIR_TYPES.includes(type) || !symptom || !REPAIR_URG.includes(urg) || (type === "รถตัก" && !machine)) return { ok: false, error: "bad_request" };
+  const id = crypto.randomUUID();
+  await db.prepare("INSERT INTO repairs (id, plant, type, machine, symptom, urg, status, at, log, updated) VALUES (?,?,?,?,?,?,'new',?,?,?)")
+    .bind(id, plant, type, machine, symptom, urg, now, JSON.stringify([[now, "แจ้งซ่อม"]]), now).run();
+  return { ok: true, id };
+}
+export async function repairUpdate(db, req, now = Date.now()) {
+  const r = await repairRow(db, req.id);
+  if (!r) return { ok: false, error: "not_found" };
+  if (r.status === "done") return { ok: false, error: "closed" };
+  const status = REPAIR_STATUS.includes(req.status) ? req.status : r.status, note = txt(req.note, 300);
+  const urg = REPAIR_URG.includes(req.urg) ? req.urg : r.urg;
+  const NAMES = { new: "แจ้งแล้ว", fix: "กำลังซ่อม", part: "รออะไหล่" }, U = { stop: "หยุดผลิต", soon: "ใช้ได้ แต่ต้องซ่อม", wait: "รอได้" };
+  const parts = [];
+  if (status !== r.status) parts.push("สถานะ: " + NAMES[status]);
+  if (urg !== r.urg) parts.push("ความเร่งด่วน: " + U[urg]);
+  if (note) parts.push(note);
+  if (!parts.length) return { ok: true };
+  const log = parse(r.log, []); log.push([now, parts.join(" — ")]);
+  await db.prepare("UPDATE repairs SET status = ?, urg = ?, log = ?, updated = ? WHERE id = ?").bind(status, urg, JSON.stringify(log), now, r.id).run();
+  return { ok: true };
+}
+export async function repairClose(db, req, now = Date.now()) {
+  const r = await repairRow(db, req.id);
+  if (!r) return { ok: false, error: "not_found" };
+  if (r.status === "done") return { ok: true };
+  const what = txt(req.what, 300), by = txt(req.by, 100);
+  const log = parse(r.log, []); log.push([now, "ปิดงาน" + (what ? " — " + what : "") + (by ? ` (${by})` : "")]);
+  await db.prepare("UPDATE repairs SET status = 'done', done_at = ?, log = ?, updated = ? WHERE id = ?").bind(now, JSON.stringify(log), now, r.id).run();
+  return { ok: true };
+}
+export async function repairDelete(db, bucket, id, now = Date.now()) {
+  const r = await db.prepare("SELECT id FROM repairs WHERE id = ?").bind(String(id || "")).first();
+  if (!r) return { ok: true };
+  const ph = (await db.prepare("SELECT rkey FROM repair_photos WHERE repair_id = ? AND removed IS NULL").bind(r.id).all()).results;
+  await db.batch([db.prepare("UPDATE repairs SET removed = ?, updated = ? WHERE id = ?").bind(now, now, r.id),
+    db.prepare("UPDATE repair_photos SET removed = ? WHERE repair_id = ?").bind(now, r.id)]);
+  if (bucket) await Promise.all(ph.map((p) => bucket.delete(p.rkey).catch(() => {})));
   return { ok: true };
 }
