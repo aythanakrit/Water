@@ -47,6 +47,8 @@ export function ensureSchema(db) {
   if (!ready) ready = db.batch(SCHEMA.map((s) => db.prepare(s)))
     // added later: the report a photo belongs to (several reports may share one project + date)
     .then(() => db.prepare("ALTER TABLE photos ADD COLUMN job TEXT").run().catch(() => {}))
+    // added later: the document number typed for a repair job
+    .then(() => db.prepare("ALTER TABLE repairs ADD COLUMN doc_no TEXT").run().catch(() => {}))
     .catch((e) => { ready = null; throw e; });
   return ready;
 }
@@ -384,8 +386,13 @@ export async function railDocDelete(db, bucket, id, now = Date.now()) {
 const REPAIR_TYPES = ["เครื่องจักร", "รถตัก"], REPAIR_URG = ["stop", "soon", "wait"], REPAIR_STATUS = ["new", "fix", "part"];
 const REPAIR_KEEP_DAYS = 400; // closed jobs older than this are not listed
 const txt = (s, n) => String(s || "").trim().slice(0, n);
+/** A past time sent by the administrator, or null: not in the future, at most 3 years back, not before `min`. */
+function pastTime(v, now, min = 0) {
+  const t = Math.round(Number(v));
+  return Number.isFinite(t) && t <= now + 60000 && t >= now - 3 * 366 * DAY && t >= min ? Math.min(t, now) : null;
+}
 function repairOut(r, photos) {
-  return { id: r.id, plant: r.plant, type: r.type, machine: r.machine || "", symptom: r.symptom, urg: r.urg, status: r.status,
+  return { id: r.id, docNo: r.doc_no || "", plant: r.plant, type: r.type, machine: r.machine || "", symptom: r.symptom, urg: r.urg, status: r.status,
     at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, log: parse(r.log, []), updated: Number(r.updated), photos: photos[r.id] || [] };
 }
 export async function repairList(db, now = Date.now()) {
@@ -396,18 +403,27 @@ export async function repairList(db, now = Date.now()) {
   return { ok: true, jobs: results.map((r) => repairOut(r, photos)) };
 }
 async function repairRow(db, id) { return db.prepare("SELECT * FROM repairs WHERE id = ? AND removed IS NULL").bind(String(id || "")).first(); }
-export async function repairAdd(db, req, now = Date.now()) {
-  const plant = txt(req.plant, 60), type = req.type, machine = type === "รถตัก" ? txt(req.machine, 60) : "", symptom = txt(req.symptom, 500), urg = req.urg;
+export async function repairAdd(db, req, admin, now = Date.now()) {
+  const plant = txt(req.plant, 60), docNo = txt(req.docNo, 40), type = req.type, machine = type === "รถตัก" ? txt(req.machine, 60) : "", symptom = txt(req.symptom, 500), urg = req.urg;
   if (!plant || !REPAIR_TYPES.includes(type) || !symptom || !REPAIR_URG.includes(urg) || (type === "รถตัก" && !machine)) return { ok: false, error: "bad_request" };
+  let at = now;
+  if (req.at != null && req.at !== "") {
+    if (!admin) return { ok: false, error: "not_admin" };
+    at = pastTime(req.at, now); if (at == null) return { ok: false, error: "bad_date" };
+  }
   const id = crypto.randomUUID();
-  await db.prepare("INSERT INTO repairs (id, plant, type, machine, symptom, urg, status, at, log, updated) VALUES (?,?,?,?,?,?,'new',?,?,?)")
-    .bind(id, plant, type, machine, symptom, urg, now, JSON.stringify([[now, "แจ้งซ่อม"]]), now).run();
+  await db.prepare("INSERT INTO repairs (id, doc_no, plant, type, machine, symptom, urg, status, at, log, updated) VALUES (?,?,?,?,?,?,?,'new',?,?,?)")
+    .bind(id, docNo, plant, type, machine, symptom, urg, at, JSON.stringify([[at, at < now - 60000 ? "แจ้งซ่อม (ลงย้อนหลัง)" : "แจ้งซ่อม"]]), now).run();
   return { ok: true, id };
 }
 export async function repairUpdate(db, req, now = Date.now()) {
   const r = await repairRow(db, req.id);
   if (!r) return { ok: false, error: "not_found" };
-  if (r.status === "done") return { ok: false, error: "closed" };
+  if (req.docNo != null && txt(req.docNo, 40) !== (r.doc_no || "")) {
+    await db.prepare("UPDATE repairs SET doc_no = ?, updated = ? WHERE id = ?").bind(txt(req.docNo, 40), now, r.id).run();
+    if (r.status === "done") return { ok: true };
+  }
+  if (r.status === "done") return req.docNo != null ? { ok: true } : { ok: false, error: "closed" };
   const status = REPAIR_STATUS.includes(req.status) ? req.status : r.status, note = txt(req.note, 300);
   const urg = REPAIR_URG.includes(req.urg) ? req.urg : r.urg;
   const NAMES = { new: "แจ้งแล้ว", fix: "กำลังซ่อม", part: "รออะไหล่" }, U = { stop: "หยุดผลิต", soon: "ใช้ได้ แต่ต้องซ่อม", wait: "รอได้" };
@@ -420,13 +436,18 @@ export async function repairUpdate(db, req, now = Date.now()) {
   await db.prepare("UPDATE repairs SET status = ?, urg = ?, log = ?, updated = ? WHERE id = ?").bind(status, urg, JSON.stringify(log), now, r.id).run();
   return { ok: true };
 }
-export async function repairClose(db, req, now = Date.now()) {
+export async function repairClose(db, req, admin, now = Date.now()) {
   const r = await repairRow(db, req.id);
   if (!r) return { ok: false, error: "not_found" };
   if (r.status === "done") return { ok: true };
+  let done = now;
+  if (req.at != null && req.at !== "") {
+    if (!admin) return { ok: false, error: "not_admin" };
+    done = pastTime(req.at, now, Number(r.at)); if (done == null) return { ok: false, error: "bad_date" };
+  }
   const what = txt(req.what, 300), by = txt(req.by, 100);
-  const log = parse(r.log, []); log.push([now, "ปิดงาน" + (what ? " — " + what : "") + (by ? ` (${by})` : "")]);
-  await db.prepare("UPDATE repairs SET status = 'done', done_at = ?, log = ?, updated = ? WHERE id = ?").bind(now, JSON.stringify(log), now, r.id).run();
+  const log = parse(r.log, []); log.push([done, "ปิดงาน" + (what ? " — " + what : "") + (by ? ` (${by})` : "")]);
+  await db.prepare("UPDATE repairs SET status = 'done', done_at = ?, log = ?, updated = ? WHERE id = ?").bind(done, JSON.stringify(log.sort((a, b) => a[0] - b[0])), now, r.id).run();
   return { ok: true };
 }
 export async function repairDelete(db, bucket, id, now = Date.now()) {

@@ -26,6 +26,9 @@
   .photos .ph { position: relative; display: block; } .photos .rm { position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; border-radius: 50%; border: 0;
     background: var(--bad); color: #fff; font-size: 14px; line-height: 24px; padding: 0; cursor: pointer; }
   .row2 { display: flex; gap: 8px; margin-top: 8px; } .row2 input { flex: 1; min-width: 0; }
+  .doc { display: inline-block; font-size: .78rem; font-weight: 700; color: var(--accent); background: var(--info-bg); border-radius: 6px; padding: 0 6px; margin-right: 6px; vertical-align: 2px; }
+  details.adm { margin-top: 12px; border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; } details.adm summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+  input[type=date], input[type=time], input[type=password] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
   #nMsg { color: var(--bad); font-size: .9rem; margin-top: 8px; min-height: 1.2em; }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
   .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
@@ -131,6 +134,7 @@
 <!-- new report -->
 <div class="sheet" id="sNew" hidden><div class="panel">
   <h2>แจ้งซ่อม <button class="x" data-close>✕</button></h2>
+  <label>เลขที่เอกสาร</label><input type="text" class="full" id="nDoc" placeholder="ใส่เอง (เว้นว่างได้)" autocomplete="off">
   <div class="two">
     <div><label>แพล้น</label><select class="full" id="nPlant"></select></div>
     <div><label>ประเภท</label><select class="full" id="nType"><option>เครื่องจักร</option><option>รถตัก</option></select></div>
@@ -143,6 +147,10 @@
   <label>รูป (ถ่าย/แนบ)</label>
   <div class="photos" id="nPhotos"></div>
   <input type="file" id="nFile" accept="image/*" multiple hidden>
+  <details class="adm" id="nAdmBox"><summary>🔒 ลงย้อนหลัง (ผู้ดูแล)</summary>
+    <div class="two"><div><label>วันที่แจ้งซ่อม</label><input type="date" class="full" id="nDate"></div><div><label>เวลา</label><input type="time" class="full" id="nTime" value="08:00"></div></div>
+    <label>รหัสผู้ดูแล</label><input type="password" class="full" id="nAdm" autocomplete="off">
+    <p class="note" style="margin:6px 0 0">เว้นวันที่ว่าง = แจ้งวันนี้ตามปกติ</p></details>
   <div id="nMsg" role="alert"></div>
   <div class="btns"><button class="btn" data-close>ยกเลิก</button><button class="btn b" id="nSave">บันทึกแจ้งซ่อม</button></div>
 </div></div>
@@ -178,12 +186,18 @@
   const PLANTS = [...((window.FieldReport && FieldReport.PLANTS) || [])].sort((a, b) => a[0].localeCompare(b[0])).map(([c, n]) => `P${c} ${n}`);
   const isLoader = (j) => j.type === "รถตัก";
   const title = (j) => isLoader(j) ? j.machine : j.symptom;
+  const docTag = (j) => j.docNo ? `<span class="doc">${esc(j.docNo)}</span>` : "";
+  const ADM = "repair-admin"; // the administrator code, kept until the tab is closed
+  const admGet = () => { try { return sessionStorage.getItem(ADM) || ""; } catch (e) { return ""; } };
+  const admSet = (v) => { try { v ? sessionStorage.setItem(ADM, v) : sessionStorage.removeItem(ADM); } catch (e) {} };
+  const atOf = (d, t) => { if (!d) return null; const [y, m, dd] = d.split("-").map(Number), [h, mi] = (t || "08:00").split(":").map(Number); return new Date(y, m - 1, dd, h || 0, mi || 0).getTime(); };
+  const errText = (e, what) => e.message === "not_admin" ? "รหัสผู้ดูแลไม่ถูกต้อง" : e.message === "bad_date" ? "วันที่ไม่ถูกต้อง (ห้ามเป็นวันในอนาคต" + (what === "close" ? " หรือก่อนวันแจ้งซ่อม" : "") + ")" : navigator.onLine ? "บันทึกไม่ได้ — ลองใหม่" : "ออฟไลน์ — ต้องต่ออินเทอร์เน็ต";
   const days = (j) => Math.max(0, Math.floor(((j.doneAt || Date.now()) - j.at) / DAY));
   const thd = (t) => new Date(t).toLocaleString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
   const photoURL = (id) => `/api/repairphoto?key=${encodeURIComponent(CLOUD.key)}&id=${encodeURIComponent(id)}`;
   const store = { get: (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
 
-  let jobs = [], view = "open", kpiFilter = "", openId = null, busy = false;
+  let jobs = [], view = "open", kpiFilter = "", openId = null, busy = false, vDirty = false;
   const say = (t, bad) => { $("msg").textContent = t || ""; $("msg").className = bad ? "msg bad" : "msg"; };
 
   async function api(action, body = {}) {
@@ -197,7 +211,8 @@
     try {
       const x = await api("repairList");
       jobs = x.jobs; say(""); render();
-      if (openId && !$("sView").hidden && !document.activeElement.closest("#vBody input, #vBody textarea")) openView(openId);
+      // the open job is redrawn with what other devices saved, unless something is being typed in it
+      if (openId && !$("sView").hidden && !vDirty && !document.activeElement.closest("#vBody input, #vBody textarea, #vBody details[open]")) openView(openId);
       if (!$("rep").hidden) renderReport();
     } catch (e) { if (!quiet || !jobs.length) say(navigator.onLine ? "โหลดข้อมูลไม่ได้ — ลองใหม่อีกครั้ง" : "ออฟไลน์ — ต้องต่ออินเทอร์เน็ต", true); }
   }
@@ -225,7 +240,7 @@
     list.sort((a, b) => view === "done" ? b.doneAt - a.doneAt : RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
     $("list").innerHTML = list.length ? list.map((j) => { const d = days(j), cls = j.status === "done" ? "" : d > 7 ? "bad" : d >= 3 ? "warn" : "";
       return `<div class="item" data-id="${esc(j.id)}"><div class="thumb"${j.photos.length ? ` style="background:center/cover url('${photoURL(j.photos[0])}')"` : ""}>${j.photos.length ? "" : isLoader(j) ? "🚜" : "⚙️"}</div>
-        <div><b>${esc(title(j))}</b><div class="meta">${esc(j.plant)} · ${isLoader(j) ? esc(j.symptom) : "เครื่องจักร"}</div>
+        <div><b>${docTag(j)}${esc(title(j))}</b><div class="meta">${esc(j.plant)} · ${isLoader(j) ? esc(j.symptom) : "เครื่องจักร"}</div>
         <div style="margin-top:4px"><span class="chip ${URG[j.urg][1]}">${URG[j.urg][0]}</span><span class="chip ${STATUS[j.status][1]}">${STATUS[j.status][0]}</span></div></div>
         <div class="age ${cls}"><b>${d}</b><small>${j.status === "done" ? "วันที่ใช้ซ่อม" : "วันที่ค้าง"}</small></div></div>`; }).join("")
       : `<div class="empty">${!CLOUD ? "" : view === "done" ? "ยังไม่มีงานที่ปิด" : "ไม่มีงานค้าง 🎉"}</div>`;
@@ -256,7 +271,7 @@
   $("nFile").addEventListener("change", async (e) => { for (const f of [...e.target.files]) { try { pics.push(await shrink(f)); } catch (x) {} } e.target.value = ""; renderPics(); });
 
   // ---------- new job ----------
-  $("newBtn").onclick = () => { if (!CLOUD) return say("ยังไม่ได้ต่อระบบออนไลน์ — บันทึกไม่ได้", true); $("nMsg").textContent = ""; renderPics(); $("sNew").hidden = false; };
+  $("newBtn").onclick = () => { if (!CLOUD) return say("ยังไม่ได้ต่อระบบออนไลน์ — บันทึกไม่ได้", true); $("nMsg").textContent = ""; $("nAdm").value = admGet(); $("nDate").max = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10); renderPics(); $("sNew").hidden = false; };
   $("nType").onchange = () => { $("mBox").hidden = $("nType").value !== "รถตัก"; };
   $("nUrg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; $("nUrg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); };
   $("nSave").onclick = async () => {
@@ -266,24 +281,29 @@
     if (!s) { $("nMsg").textContent = "ใส่อาการ"; return $("nSymptom").focus(); }
     busy = true; $("nSave").disabled = true; $("nMsg").textContent = "กำลังบันทึก…";
     try {
-      const x = await api("repairAdd", { plant: $("nPlant").value, type: $("nType").value, machine: m, symptom: s, urg: $("nUrg").querySelector(".on").dataset.v });
+      const at = atOf($("nDate").value, $("nTime").value), adm = $("nAdm").value.trim();
+      if (at && !adm) { $("nMsg").textContent = "ลงย้อนหลังต้องใส่รหัสผู้ดูแล"; $("nAdm").focus(); return; }
+      const x = await api("repairAdd", { docNo: $("nDoc").value.trim(), plant: $("nPlant").value, type: $("nType").value, machine: m, symptom: s, urg: $("nUrg").querySelector(".on").dataset.v,
+        ...(at ? { at, adminKey: adm } : {}) });
+      if (at) admSet(adm);
       store.set("repair-plant", $("nPlant").value);
       if (pics.length) { $("nMsg").textContent = `กำลังส่งรูป ${pics.length} รูป…`; const bad = await upload(x.id, pics); if (bad) alert(`บันทึกแล้ว แต่ส่งรูปไม่ได้ ${bad} รูป — เปิดงานแล้วเพิ่มรูปอีกครั้ง`); }
-      pics = []; ["nMachine", "nSymptom"].forEach((id) => ($(id).value = "")); $("sNew").hidden = true; view = "open"; kpiFilter = "";
+      pics = []; ["nMachine", "nSymptom", "nDoc", "nDate"].forEach((id) => ($(id).value = "")); $("sNew").hidden = true; view = "open"; kpiFilter = "";
       $("fOpen").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === "open"));
       await load();
-    } catch (e) { $("nMsg").textContent = navigator.onLine ? "บันทึกไม่ได้ — ลองใหม่" : "ออฟไลน์ — ต้องต่ออินเทอร์เน็ต"; }
+    } catch (e) { $("nMsg").textContent = errText(e); }
     finally { busy = false; $("nSave").disabled = false; }
   };
 
   // ---------- one job ----------
   function openView(id) {
     const j = jobs.find((x) => x.id === id); if (!j) { $("sView").hidden = true; openId = null; return; }
-    openId = id;
+    openId = id; vDirty = false;
     const closed = j.status === "done";
-    $("vBody").innerHTML = `<h2>${esc(title(j))} <button class="x" data-close>✕</button></h2>
+    $("vBody").innerHTML = `<h2><span>${docTag(j)}${esc(title(j))}</span> <button class="x" data-close>✕</button></h2>
       <div><span class="chip ${URG[j.urg][1]}">${URG[j.urg][0]}</span><span class="chip ${STATUS[j.status][1]}">${STATUS[j.status][0]}</span>
         <b style="margin-left:6px">${closed ? `ซ่อม ${days(j)} วัน` : `ค้าง ${days(j)} วัน`}</b></div>
+      <div class="row2"><input type="text" id="vDoc" value="${esc(j.docNo)}" placeholder="เลขที่เอกสาร" autocomplete="off"><button class="btn" id="vDocGo" style="flex:0 0 auto">บันทึกเลขที่</button></div>
       <dl class="facts" style="margin-top:10px"><dt>แพล้น</dt><dd>${esc(j.plant)}</dd><dt>ประเภท</dt><dd>${esc(j.type)}${isLoader(j) ? " · " + esc(j.machine) : ""}</dd><dt>อาการ</dt><dd>${esc(j.symptom)}</dd>
         <dt>แจ้งเมื่อ</dt><dd>${thd(j.at)}</dd>${closed ? `<dt>ซ่อมเสร็จ</dt><dd>${thd(j.doneAt)}</dd>` : ""}</dl>
       <div class="photos" style="margin-top:10px">${j.photos.map((p) => `<a class="ph" href="${photoURL(p)}" target="_blank" rel="noopener" style="background-image:url('${photoURL(p)}')"></a>`).join("")}
@@ -300,6 +320,9 @@
       <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--ok);font-weight:600">✓ ซ่อมเสร็จ — ปิดงาน</summary>
         <label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…">
         <label>สิ่งที่ทำ</label><input type="text" class="full" id="cWhat" placeholder="เช่น เปลี่ยนลูกปืน 2 ตัว">
+        <details class="adm"><summary>🔒 ปิดงานย้อนหลัง (ผู้ดูแล)</summary>
+          <div class="two"><div><label>วันที่ซ่อมเสร็จ</label><input type="date" class="full" id="cDate"></div><div><label>เวลา</label><input type="time" class="full" id="cTime" value="17:00"></div></div>
+          <label>รหัสผู้ดูแล</label><input type="password" class="full" id="cAdm" value="${esc(admGet())}" autocomplete="off"></details>
         <div class="btns"><button class="btn ok" id="cSave">ปิดงาน</button></div></details>`}
       <div class="note" id="vMsg" style="margin-top:8px"></div>
       <details style="margin-top:14px"><summary class="note" style="cursor:pointer">ลบงานนี้ (แจ้งผิด / ซ้ำ)</summary>
@@ -310,21 +333,28 @@
       if ((await sha256($("dCode").value.trim())) !== DEL_HASH) { $("vMsg").textContent = "รหัสไม่ถูกต้อง"; return; }
       try { await api("repairDelete", { id: j.id }); $("sView").hidden = true; openId = null; await load(); } catch (e) { $("vMsg").textContent = "ลบไม่ได้ — ลองใหม่"; }
     };
+    $("vDocGo").onclick = async () => {
+      try { await api("repairUpdate", { id: j.id, docNo: $("vDoc").value.trim() }); $("vDoc").blur(); vDirty = false; await load(); openView(j.id); $("vMsg").textContent = "บันทึกเลขที่เอกสารแล้ว"; }
+      catch (e) { $("vMsg").textContent = errText(e); }
+    };
     if (closed) return;
     let st = j.status, ug = j.urg;
     const pick = (box, set) => (e) => { const b = e.target.closest("button"); if (!b) return; set(b.dataset.v); box.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); };
     $("uSt").onclick = pick($("uSt"), (v) => (st = v)); $("uUrg").onclick = pick($("uUrg"), (v) => (ug = v));
     $("uSave").onclick = async () => {
       if (busy) return; busy = true; $("vMsg").textContent = "กำลังบันทึก…";
-      try { await api("repairUpdate", { id: j.id, status: st, urg: ug, note: $("uNote").value.trim() }); $("uNote").blur(); await load(); }
+      try { await api("repairUpdate", { id: j.id, status: st, urg: ug, note: $("uNote").value.trim() }); $("uNote").blur(); vDirty = false; await load(); openView(j.id); }
       catch (e) { $("vMsg").textContent = "บันทึกไม่ได้ — ลองใหม่"; } finally { busy = false; }
     };
     $("cSave").onclick = async () => {
       if (busy) return; busy = true; $("vMsg").textContent = "กำลังปิดงาน…";
-      try { await api("repairClose", { id: j.id, what: $("cWhat").value.trim(), by: $("cBy").value.trim() }); $("sView").hidden = true; openId = null; await load(); }
-      catch (e) { $("vMsg").textContent = "ปิดงานไม่ได้ — ลองใหม่"; } finally { busy = false; }
+      const at = atOf($("cDate").value, $("cTime").value), adm = $("cAdm").value.trim();
+      if (at && !adm) { busy = false; $("vMsg").textContent = "ปิดงานย้อนหลังต้องใส่รหัสผู้ดูแล"; return; }
+      try { await api("repairClose", { id: j.id, what: $("cWhat").value.trim(), by: $("cBy").value.trim(), ...(at ? { at, adminKey: adm } : {}) }); if (at) admSet(adm); $("sView").hidden = true; openId = null; await load(); }
+      catch (e) { $("vMsg").textContent = errText(e, "close"); } finally { busy = false; }
     };
   }
+  $("vBody").addEventListener("input", () => { vDirty = true; });
   $("vFile").addEventListener("change", async (e) => {
     const files = [...e.target.files]; e.target.value = ""; if (!files.length || !openId) return;
     const id = openId; $("vPhMsg").textContent = `กำลังส่งรูป ${files.length} รูป…`;
@@ -362,13 +392,13 @@
       <div class="sum"><div><b>${open.length}</b>ค้างซ่อม</div><div class="red"><b>${open.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
         <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div><div><b>${done.length}</b>ปิดงานในเดือน</div><div><b>${avg}</b>วันซ่อมเฉลี่ย</div></div>
       <h3>1. งานค้างซ่อม (${open.length} รายการ)</h3>
-      ${open.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
-        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${i + 1}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td>
+      ${open.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
+        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td>
           <td>${esc(j.symptom)}</td><td class="c">${URG[j.urg][0]}</td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`}
       <h3>2. งานที่ซ่อมเสร็จในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${done.length} รายการ · เฉลี่ย ${avg} วัน/งาน)</h3>
-      ${done.length ? `<table><thead><tr><th style="width:24px">#</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th></tr></thead><tbody>
-        ${done.map((j, i) => `<tr><td class="c">${i + 1}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td><td>${esc(j.symptom)}</td><td>${esc(last(j).replace(/^ปิดงาน( — )?/, ""))}</td>
+      ${done.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th></tr></thead><tbody>
+        ${done.map((j, i) => `<tr><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td><td>${esc(j.symptom)}</td><td>${esc(last(j).replace(/^ปิดงาน( — )?/, ""))}</td>
           <td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td><td class="n">${days(j)}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานที่ปิดในเดือนนี้</p>`}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;

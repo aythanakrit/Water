@@ -83,9 +83,9 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "railDocDelete": return json(await S.railDocDelete(db, bucket, req.id));
       // ---- repair backlog (photos go up / down through /api/repairphoto) ----
       case "repairList": return json(await S.repairList(db));
-      case "repairAdd": return json(await S.repairAdd(db, req));
+      case "repairAdd": return json(await S.repairAdd(db, req, admin));
       case "repairUpdate": return json(await S.repairUpdate(db, req));
-      case "repairClose": return json(await S.repairClose(db, req));
+      case "repairClose": return json(await S.repairClose(db, req, admin));
       case "repairDelete": return json(await S.repairDelete(db, bucket, req.id));
       // ---- Trial Mix ----
       case "trialList": return json(await S.trialList(db));
