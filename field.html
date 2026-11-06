@@ -72,6 +72,7 @@
   .phtiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
   .phtile { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
   .phtile.has { border-color: var(--ok); }
+  .phtile.drop { outline: 3px dashed var(--accent); outline-offset: -3px; background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
   .phtile .tt { padding: 6px 8px; font-size: .9rem; line-height: 1.3; }
   .phtile .tt small { display: block; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
   .phtile .phit { border: 0; border-radius: 0; border-top: 1px solid var(--line); }
@@ -1483,7 +1484,7 @@
     const d = FieldReport.cleanDO(t.do);
     if (!d) { el.innerHTML = `<p class="note">ใส่ D/O ก่อน แล้วแนบภาพของรถคันนี้ได้</p>`; return; }
     const list = phList().filter((p) => FieldReport.cleanDO(p.do) === d);
-    el.innerHTML = `<h2 style="margin:0 0 6px">ภาพของรถคันนี้</h2><div class="phtiles">${kindsFor().map((key) => {
+    el.innerHTML = `<h2 style="margin:0 0 6px">ภาพของรถคันนี้</h2>${touchOnly ? "" : `<p class="note" style="margin:0">ลากภาพจาก LINE หรือโฟลเดอร์มาวางในช่องได้เลย</p>`}<div class="phtiles">${kindsFor().map((key) => {
       const k = PK.find((x) => x.key === key), locked = k.locked && !phAdmin;
       const mine = list.filter((p) => p.kind === key).sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
       return `<div class="phk phtile${mine.length ? " has" : ""}" data-k="${key}"><div class="tt"><b>${esc(k.title)}</b><small>${esc(k.dept)}</small></div>
@@ -1621,6 +1622,23 @@
       }
       phMsg(pick.el, "ยังไม่มีภาพในคลิปบอร์ด — แคปหน้าจอก่อน (Windows: Win+Shift+S · Mac: Cmd+Ctrl+Shift+4)");
     } catch { phMsg(pick.el, "เบราว์เซอร์นี้ไม่ให้อ่านคลิปบอร์ด — กด Ctrl+V (Mac: Cmd+V) แทน"); }
+  });
+  // drag a photo (from LINE, a folder, …) onto a tile of the truck being edited
+  const dropTile = (e) => { const el = e.target.closest && e.target.closest("#editPhotos .phtile"); return el && job && job.trucks[editIdx] ? el : null; };
+  $("editBox").addEventListener("dragover", (e) => {
+    const el = dropTile(e); if (!el) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = "copy";
+    document.querySelectorAll("#editPhotos .phtile.drop").forEach((x) => x !== el && x.classList.remove("drop")); el.classList.add("drop");
+  });
+  $("editBox").addEventListener("dragleave", (e) => { const el = dropTile(e); if (el && !el.contains(e.relatedTarget)) el.classList.remove("drop"); });
+  $("editBox").addEventListener("drop", async (e) => {
+    const el = dropTile(e); if (!el) return;
+    e.preventDefault(); el.classList.remove("drop");
+    const d = FieldReport.cleanDO(job.trucks[editIdx].do), kind = el.dataset.k;
+    if (!d) return;
+    const files = [...e.dataTransfer.files].filter((f) => /^image\//.test(f.type) || (kind === "printout" && (f.type === "application/pdf" || /\.pdf$/i.test(f.name))));
+    if (!files.length) return phMsg(el, "ลากได้เฉพาะไฟล์ภาพ" + (kind === "printout" ? " หรือ PDF" : "") + " — ถ้าลากจาก LINE ไม่ติด ให้บันทึกภาพลงเครื่องก่อนแล้วลากจากโฟลเดอร์");
+    for (const f of files) await addPhotoFile(f, { kind, do: d, el });
   });
   async function addPhotoFile(file, pick) {
     const k = [...PK, ReportPhotos.SAMPLES].find((x) => x.key === pick.kind);
