@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -60,6 +60,10 @@
   .msg { min-height: 1.2em; font-size: .9rem; } .msg.bad { color: var(--bad); } .msg.ok { color: var(--ok); }
   [hidden] { display: none !important; }
 </style>
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="ui.css">
+<script src="ui.js" defer></script>
 </head>
 <body>
 <main>
@@ -259,13 +263,12 @@
   $("massMode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; test.massMode = b.dataset.v; renderTest(); touch(); };
   $("rows").addEventListener("input", (e) => { const i = e.target.dataset.r; if (i == null) return; test.readings[i].v = e.target.value; renderCalc(); touch(); });
   let camRow = null;
-  $("rows").addEventListener("click", (e) => {
+  $("rows").addEventListener("click", async (e) => {
     const cam = e.target.closest("[data-cam]");
-    if (cam) { if (!CLOUD) return alert("ถ่ายภาพได้เมื่อต่อระบบออนไลน์"); camRow = +cam.dataset.cam; return $("rowCam").click(); }
+    if (cam) { if (!CLOUD) return uiAlert("ถ่ายภาพได้เมื่อต่อระบบออนไลน์"); camRow = +cam.dataset.cam; return $("rowCam").click(); }
     const m = e.target.closest(".mini"); if (!m) return;
     const i = +m.dataset.row, p = m.dataset.ph;
-    if (confirm("ดูภาพ = ตกลง · ลบภาพนี้ = ยกเลิก")) return showPhoto(p);
-    if (!confirm("ลบภาพนี้?")) return;
+    if (!photoCache[p] || (await uiPhoto(`data:image/jpeg;base64,${photoCache[p]}`, { del: true })) !== "delete") return;
     test.readings[i].photos = (test.readings[i].photos || []).filter((x) => x !== p); renderRows(); touch(); api("bleedPhotoDelete", { testId: test.id, id: p }).catch(() => {});
   });
   $("rowCam").onchange = async (e) => {
@@ -275,12 +278,12 @@
   };
   // calendar file with one alarm per reading: works with the screen off (iPhone: open → เพิ่มทั้งหมด)
   $("ics").onclick = () => {
-    if (!test.start) return alert("ใส่เวลาเริ่มก่อน");
+    if (!test.start) return uiAlert("ใส่เวลาเริ่มก่อน");
     const z = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, ""), now = z(new Date());
     const ev = test.readings.filter((r) => r.v === "" && rowTime(r.min).getTime() > Date.now()).map((r) => { const t = rowTime(r.min);
       return ["BEGIN:VEVENT", `UID:${test.id}-${r.min}@bleed`, `DTSTAMP:${now}`, `DTSTART:${z(t)}`, `DTEND:${z(new Date(t.getTime() + 5 * 60000))}`,
         `SUMMARY:Bleeding อ่านค่า นาทีที่ ${r.min}${test.do ? " · D/O " + test.do : ""}`, "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:ถึงเวลาอ่านค่า Bleeding", "TRIGGER:PT0M", "END:VALARM", "END:VEVENT"].join("\r\n"); });
-    if (!ev.length) return alert("ไม่มีรอบที่ยังไม่ถึงเวลา");
+    if (!ev.length) return uiAlert("ไม่มีรอบที่ยังไม่ถึงเวลา");
     const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Production//Bleeding//TH", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = `bleeding-${test.start.replace(":", "")}.ics`;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
@@ -309,9 +312,8 @@
       const r = await api("bleedPhotoGet", { testId: test.id, id: p }).catch(() => null);
       if (r && r.ok) { photoCache[p] = r.data; document.querySelectorAll(`[data-ph="${p}"]`).forEach((el) => { el.style.backgroundImage = `url(data:image/jpeg;base64,${r.data})`; }); } }
   }
-  function showPhoto(p) { if (!photoCache[p]) return; const w = window.open(); if (w) w.document.write(`<title>ภาพ</title><img src="data:image/jpeg;base64,${photoCache[p]}" style="max-width:100%">`); }
   async function upPhotos(files) { const ids = [];
-    for (const file of files) { try { const data = await shrink(file), id = newId(); const r = await api("bleedPhotoPut", { testId: test.id, id, data }); if (!r.ok) throw new Error(r.error); photoCache[id] = data; ids.push(id); } catch (x) { alert("ส่งรูปไม่สำเร็จ — ลองใหม่"); } }
+    for (const file of files) { try { const data = await shrink(file), id = newId(); const r = await api("bleedPhotoPut", { testId: test.id, id, data }); if (!r.ok) throw new Error(r.error); photoCache[id] = data; ids.push(id); } catch (x) { uiAlert("ส่งรูปไม่สำเร็จ — ลองใหม่"); } }
     return ids; }
   function renderPhotos() {
     $("photos").innerHTML = (test.photos || []).map((p) => `<span class="ph" data-ph="${p}"${photoCache[p] ? ` style="background-image:url(data:image/jpeg;base64,${photoCache[p]})"` : ""}><button type="button" data-rm="${p}" title="ลบรูป">×</button></span>`).join("")
@@ -321,13 +323,13 @@
   }
   $("photos").onclick = async (e) => {
     const rm = e.target.closest("[data-rm]");
-    if (rm) { if (!confirm("ลบรูปนี้?")) return; const id = rm.dataset.rm; test.photos = test.photos.filter((x) => x !== id); renderPhotos(); touch(); if (CLOUD) api("bleedPhotoDelete", { testId: test.id, id }).catch(() => {}); return; }
+    if (rm) { if (!(await uiConfirm("ลบรูปนี้?", { ok: "ลบ", danger: true }))) return; const id = rm.dataset.rm; test.photos = test.photos.filter((x) => x !== id); renderPhotos(); touch(); if (CLOUD) api("bleedPhotoDelete", { testId: test.id, id }).catch(() => {}); return; }
     if (e.target.closest("#phAdd")) return $("photoIn").click();
-    const ph = e.target.closest("[data-ph]"); if (ph && photoCache[ph.dataset.ph]) { const w = window.open(); if (w) w.document.write(`<img src="data:image/jpeg;base64,${photoCache[ph.dataset.ph]}" style="max-width:100%">`); }
+    const ph = e.target.closest("[data-ph]"); if (ph && photoCache[ph.dataset.ph]) uiPhoto(`data:image/jpeg;base64,${photoCache[ph.dataset.ph]}`);
   };
   $("photoIn").onchange = async (e) => {
     const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
-    if (!CLOUD) { alert("แนบรูปได้เมื่อต่อระบบออนไลน์"); return; }
+    if (!CLOUD) { uiAlert("แนบรูปได้เมื่อต่อระบบออนไลน์"); return; }
     note("⏳ กำลังส่งรูป…"); const ids = await upPhotos(files); test.photos = [...(test.photos || []), ...ids]; renderPhotos(); touch();
   };
 

@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <meta name="apple-mobile-web-app-title" content="Production">
@@ -112,6 +112,10 @@
     .a4 { box-shadow: none; padding: 0; min-height: 0; max-width: none; }
   }
 </style>
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="ui.css">
+<script src="ui.js" defer></script>
 </head>
 <body>
 <main>
@@ -299,7 +303,7 @@
         ...(at ? { at, adminKey: adm } : {}) });
       if (at) admSet(adm);
       store.set("repair-plant", $("nPlant").value);
-      if (pics.length) { $("nMsg").textContent = `กำลังส่งรูป ${pics.length} รูป…`; const bad = await upload(x.id, pics); if (bad) alert(`บันทึกแล้ว แต่ส่งรูปไม่ได้ ${bad} รูป — เปิดงานแล้วเพิ่มรูปอีกครั้ง`); }
+      if (pics.length) { $("nMsg").textContent = `กำลังส่งรูป ${pics.length} รูป…`; const bad = await upload(x.id, pics); if (bad) uiAlert(`บันทึกแล้ว แต่ส่งรูปไม่ได้ ${bad} รูป — เปิดงานแล้วเพิ่มรูปอีกครั้ง`); }
       pics = []; ["nMachine", "nSymptom", "nDoc", "nDate"].forEach((id) => ($(id).value = "")); $("sNew").hidden = true; view = "open"; kpiFilter = "";
       $("fOpen").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === "open"));
       await load();
@@ -478,5 +482,6 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(true); });
 })();
 </script>
+<script src="topbar.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -52,6 +52,10 @@
   #live .bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 12px 12px max(12px, env(safe-area-inset-bottom, 0px)); background: #000; }
   #live .bar button { font: inherit; font-size: 1rem; min-height: 48px; padding: 8px 18px; border-radius: 999px; border: 1px solid #555; background: #222; color: #fff; }
 </style>
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="ui.css">
+<script src="ui.js" defer></script>
 </head>
 <body>
 <main>

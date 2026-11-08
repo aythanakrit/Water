@@ -1,0 +1,51 @@
+/*
+ * Shared look and touch rules for every page (loaded after the page's own <style>, so it wins where they differ).
+ * Phones / tablets: text boxes at 16px (iPhone / iPad do not zoom in when one is tapped) and controls at least 44px.
+ */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, "Sarabun", "Noto Sans Thai", "Segoe UI", sans-serif; }
+button, a, input, select, textarea, label, [role=button] { touch-action: manipulation; }
+
+/* one look for controls and cards */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), select, textarea { border-radius: 10px; }
+button:not(.star):not(.del):not(.x):not(.rm):not([role=tab]) { border-radius: 10px; }
+section, .card { border-radius: 14px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent, #1f5fbf); outline-offset: 2px; }
+button:active:not(:disabled) { transform: scale(.98); }
+button:disabled { cursor: default; }
+
+@media (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select, textarea { font-size: 16px !important; }
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]):not([type=color]), select { min-height: 44px; }
+  button, [role=button], a.btn, .btn { min-height: 44px; min-width: 44px; }
+  input[type=checkbox], input[type=radio] { width: 22px; height: 22px; }
+  /* small "×" on a picture: a 30px circle with a 46px touch area */
+  .photos .ph button, .thumbs .x button, .photos .rm, .thumb button, .rcpts button { min-width: 0; min-height: 0; width: 30px !important; height: 30px !important; }
+  .photos .ph button::after, .thumbs .x button::after, .photos .rm::after, .thumb button::after, .rcpts button::after { content: ""; position: absolute; inset: -8px; }
+  /* compact buttons inside photo captions and table headers stay compact but tappable */
+  .cap button, th button.del { min-height: 36px; min-width: 36px; }
+}
+
+/* phones with a notch / rounded corners (with viewport-fit=cover) */
+@supports (padding: env(safe-area-inset-left)) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}
+
+/* app dialogs (ui.js) */
+.uidlg { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(15, 18, 24, .45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); animation: uifade .12s ease-out; }
+.uidlg .box { width: 100%; max-width: 380px; background: var(--card, #fff); color: var(--text, var(--ink, #1d2330)); border-radius: 16px; padding: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .3); font-size: 16px; line-height: 1.5; }
+.uidlg .msg { white-space: pre-line; margin: 0 0 16px; overflow-wrap: anywhere; }
+.uidlg input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line, #dde1e7); border-radius: 10px;
+  background: var(--bg, #f6f7f9); color: inherit; margin-bottom: 16px; min-height: 44px; }
+.uidlg .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.uidlg .acts button { font: inherit; font-weight: 600; min-height: 44px; min-width: 88px; padding: 8px 16px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line, #dde1e7); background: var(--card, #fff); color: var(--accent, var(--brand, #1f5fbf)); }
+.uidlg .acts button.ok { background: var(--accent, var(--brand, #1f5fbf)); border-color: transparent; color: #fff; }
+.uidlg .acts button.ok.danger { background: var(--bad, var(--err, #b42318)); }
+.uiph { flex-direction: column; gap: 12px; background: rgba(0, 0, 0, .88); }
+.uiph img { max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; border-radius: 8px; }
+.uiph .acts button.del2 { color: #fff; background: var(--bad, var(--err, #b42318)); border-color: transparent; }
+@keyframes uifade { from { opacity: 0; } }
+@media print { .uidlg { display: none !important; } }
