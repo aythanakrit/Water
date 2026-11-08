@@ -27,7 +27,8 @@
     });
   }
   window.uiAlert = (text, o = {}) => dialog({ text, ok: o.ok || "ตกลง" });
-  window.uiConfirm = (text, o = {}) => dialog({ text, ok: o.ok || "ตกลง", cancel: o.cancel || "ยกเลิก", danger: !!o.danger });
+  // a question that starts with "ลบ" (delete) gets a red "ลบ" button unless told otherwise
+  window.uiConfirm = (text, o = {}) => { const del = /^ลบ/.test(String(text)) && !o.ok; return dialog({ text, ok: o.ok || (del ? "ลบ" : "ตกลง"), cancel: o.cancel || "ยกเลิก", danger: o.danger ?? del }); };
   window.uiPrompt = (text, value = "", o = {}) => dialog({ text, input: true, value, ok: o.ok || "ตกลง", cancel: o.cancel || "ยกเลิก" });
 
   // a picture full screen; resolves "delete" when the delete button is used (only shown with { del: true })
