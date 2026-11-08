@@ -53,6 +53,8 @@
   .photos .ph { position: relative; width: 84px; height: 84px; border-radius: 8px; border: 1px solid var(--line); background: var(--sel) center/cover; display: block; }
   .photos .ph button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--bad); color: #fff; cursor: pointer; padding: 0; font-size: 12px; }
   .photos .add { display: grid; place-items: center; color: var(--muted); border-style: dashed; cursor: pointer; font-size: .85rem; }
+  td.rph { text-align: left; white-space: nowrap; } .mini { display: inline-block; width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--line); background: var(--sel) center/cover; vertical-align: middle; margin-right: 4px; cursor: pointer; }
+  .cam { font: inherit; border: 1px solid var(--line); background: var(--card); border-radius: 8px; width: 40px; height: 36px; cursor: pointer; vertical-align: middle; }
   #alarm { position: sticky; top: 64px; z-index: 40; background: var(--warn); color: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 700; display: flex; gap: 10px; align-items: center; }
   #alarm[hidden] { display: none; } #alarm button { margin-left: auto; background: #fff; color: var(--warn); border: 0; }
   .msg { min-height: 1.2em; font-size: .9rem; } .msg.bad { color: var(--bad); } .msg.ok { color: var(--ok); }
@@ -85,7 +87,7 @@
       </div>
       <div class="note" style="margin-top:8px">รูปตั๋วและรูปประกอบ</div>
       <div class="photos" id="photos"></div>
-      <input type="file" id="photoIn" accept="image/*" multiple hidden>
+      <input type="file" id="photoIn" accept="image/*" multiple hidden><input type="file" id="rowCam" accept="image/*" capture="environment" hidden>
     </section>
 
     <section><h2>2. สูตรผสมตามตั๋ว (kg)</h2>
@@ -111,9 +113,9 @@
     </section>
 
     <section><h2>4. ปริมาณน้ำที่ดูดออกแต่ละครั้ง</h2>
-      <div class="note" style="margin-bottom:6px">กรอก cm³ ที่ดูดได้รอบนั้น · อ่านทุก 10 นาทีใน 40 นาทีแรก แล้วทุก 30 นาที จนน้ำหยุดเยิ้ม · ถึงเวลาอ่าน แถวจะเป็นสีส้มและมีเสียงเตือน (ต้องเปิดหน้านี้ไว้)</div>
-      <div style="overflow-x:auto"><table><thead><tr><th>นาทีที่</th><th>เวลา</th><th>ดูดได้ (cm³)</th><th>สะสม (cm³)</th><th>สะสม/พื้นที่ (cm³/cm²)</th></tr></thead><tbody id="rows"></tbody></table></div>
-      <div class="row" style="margin-top:10px"><button class="btn" id="finish" type="button">น้ำหยุดเยิ้มแล้ว — จบการทดสอบ</button></div>
+      <div class="note" style="margin-bottom:6px">กรอก cm³ ที่ดูดได้รอบนั้น · อ่านทุก 10 นาทีใน 40 นาทีแรก แล้วทุก 30 นาที จนน้ำหยุดเยิ้ม · ถึงเวลาอ่าน แถวจะเป็นสีส้ม มีเสียงและแจ้งเตือน (ต้องเปิดหน้านี้ไว้) · ถ้าจะปิดหน้าจอ กด 📅 เพิ่มการเตือนลงปฏิทิน · 📷 ถ่ายภาพแต่ละรอบได้</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>นาทีที่</th><th>เวลา</th><th>ดูดได้ (cm³)</th><th>สะสม (cm³)</th><th>สะสม/พื้นที่ (cm³/cm²)</th><th style="text-align:left">ภาพ</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="ics" type="button">📅 เพิ่มการเตือนลงปฏิทิน</button><button class="btn" id="finish" type="button">น้ำหยุดเยิ้มแล้ว — จบการทดสอบ</button></div>
     </section>
 
     <section><h2>5. ผลการทดสอบ</h2>
@@ -231,7 +233,9 @@
     const due = test.done || !test.start ? -1 : test.readings.findIndex((r) => r.v === "" && rowTime(r.min) && rowTime(r.min).getTime() <= now + 30000);
     $("rows").innerHTML = c.rows.map((r, i) => { const tm = rowTime(r.min);
       return `<tr class="${i === due ? "due" : ""}"><td>${r.min}</td><td>${tm ? hhmm(tm) : "–"}</td><td><input data-r="${i}" inputmode="decimal" value="${esc(r.v)}"${test.done ? " disabled" : ""}></td>
-        <td>${r.cum != null ? f(r.cum, 0) : ""}</td><td>${r.cum != null && c.A ? f(r.cum / c.A, 4) : ""}</td></tr>`; }).join("");
+        <td>${r.cum != null ? f(r.cum, 0) : ""}</td><td>${r.cum != null && c.A ? f(r.cum / c.A, 4) : ""}</td>
+        <td class="rph">${(r.photos || []).map((p) => `<span class="mini" data-ph="${p}" data-row="${i}"${photoCache[p] ? ` style="background-image:url(data:image/jpeg;base64,${photoCache[p]})"` : ""}></span>`).join("")}<button type="button" class="cam" data-cam="${i}" title="ถ่ายภาพรอบนี้">📷</button></td></tr>`; }).join("");
+    loadThumbs(c.rows.flatMap((r) => r.photos || []));
   }
   function renderCalc() {
     const c = calc(test);
@@ -247,11 +251,40 @@
     const p = d.length >= 3 && window.FieldReport ? FieldReport.plantFromDO(d) : null; test.plant = p && p.name ? `P${p.code} ${p.name}` : ""; $("tPlant").value = test.plant; touch(); };
   $("tDate").oninput = () => { test.date = $("tDate").value; renderRows(); touch(); };
   $("tStart").oninput = () => { test.start = $("tStart").value; renderRows(); touch(); };
-  $("startNow").onclick = () => { const n = new Date(); test.date = today(); test.start = hhmm(n); $("tDate").value = test.date; $("tStart").value = test.start; renderRows(); touch(); };
+  const askNotify = () => { try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) {} };
+  $("tStart").addEventListener("change", askNotify);
+  $("startNow").onclick = () => { askNotify(); const n = new Date(); test.date = today(); test.start = hhmm(n); $("tDate").value = test.date; $("tStart").value = test.start; renderRows(); touch(); };
   document.querySelectorAll("[data-m]").forEach((el) => el.oninput = () => { test.mix = { ...(test.mix || {}), [el.dataset.m]: el.value }; renderCalc(); touch(); });
   [["tDia", "dia"], ["tMass", "mass"], ["tH", "h"], ["tUW", "uw"]].forEach(([id, k]) => $(id).oninput = () => { test[k] = $(id).value; renderCalc(); touch(); });
   $("massMode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; test.massMode = b.dataset.v; renderTest(); touch(); };
   $("rows").addEventListener("input", (e) => { const i = e.target.dataset.r; if (i == null) return; test.readings[i].v = e.target.value; renderCalc(); touch(); });
+  let camRow = null;
+  $("rows").addEventListener("click", (e) => {
+    const cam = e.target.closest("[data-cam]");
+    if (cam) { if (!CLOUD) return alert("ถ่ายภาพได้เมื่อต่อระบบออนไลน์"); camRow = +cam.dataset.cam; return $("rowCam").click(); }
+    const m = e.target.closest(".mini"); if (!m) return;
+    const i = +m.dataset.row, p = m.dataset.ph;
+    if (confirm("ดูภาพ = ตกลง · ลบภาพนี้ = ยกเลิก")) return showPhoto(p);
+    if (!confirm("ลบภาพนี้?")) return;
+    test.readings[i].photos = (test.readings[i].photos || []).filter((x) => x !== p); renderRows(); touch(); api("bleedPhotoDelete", { testId: test.id, id: p }).catch(() => {});
+  });
+  $("rowCam").onchange = async (e) => {
+    const files = [...e.target.files]; e.target.value = ""; if (!files.length || camRow == null) return;
+    const i = camRow; note("⏳ กำลังส่งรูป…"); const ids = await upPhotos(files);
+    test.readings[i].photos = [...(test.readings[i].photos || []), ...ids]; renderRows(); touch();
+  };
+  // calendar file with one alarm per reading: works with the screen off (iPhone: open → เพิ่มทั้งหมด)
+  $("ics").onclick = () => {
+    if (!test.start) return alert("ใส่เวลาเริ่มก่อน");
+    const z = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, ""), now = z(new Date());
+    const ev = test.readings.filter((r) => r.v === "" && rowTime(r.min).getTime() > Date.now()).map((r) => { const t = rowTime(r.min);
+      return ["BEGIN:VEVENT", `UID:${test.id}-${r.min}@bleed`, `DTSTAMP:${now}`, `DTSTART:${z(t)}`, `DTEND:${z(new Date(t.getTime() + 5 * 60000))}`,
+        `SUMMARY:Bleeding อ่านค่า นาทีที่ ${r.min}${test.do ? " · D/O " + test.do : ""}`, "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:ถึงเวลาอ่านค่า Bleeding", "TRIGGER:PT0M", "END:VALARM", "END:VEVENT"].join("\r\n"); });
+    if (!ev.length) return alert("ไม่มีรอบที่ยังไม่ถึงเวลา");
+    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Production//Bleeding//TH", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = `bleeding-${test.start.replace(":", "")}.ics`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+  };
   $("finish").onclick = () => { test.done = !test.done; $("alarm").hidden = true; renderTest(); touch(); };
 
   // ---------- reading alarm (page open) ----------
@@ -262,15 +295,24 @@
     const now = Date.now(), r = test.readings.find((x) => x.v === "" && rowTime(x.min).getTime() <= now + 30000);
     if (!r) return;
     const k = test.id + ":" + r.min;
-    if (!rung.has(k)) { rung.add(k); beep(); $("alarmText").textContent = `⏰ ถึงเวลาอ่านค่า นาทีที่ ${r.min} (${hhmm(rowTime(r.min))})`; $("alarm").hidden = false; renderRows(); }
+    if (!rung.has(k)) { rung.add(k); beep(); try { if (window.Notification && Notification.permission === "granted") new Notification("Bleeding: ถึงเวลาอ่านค่า", { body: `นาทีที่ ${r.min} (${hhmm(rowTime(r.min))})${test.do ? " · D/O " + test.do : ""}`, tag: k }); } catch (e) {} $("alarmText").textContent = `⏰ ถึงเวลาอ่านค่า นาทีที่ ${r.min} (${hhmm(rowTime(r.min))})`; $("alarm").hidden = false; renderRows(); }
   }, 10000);
   $("alarmOk").onclick = () => { $("alarm").hidden = true; const i = $("rows").querySelector("tr.due input"); if (i) i.focus(); };
 
   // ---------- photos (ticket, pictures of the test) ----------
-  const photoCache = {};
+  var photoCache = {}; // var: the readings table uses it
   const shrink = (file) => new Promise((ok, no) => { const img = new Image(), u = URL.createObjectURL(file);
     img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL("image/jpeg", .8).split(",")[1]); }; img.onerror = () => { URL.revokeObjectURL(u); no(new Error("x")); }; img.src = u; });
+  async function loadThumbs(ids) {
+    for (const p of ids) { if (photoCache[p] || !CLOUD) continue;
+      const r = await api("bleedPhotoGet", { testId: test.id, id: p }).catch(() => null);
+      if (r && r.ok) { photoCache[p] = r.data; document.querySelectorAll(`[data-ph="${p}"]`).forEach((el) => { el.style.backgroundImage = `url(data:image/jpeg;base64,${r.data})`; }); } }
+  }
+  function showPhoto(p) { if (!photoCache[p]) return; const w = window.open(); if (w) w.document.write(`<title>ภาพ</title><img src="data:image/jpeg;base64,${photoCache[p]}" style="max-width:100%">`); }
+  async function upPhotos(files) { const ids = [];
+    for (const file of files) { try { const data = await shrink(file), id = newId(); const r = await api("bleedPhotoPut", { testId: test.id, id, data }); if (!r.ok) throw new Error(r.error); photoCache[id] = data; ids.push(id); } catch (x) { alert("ส่งรูปไม่สำเร็จ — ลองใหม่"); } }
+    return ids; }
   function renderPhotos() {
     $("photos").innerHTML = (test.photos || []).map((p) => `<span class="ph" data-ph="${p}"${photoCache[p] ? ` style="background-image:url(data:image/jpeg;base64,${photoCache[p]})"` : ""}><button type="button" data-rm="${p}" title="ลบรูป">×</button></span>`).join("")
       + `<span class="ph add" id="phAdd">+ รูป</span>`;
@@ -286,9 +328,7 @@
   $("photoIn").onchange = async (e) => {
     const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
     if (!CLOUD) { alert("แนบรูปได้เมื่อต่อระบบออนไลน์"); return; }
-    note("⏳ กำลังส่งรูป…");
-    for (const file of files) { try { const data = await shrink(file), id = newId(); const r = await api("bleedPhotoPut", { testId: test.id, id, data }); if (!r.ok) throw new Error(r.error); photoCache[id] = data; test.photos = [...(test.photos || []), id]; } catch (x) { alert("ส่งรูปไม่สำเร็จ — ลองใหม่"); } }
-    renderPhotos(); touch();
+    note("⏳ กำลังส่งรูป…"); const ids = await upPhotos(files); test.photos = [...(test.photos || []), ...ids]; renderPhotos(); touch();
   };
 
   // ---------- delete ----------
