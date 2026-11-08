@@ -8,7 +8,7 @@ button, a, input, select, textarea, label, [role=button] { touch-action: manipul
 
 /* one look for controls and cards */
 input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), select, textarea { border-radius: 10px; }
-button:not(.star):not(.del):not(.x):not(.rm):not([role=tab]) { border-radius: 10px; }
+button:not(.star):not(.del):not(.x):not(.rm):not(.ty):not(.bigbtn):not([role=tab]) { border-radius: 10px; }
 section, .card { border-radius: 14px; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent, #1f5fbf); outline-offset: 2px; }
 button:active:not(:disabled) { transform: scale(.98); }
