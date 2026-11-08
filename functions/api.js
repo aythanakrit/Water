@@ -93,6 +93,13 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "repairClose": return json(await S.repairClose(db, req, admin));
       case "repairDelete": return json(await S.repairDelete(db, bucket, req.id));
       case "repairImport": return json(admin ? await S.repairImport(db, req.job) : { ok: false, error: "not_admin" });
+      // ---- Bleeding test ----
+      case "bleedList": return json(await S.bleedList(db));
+      case "bleedSave": return json(await S.bleedSave(db, req.test));
+      case "bleedDelete": return json(await S.bleedDelete(db, bucket, req.id));
+      case "bleedPhotoPut": return json(bucket ? await S.bleedPhotoPut(bucket, req) : { ok: false, error: "no_photo_storage" });
+      case "bleedPhotoGet": return json(bucket ? await S.bleedPhotoGet(bucket, req) : { ok: false, error: "no_photo_storage" });
+      case "bleedPhotoDelete": return json(bucket ? await S.bleedPhotoDelete(bucket, req) : { ok: false, error: "no_photo_storage" });
       // ---- Trial Mix ----
       case "trialList": return json(await S.trialList(db));
       case "trialSave": return json(await S.trialSave(db, req.trial));

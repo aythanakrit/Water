@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Production">
+<title>ทดสอบ Bleeding</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5d6675; --line: #dde1e7; --accent: #1f5fbf; --sel: #e8eefa;
+    --ok: #1d7a3e; --bad: #b42318; --warn: #8a5a00; --warn-bg: #fff6e0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --sel: #23314a;
+      --ok: #5cc98a; --bad: #ff8a80; --warn: #f2c66d; --warn-bg: #3a2f14; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14171c; --card: #1d2128; --text: #e6e9ee; --muted: #9aa3b0; --line: #2e343d; --accent: #6fa3ff; --sel: #23314a;
+    --ok: #5cc98a; --bad: #ff8a80; --warn: #f2c66d; --warn-bg: #3a2f14; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, "Sarabun", "Noto Sans Thai", sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding-block: 16px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 1.4rem; margin: 0 0 2px; } h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: .9rem; }
+  a.back { display: inline-block; color: var(--accent); text-decoration: none; margin-bottom: 10px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; min-width: 0; }
+  label { display: flex; flex-direction: column; font-size: .82rem; color: var(--muted); gap: 2px; min-width: 0; }
+  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0; }
+  .f2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 12px; } .f3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
+  @media (max-width: 560px) { .f3 { grid-template-columns: 1fr 1fr; } }
+  .btn { font: inherit; border-radius: 10px; padding: 9px 14px; border: 1px solid var(--line); background: var(--card); color: var(--accent); cursor: pointer; min-height: 42px; }
+  .btn.b { background: var(--accent); border-color: var(--accent); color: #fff; } .btn.d { color: var(--bad); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .note { font-size: .82rem; color: var(--muted); } .calc { font-size: .88rem; color: var(--muted); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .calc b { color: var(--text); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-bottom: 8px; }
+  .seg button { font: inherit; border: 0; background: var(--card); color: var(--muted); padding: 6px 14px; cursor: pointer; } .seg button.on { background: var(--accent); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px; border-bottom: 1px solid var(--line); text-align: right; } th { font-size: .78rem; color: var(--muted); font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; }
+  td input { text-align: right; padding: 6px 8px; max-width: 110px; }
+  tr.due td { background: var(--warn-bg); } tr.due td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+  tr.late td { color: var(--muted); }
+  .kp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } @media (max-width: 560px) { .kp { grid-template-columns: 1fr 1fr; } }
+  .kp div { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; } .kp b { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; } .kp span { font-size: .78rem; color: var(--muted); }
+  .kp .main b { color: var(--accent); font-size: 1.6rem; }
+  .list .it { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; } .list .it:first-child { border-top: 0; }
+  .list .it .t { flex: 1; min-width: 200px; } .list .it b { display: block; }
+  .chip { display: inline-block; border-radius: 99px; padding: 0 8px; font-size: .78rem; font-weight: 600; background: var(--sel); color: var(--accent); }
+  .chip.run { background: var(--warn-bg); color: var(--warn); }
+  .photos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .photos .ph { position: relative; width: 84px; height: 84px; border-radius: 8px; border: 1px solid var(--line); background: var(--sel) center/cover; display: block; }
+  .photos .ph button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--bad); color: #fff; cursor: pointer; padding: 0; font-size: 12px; }
+  .photos .add { display: grid; place-items: center; color: var(--muted); border-style: dashed; cursor: pointer; font-size: .85rem; }
+  #alarm { position: sticky; top: 64px; z-index: 40; background: var(--warn); color: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 700; display: flex; gap: 10px; align-items: center; }
+  #alarm[hidden] { display: none; } #alarm button { margin-left: auto; background: #fff; color: var(--warn); border: 0; }
+  .msg { min-height: 1.2em; font-size: .9rem; } .msg.bad { color: var(--bad); } .msg.ok { color: var(--ok); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← หน้าหลัก</a>
+
+  <!-- list -->
+  <div id="vList">
+    <h1>ทดสอบ Bleeding</h1>
+    <p class="sub">การเยิ้มน้ำของคอนกรีตสด ตาม ASTM C232 · บันทึกออนไลน์ เปิดดูได้ทุกเครื่อง</p>
+    <div class="row" style="margin-bottom:12px"><button class="btn b" id="newTest" type="button">+ ทดสอบใหม่</button><span class="note" id="syncNote"></span></div>
+    <section><h2>รายการทดสอบ</h2><div class="list" id="tests"></div></section>
+  </div>
+
+  <!-- one test -->
+  <div id="vTest" hidden>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><button class="btn" id="toList" type="button">‹ รายการทดสอบ</button><span class="note" id="saveNote"></span></div>
+    <div id="alarm" role="alert" hidden><span id="alarmText"></span><button class="btn" id="alarmOk" type="button">รับทราบ</button></div>
+
+    <section><h2>1. ตั๋ว</h2>
+      <div class="f2">
+        <label>เลข D/O (13 หลัก)<input id="tDO" inputmode="numeric" maxlength="13" autocomplete="off"></label>
+        <label>แพล้น<input id="tPlant" readonly placeholder="ได้จากเลข D/O"></label>
+        <label>วันที่ทดสอบ<input id="tDate" type="date"></label>
+        <label>เวลาเริ่ม (นาทีที่ 0)<span class="row" style="flex-wrap:nowrap"><input id="tStart" type="time"><button class="btn" id="startNow" type="button" style="flex:none">เริ่มตอนนี้</button></span></label>
+      </div>
+      <div class="note" style="margin-top:8px">รูปตั๋วและรูปประกอบ</div>
+      <div class="photos" id="photos"></div>
+      <input type="file" id="photoIn" accept="image/*" multiple hidden>
+    </section>
+
+    <section><h2>2. สูตรผสมตามตั๋ว (kg)</h2>
+      <div class="f3">
+        <label>ปูนซีเมนต์<input data-m="cement" inputmode="decimal"></label>
+        <label>วัสดุประสานอื่น (เถ้าลอย ฯลฯ)<input data-m="binder2" inputmode="decimal"></label>
+        <label>น้ำ<input data-m="water" inputmode="decimal"></label>
+        <label>ทราย<input data-m="fine" inputmode="decimal"></label>
+        <label>หิน<input data-m="coarse" inputmode="decimal"></label>
+        <label>น้ำยา<input data-m="admix" inputmode="decimal"></label>
+        <label>ความชื้นทราย (%)<input data-m="moist" inputmode="decimal"></label>
+      </div>
+      <div class="calc" id="mixCalc"></div>
+    </section>
+
+    <section><h2>3. ถังและตัวอย่าง</h2>
+      <div class="f2"><label>เส้นผ่านศูนย์กลางผิวคอนกรีต (cm)<input id="tDia" inputmode="decimal" placeholder="เช่น 30"></label></div>
+      <div class="note" style="margin:10px 0 4px">มวลตัวอย่างคอนกรีต (S)</div>
+      <div class="seg" id="massMode"><button type="button" data-v="weigh">ชั่งจริง</button><button type="button" data-v="calc">คำนวณจากขนาดถัง</button></div>
+      <div class="f3" id="mWeigh"><label>มวลตัวอย่าง (kg)<input id="tMass" inputmode="decimal"></label></div>
+      <div class="f3" id="mCalc"><label>ความสูงคอนกรีตในถัง (cm)<input id="tH" inputmode="decimal"></label><label>หน่วยน้ำหนัก (kg/m³)<input id="tUW" inputmode="decimal" placeholder="เช่น 2400"></label></div>
+      <div class="calc" id="boxCalc"></div>
+    </section>
+
+    <section><h2>4. ปริมาณน้ำที่ดูดออกแต่ละครั้ง</h2>
+      <div class="note" style="margin-bottom:6px">กรอก cm³ ที่ดูดได้รอบนั้น · อ่านทุก 10 นาทีใน 40 นาทีแรก แล้วทุก 30 นาที จนน้ำหยุดเยิ้ม · ถึงเวลาอ่าน แถวจะเป็นสีส้มและมีเสียงเตือน (ต้องเปิดหน้านี้ไว้)</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>นาทีที่</th><th>เวลา</th><th>ดูดได้ (cm³)</th><th>สะสม (cm³)</th><th>สะสม/พื้นที่ (cm³/cm²)</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="finish" type="button">น้ำหยุดเยิ้มแล้ว — จบการทดสอบ</button></div>
+    </section>
+
+    <section><h2>5. ผลการทดสอบ</h2>
+      <div class="kp" id="kp"></div>
+      <div class="calc" id="resCalc"></div>
+      <p class="note">สูตรตามไฟล์ทดสอบเดิม (ASTM C232): V = ΣV1 / A · C = (w / W) × S · D = ΣV1 / 1000 · Bleeding (%) = D / C × 100 · w = น้ำ + ความชื้นทราย % × ทราย<br>
+        ผลนี้ใช้ประกอบการตัดสินใจ ต้องให้วิศวกรผู้รับผิดชอบตรวจสอบก่อนนำไปใช้</p>
+    </section>
+
+    <section><div class="row"><span class="note" style="flex:1">ลบการทดสอบนี้ (ต้องใส่รหัส)</span><input id="delCode" type="password" placeholder="รหัสลบ" autocomplete="off" style="max-width:160px"><button class="btn d" id="delGo" type="button">ลบ</button></div><div class="msg" id="delMsg"></div></section>
+  </div>
+</main>
+<script src="config.js"></script>
+<script src="fieldreport.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const CLOUD = window.FIELD_SYNC && window.FIELD_SYNC.url === "/api" && window.FIELD_SYNC.key ? window.FIELD_SYNC : null;
+  const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a trial / field report
+  const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const SCHEDULE = [0, 10, 20, 30, 40, 70, 100, 130, 160, 190, 220, 250, 280, 310, 340, 370, 400, 430]; // minutes (as the test sheet)
+  const n2 = (v) => { const x = parseFloat(String(v ?? "").replace(/,/g, "")); return Number.isFinite(x) ? x : null; };
+  const f = (x, d = 2) => x == null || !Number.isFinite(x) ? "–" : x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pad = (n) => String(n).padStart(2, "0");
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const newId = () => "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const thDate = (s) => { if (!s) return ""; const [y, m, d] = s.split("-").map(Number); return `${d}/${m}/${y + 543}`; };
+
+  // ---------- storage: this device first, then the central database ----------
+  const KEY = "bleed-v1";
+  let db = { tests: [], dirty: [], gone: [] };
+  try { db = { ...db, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (e) {}
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} };
+  let test = null, syncing = false, timer = null;
+  async function api(action, body = {}) {
+    const r = await fetch(CLOUD.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...body, action, key: CLOUD.key }) });
+    return r.json();
+  }
+  const note = (t) => { $("syncNote").textContent = t; $("saveNote").textContent = t; };
+  function showSync() { const n = db.dirty.length + db.gone.length; note(!CLOUD ? "💾 เก็บในเครื่องนี้เท่านั้น" : syncing ? "⏳ กำลังบันทึก…" : n ? `⏳ รอส่ง ${n} รายการ` : "☁️ บันทึกแล้ว — เปิดได้ทุกเครื่อง"); }
+  function touch() { test.updated = Date.now(); if (!db.dirty.includes(test.id)) db.dirty.push(test.id); persist(); showSync(); clearTimeout(timer); timer = setTimeout(sync, 1200); }
+  async function sync() {
+    if (!CLOUD || syncing) return; syncing = true; showSync();
+    try {
+      for (const id of [...db.gone]) { const r = await api("bleedDelete", { id }); if (r.ok) db.gone = db.gone.filter((x) => x !== id); }
+      for (const id of [...db.dirty]) {
+        const t = db.tests.find((x) => x.id === id); if (!t) { db.dirty = db.dirty.filter((x) => x !== id); continue; }
+        const sent = t.updated, r = await api("bleedSave", { test: t });
+        if (r.error === "deleted") { db.tests = db.tests.filter((x) => x.id !== id); db.dirty = db.dirty.filter((x) => x !== id); continue; }
+        if (!r.ok) throw new Error(r.error || "save");
+        if (t.updated === sent) db.dirty = db.dirty.filter((x) => x !== id);
+      }
+      const r = await api("bleedList");
+      if (r.ok) {
+        const gone = new Set(r.deleted || []);
+        db.tests = db.tests.filter((t) => !gone.has(t.id));
+        for (const s of r.tests) { if (test && test.id === s.id && document.activeElement.closest("#vTest input")) continue; const i = db.tests.findIndex((t) => t.id === s.id); if (i < 0) db.tests.push(s); else if (s.updated > db.tests[i].updated && !db.dirty.includes(s.id) && !(test && test.id === s.id && Date.now() - test.updated < 60000)) { db.tests[i] = s; if (test && test.id === s.id) { test = s; renderTest(); } } }
+      }
+    } catch (e) { note(navigator.onLine ? "⚠️ บันทึกขึ้นระบบไม่สำเร็จ — จะลองใหม่" : "📴 ออฟไลน์ — จะส่งให้เมื่อมีสัญญาณ"); syncing = false; persist(); return; }
+    syncing = false; persist(); showSync();
+    if (!test) renderList();
+  }
+
+  // ---------- calculations ----------
+  function calc(t) {
+    const m = t.mix || {}, num = (k) => n2(m[k]);
+    const parts = ["cement", "binder2", "water", "fine", "coarse", "admix"].map(num);
+    const W = parts.some((x) => x != null) ? parts.reduce((a, x) => a + (x || 0), 0) : null;
+    const w = num("water") != null ? num("water") + ((num("moist") || 0) / 100) * (num("fine") || 0) : null;
+    const dia = n2(t.dia), A = dia > 0 ? Math.PI * (dia / 2) ** 2 : null;
+    const S = t.massMode === "calc" ? (dia > 0 && n2(t.h) > 0 && n2(t.uw) > 0 ? Math.PI * ((dia / 100) / 2) ** 2 * (n2(t.h) / 100) * n2(t.uw) : null) : n2(t.mass);
+    let cum = 0; const rows = t.readings.map((r) => { const v = n2(r.v); if (v != null) cum += v; return { ...r, cum: v != null ? cum : null }; });
+    const total = rows.reduce((a, r) => a + (n2(r.v) || 0), 0);
+    const C = w != null && W > 0 && S > 0 ? (w / W) * S : null, D = total / 1000;
+    return { W, w, A, S, rows, total, V: A ? total / A : null, C, D, pct: C > 0 ? (D / C) * 100 : null };
+  }
+
+  // ---------- list ----------
+  function renderList() {
+    $("vList").hidden = false; $("vTest").hidden = true; test = null;
+    const L = [...db.tests].sort((a, b) => (b.date || "").localeCompare(a.date || "") || b.created - a.created);
+    $("tests").innerHTML = L.length ? "" : '<div class="note">ยังไม่มีการทดสอบ</div>';
+    L.forEach((t) => {
+      const c = calc(t), it = document.createElement("div"); it.className = "it";
+      it.innerHTML = `<div class="t"><b>${t.do ? "D/O " + esc(t.do) : "(ยังไม่ใส่ D/O)"}${t.plant ? " · " + esc(t.plant) : ""}</b><span class="note">${thDate(t.date)}${t.start ? " เริ่ม " + esc(t.start) : ""} · ${t.done ? '<span class="chip">จบแล้ว</span>' : '<span class="chip run">กำลังทดสอบ</span>'}</span></div>
+        <b style="font-size:1.2rem">${c.pct != null ? f(c.pct) + " %" : "–"}</b><button class="btn" type="button">เปิด</button>`;
+      it.querySelector("button").onclick = () => openTest(t.id); $("tests").appendChild(it);
+    });
+    showSync();
+  }
+  $("newTest").onclick = () => {
+    const t = { id: newId(), created: Date.now(), updated: Date.now(), date: today(), start: "", do: "", plant: "", mix: {}, dia: "", massMode: "weigh", mass: "", h: "", uw: "",
+      readings: SCHEDULE.map((min) => ({ min, v: "" })), photos: [], done: false };
+    db.tests.push(t); test = t; touch(); openTest(t.id);
+  };
+  $("toList").onclick = renderList;
+
+  // ---------- one test ----------
+  function openTest(id) { test = db.tests.find((x) => x.id === id); if (!test) return renderList(); $("vList").hidden = true; $("vTest").hidden = false; window.scrollTo(0, 0); renderTest(); }
+  function renderTest() {
+    const t = test;
+    $("tDO").value = t.do || ""; $("tPlant").value = t.plant || ""; $("tDate").value = t.date || ""; $("tStart").value = t.start || "";
+    document.querySelectorAll("[data-m]").forEach((el) => { el.value = (t.mix || {})[el.dataset.m] ?? ""; });
+    $("tDia").value = t.dia || ""; $("tMass").value = t.mass || ""; $("tH").value = t.h || ""; $("tUW").value = t.uw || "";
+    document.querySelectorAll("#massMode button").forEach((b) => b.classList.toggle("on", b.dataset.v === (t.massMode || "weigh")));
+    $("mWeigh").hidden = t.massMode === "calc"; $("mCalc").hidden = t.massMode !== "calc";
+    $("finish").textContent = t.done ? "เปิดการทดสอบต่อ" : "น้ำหยุดเยิ้มแล้ว — จบการทดสอบ";
+    renderRows(); renderCalc(); renderPhotos();
+  }
+  function rowTime(min) { if (!test.start) return null; const [h, m] = test.start.split(":").map(Number), [y, mo, d] = (test.date || today()).split("-").map(Number); return new Date(y, mo - 1, d, h, m + min); }
+  function renderRows() {
+    const c = calc(test), now = Date.now();
+    const due = test.done || !test.start ? -1 : test.readings.findIndex((r) => r.v === "" && rowTime(r.min) && rowTime(r.min).getTime() <= now + 30000);
+    $("rows").innerHTML = c.rows.map((r, i) => { const tm = rowTime(r.min);
+      return `<tr class="${i === due ? "due" : ""}"><td>${r.min}</td><td>${tm ? hhmm(tm) : "–"}</td><td><input data-r="${i}" inputmode="decimal" value="${esc(r.v)}"${test.done ? " disabled" : ""}></td>
+        <td>${r.cum != null ? f(r.cum, 0) : ""}</td><td>${r.cum != null && c.A ? f(r.cum / c.A, 4) : ""}</td></tr>`; }).join("");
+  }
+  function renderCalc() {
+    const c = calc(test);
+    $("mixCalc").innerHTML = `น้ำผสมสุทธิ w = น้ำ + ความชื้นทราย × ทราย = <b>${f(c.w)}</b> kg · น้ำหนัก batch W = <b>${f(c.W)}</b> kg`;
+    $("boxCalc").innerHTML = `พื้นที่ผิว A = π × (d/2)² = <b>${f(c.A)}</b> cm² · มวลตัวอย่าง S = <b>${f(c.S)}</b> kg`;
+    $("kp").innerHTML = `<div class="main"><b>${c.pct != null ? f(c.pct) + " %" : "–"}</b><span>Bleeding (% ของน้ำในตัวอย่าง)</span></div>
+      <div><b>${c.V != null ? f(c.V, 4) : "–"}</b><span>น้ำเยิ้มต่อพื้นที่ V (cm³/cm²)</span></div><div><b>${f(c.total, 0)}</b><span>น้ำเยิ้มรวม (cm³)</span></div>`;
+    $("resCalc").innerHTML = `C = (w/W) × S = (${f(c.w)} / ${f(c.W)}) × ${f(c.S)} = <b>${f(c.C, 3)}</b> kg · D = ${f(c.total, 0)} / 1000 = <b>${f(c.D, 3)}</b> kg`;
+    $("rows").querySelectorAll("tr").forEach((tr, i) => { const r = c.rows[i]; tr.cells[3].textContent = r.cum != null ? f(r.cum, 0) : ""; tr.cells[4].textContent = r.cum != null && c.A ? f(r.cum / c.A, 4) : ""; });
+  }
+  // inputs
+  $("tDO").oninput = () => { const d = $("tDO").value.replace(/\D/g, "").slice(0, 13); $("tDO").value = d; test.do = d;
+    const p = d.length >= 3 && window.FieldReport ? FieldReport.plantFromDO(d) : null; test.plant = p && p.name ? `P${p.code} ${p.name}` : ""; $("tPlant").value = test.plant; touch(); };
+  $("tDate").oninput = () => { test.date = $("tDate").value; renderRows(); touch(); };
+  $("tStart").oninput = () => { test.start = $("tStart").value; renderRows(); touch(); };
+  $("startNow").onclick = () => { const n = new Date(); test.date = today(); test.start = hhmm(n); $("tDate").value = test.date; $("tStart").value = test.start; renderRows(); touch(); };
+  document.querySelectorAll("[data-m]").forEach((el) => el.oninput = () => { test.mix = { ...(test.mix || {}), [el.dataset.m]: el.value }; renderCalc(); touch(); });
+  [["tDia", "dia"], ["tMass", "mass"], ["tH", "h"], ["tUW", "uw"]].forEach(([id, k]) => $(id).oninput = () => { test[k] = $(id).value; renderCalc(); touch(); });
+  $("massMode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; test.massMode = b.dataset.v; renderTest(); touch(); };
+  $("rows").addEventListener("input", (e) => { const i = e.target.dataset.r; if (i == null) return; test.readings[i].v = e.target.value; renderCalc(); touch(); });
+  $("finish").onclick = () => { test.done = !test.done; $("alarm").hidden = true; renderTest(); touch(); };
+
+  // ---------- reading alarm (page open) ----------
+  let rung = new Set();
+  function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; o.connect(g); g.connect(a.destination); g.gain.value = .15; o.start(); setTimeout(() => { o.stop(); a.close(); }, 600); } catch (e) {} try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch (e) {} }
+  setInterval(() => {
+    if (!test || test.done || !test.start || $("vTest").hidden) return;
+    const now = Date.now(), r = test.readings.find((x) => x.v === "" && rowTime(x.min).getTime() <= now + 30000);
+    if (!r) return;
+    const k = test.id + ":" + r.min;
+    if (!rung.has(k)) { rung.add(k); beep(); $("alarmText").textContent = `⏰ ถึงเวลาอ่านค่า นาทีที่ ${r.min} (${hhmm(rowTime(r.min))})`; $("alarm").hidden = false; renderRows(); }
+  }, 10000);
+  $("alarmOk").onclick = () => { $("alarm").hidden = true; const i = $("rows").querySelector("tr.due input"); if (i) i.focus(); };
+
+  // ---------- photos (ticket, pictures of the test) ----------
+  const photoCache = {};
+  const shrink = (file) => new Promise((ok, no) => { const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL("image/jpeg", .8).split(",")[1]); }; img.onerror = () => { URL.revokeObjectURL(u); no(new Error("x")); }; img.src = u; });
+  function renderPhotos() {
+    $("photos").innerHTML = (test.photos || []).map((p) => `<span class="ph" data-ph="${p}"${photoCache[p] ? ` style="background-image:url(data:image/jpeg;base64,${photoCache[p]})"` : ""}><button type="button" data-rm="${p}" title="ลบรูป">×</button></span>`).join("")
+      + `<span class="ph add" id="phAdd">+ รูป</span>`;
+    (test.photos || []).filter((p) => !photoCache[p]).forEach(async (p) => { if (!CLOUD) return; const r = await api("bleedPhotoGet", { testId: test.id, id: p }).catch(() => null);
+      if (r && r.ok) { photoCache[p] = r.data; const el = document.querySelector(`[data-ph="${p}"]`); if (el) el.style.backgroundImage = `url(data:image/jpeg;base64,${r.data})`; } });
+  }
+  $("photos").onclick = async (e) => {
+    const rm = e.target.closest("[data-rm]");
+    if (rm) { if (!confirm("ลบรูปนี้?")) return; const id = rm.dataset.rm; test.photos = test.photos.filter((x) => x !== id); renderPhotos(); touch(); if (CLOUD) api("bleedPhotoDelete", { testId: test.id, id }).catch(() => {}); return; }
+    if (e.target.closest("#phAdd")) return $("photoIn").click();
+    const ph = e.target.closest("[data-ph]"); if (ph && photoCache[ph.dataset.ph]) { const w = window.open(); if (w) w.document.write(`<img src="data:image/jpeg;base64,${photoCache[ph.dataset.ph]}" style="max-width:100%">`); }
+  };
+  $("photoIn").onchange = async (e) => {
+    const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+    if (!CLOUD) { alert("แนบรูปได้เมื่อต่อระบบออนไลน์"); return; }
+    note("⏳ กำลังส่งรูป…");
+    for (const file of files) { try { const data = await shrink(file), id = newId(); const r = await api("bleedPhotoPut", { testId: test.id, id, data }); if (!r.ok) throw new Error(r.error); photoCache[id] = data; test.photos = [...(test.photos || []), id]; } catch (x) { alert("ส่งรูปไม่สำเร็จ — ลองใหม่"); } }
+    renderPhotos(); touch();
+  };
+
+  // ---------- delete ----------
+  $("delGo").onclick = async () => {
+    if ((await sha256($("delCode").value.trim())) !== DEL_HASH) { $("delMsg").textContent = "รหัสไม่ถูกต้อง"; $("delMsg").className = "msg bad"; return; }
+    db.tests = db.tests.filter((x) => x.id !== test.id); db.dirty = db.dirty.filter((x) => x !== test.id); if (CLOUD) db.gone.push(test.id); persist(); $("delCode").value = ""; renderList(); sync();
+  };
+
+  renderList(); sync();
+  setInterval(() => { if (document.visibilityState === "visible" && !$("vList").hidden) sync(); }, 20000);
+  setInterval(() => { if (test && !$("vTest").hidden && !document.activeElement.closest("#rows")) renderRows(); }, 30000);
+})();
+</script>
+<script src="topbar.js"></script>
+</body>
+</html>

@@ -41,6 +41,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS repair_photos (id TEXT PRIMARY KEY, repair_id TEXT NOT NULL, rkey TEXT NOT NULL, created INTEGER, removed INTEGER)`,
   `CREATE INDEX IF NOT EXISTS repair_photos_job ON repair_photos(repair_id)`,
   `CREATE TABLE IF NOT EXISTS trials (id TEXT PRIMARY KEY, status TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS bleed (id TEXT PRIMARY KEY, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL)`,
 ];
 let ready = null;
 export function ensureSchema(db) {
@@ -490,3 +491,39 @@ export async function repairImport(db, job, now = Date.now()) {
     .bind(id, docNo, plant, type, machine, symptom, j.urg, status, at, doneAt, JSON.stringify(log), now).run();
   return { ok: true, id };
 }
+
+// ---------- Bleeding test (ASTM C232): one record per test, newest edit wins; ticket / photos in R2 under bleed/<testId>/<photoId>.jpg ----------
+export async function bleedList(db) {
+  const { results } = await db.prepare("SELECT id, deleted, data FROM bleed").all();
+  return { ok: true, tests: results.filter((r) => !r.deleted).map((r) => parse(r.data, null)).filter(Boolean), deleted: results.filter((r) => r.deleted).map((r) => r.id) };
+}
+export async function bleedSave(db, t) {
+  if (!t || !TRIAL_ID.test(String(t.id || "")) || !Array.isArray(t.readings)) return { ok: false, error: "bad_request" };
+  const cur = await db.prepare("SELECT updated, deleted, data FROM bleed WHERE id = ?").bind(t.id).first();
+  if (cur && cur.deleted) return { ok: false, error: "deleted" };
+  if (cur && Number(cur.updated) > Number(t.updated || 0)) return { ok: true, test: parse(cur.data, null) }; // another device saved later
+  await db.prepare(`INSERT INTO bleed (id, updated, deleted, data) VALUES (?,?,0,?) ON CONFLICT(id) DO UPDATE SET updated=excluded.updated, data=excluded.data`)
+    .bind(t.id, Number(t.updated) || Date.now(), JSON.stringify(t)).run();
+  return { ok: true, test: t };
+}
+export async function bleedDelete(db, bucket, id, now = Date.now()) {
+  if (!TRIAL_ID.test(String(id || ""))) return { ok: false, error: "bad_request" };
+  await db.prepare(`INSERT INTO bleed (id, updated, deleted, data) VALUES (?, ?, 1, '{}') ON CONFLICT(id) DO UPDATE SET deleted = 1, updated = excluded.updated, data = '{}'`).bind(id, now).run();
+  if (bucket) { const list = await bucket.list({ prefix: `bleed/${id}/` }); if (list.objects.length) await bucket.delete(list.objects.map((o) => o.key)); }
+  return { ok: true };
+}
+const bleedKey = (testId, id) => (TRIAL_ID.test(String(testId || "")) && TRIAL_ID.test(String(id || "")) ? `bleed/${testId}/${id}.jpg` : null);
+export async function bleedPhotoPut(bucket, req) {
+  const key = bleedKey(req.testId, req.id);
+  if (!key || typeof req.data !== "string") return { ok: false, error: "bad_request" };
+  const bytes = b64ToBytes(req.data);
+  if (bytes.length > PHOTO_MAX_BYTES) return { ok: false, error: "too_large" };
+  await bucket.put(key, bytes, { httpMetadata: { contentType: "image/jpeg" } });
+  return { ok: true };
+}
+export async function bleedPhotoGet(bucket, req) {
+  const key = bleedKey(req.testId, req.id);
+  const obj = key && (await bucket.get(key));
+  return obj ? { ok: true, data: bytesToB64(await obj.arrayBuffer()) } : { ok: false, error: "not_found" };
+}
+export async function bleedPhotoDelete(bucket, req) { const key = bleedKey(req.testId, req.id); if (key) await bucket.delete(key); return { ok: true }; }
