@@ -526,8 +526,8 @@
     const openOf = (t) => jobs.filter((j) => j.type === t && (!P || j.plant === P) && !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
     const all = groups.flatMap(([t]) => openOf(t));
     const table = (t, open) => { const loader = t === "รถตัก";
-      return open.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th>${loader ? "<th>รถ</th>" : ""}<th>${t === "ก่อสร้าง" ? "รายละเอียดงาน" : "อาการ"}</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
-        ${open.map((j) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td>${loader ? `<td>${esc(j.machine)}</td>` : ""}
+      return open.length ? `<table><thead><tr><th>ลำดับ</th><th>แพล้น</th>${loader ? "<th>รถ</th>" : ""}<th>${t === "ก่อสร้าง" ? "รายละเอียดงาน" : "อาการ"}</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
+        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${i + 1}</td><td>${esc(j.plant)}</td>${loader ? `<td>${esc(j.machine)}</td>` : ""}
           <td>${esc(j.symptom)}</td><td class="c"><span class="ru ru-${j.urg}">${URG[j.urg][0]}</span></td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`; };
     const per = groups.map(([t, name]) => [t, name, openOf(t)]);
