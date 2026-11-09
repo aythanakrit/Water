@@ -50,6 +50,8 @@ export function ensureSchema(db) {
     .then(() => db.prepare("ALTER TABLE photos ADD COLUMN job TEXT").run().catch(() => {}))
     // added later: the document number typed for a repair job
     .then(() => db.prepare("ALTER TABLE repairs ADD COLUMN doc_no TEXT").run().catch(() => {}))
+    // added later: the file name of a PDF attached to a repair job (memo)
+    .then(() => db.prepare("ALTER TABLE repair_photos ADD COLUMN name TEXT").run().catch(() => {}))
     .catch((e) => { ready = null; throw e; });
   return ready;
 }
@@ -410,7 +412,7 @@ export async function railDocDelete(db, bucket, id, now = Date.now()) {
 }
 
 // ---------- repair backlog: plant machinery and loaders (photos in R2 under repair/<job id>/) ----------
-const REPAIR_TYPES = ["เครื่องจักร", "รถตัก"], REPAIR_URG = ["stop", "soon", "wait"], REPAIR_STATUS = ["new", "fix", "part"];
+const REPAIR_TYPES = ["เครื่องจักร", "รถตัก", "ก่อสร้าง"], REPAIR_URG = ["stop", "soon", "wait"], REPAIR_STATUS = ["new", "fix", "part"];
 // TEMPORARY: anyone may pick the report / close date (first entry of old jobs). Set to false to need the administrator code again.
 export const REPAIR_BACKDATE_OPEN = false;
 const REPAIR_KEEP_DAYS = 400; // closed jobs older than this are not listed
@@ -432,13 +434,14 @@ async function repairDocNo(db, plant, at) {
 }
 function repairOut(r, photos) {
   return { id: r.id, docNo: r.doc_no || "", plant: r.plant, type: r.type, machine: r.machine || "", symptom: r.symptom, urg: r.urg, status: r.status,
-    at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, log: parse(r.log, []), updated: Number(r.updated), photos: photos[r.id] || [] };
+    at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, log: parse(r.log, []), updated: Number(r.updated),
+    photos: (photos[r.id] || []).filter((p) => typeof p === "string"), files: (photos[r.id] || []).filter((p) => typeof p !== "string") };
 }
 export async function repairList(db, now = Date.now()) {
   const { results } = await db.prepare("SELECT * FROM repairs WHERE removed IS NULL AND (status NOT IN ('done', 'rejected') OR done_at >= ?) ORDER BY at")
     .bind(now - REPAIR_KEEP_DAYS * DAY).all();
-  const ph = (await db.prepare("SELECT id, repair_id FROM repair_photos WHERE removed IS NULL ORDER BY created").all()).results;
-  const photos = {}; ph.forEach((p) => (photos[p.repair_id] = photos[p.repair_id] || []).push(p.id));
+  const ph = (await db.prepare("SELECT id, repair_id, rkey, name FROM repair_photos WHERE removed IS NULL ORDER BY created").all()).results;
+  const photos = {}; ph.forEach((p) => (photos[p.repair_id] = photos[p.repair_id] || []).push(/\.pdf$/.test(p.rkey) ? { id: p.id, name: p.name || "เมมโม่.pdf" } : p.id));
   return { ok: true, backdateOpen: REPAIR_BACKDATE_OPEN, jobs: results.map((r) => repairOut(r, photos)) };
 }
 async function repairRow(db, id) { return db.prepare("SELECT * FROM repairs WHERE id = ? AND removed IS NULL").bind(String(id || "")).first(); }
