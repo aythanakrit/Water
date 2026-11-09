@@ -20,6 +20,8 @@
   h1 { font-size: 1.4rem; margin: 0 0 2px; } h2 { font-size: 1.05rem; margin: 0 0 10px; }
   .sub, .note { color: var(--muted); } .sub { margin: 0 0 12px; font-size: .9rem; } .note { font-size: .82rem; }
   .back { display: inline-block; color: var(--accent); text-decoration: none; font-size: .9rem; margin-bottom: 10px; }
+  .plhead { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer; text-align: left; }
+  .plhead .arr { font-size: 1.4rem; color: var(--muted); transition: transform .15s; } .plhead[aria-expanded="true"] .arr { transform: rotate(90deg); }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
   .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
   .tabs button { flex: 1; font: inherit; font-weight: 600; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; }
@@ -100,8 +102,9 @@
     </section>
 
     <section>
-      <h2>จัดการสถานที่</h2>
-      <p class="note" style="margin:-4px 0 8px">เพิ่มหรือลบแพล้นท์ / สถานีได้เอง · ลบได้เมื่อไม่มีอุปกรณ์ค้างอยู่ที่นั่น (ประวัติเดิมยังอยู่)</p>
+      <button type="button" class="plhead" id="plToggle" aria-expanded="false" aria-controls="plBody"><span>จัดการสถานที่</span><span class="arr" aria-hidden="true">›</span></button>
+      <div id="plBody" hidden>
+      <p class="note" style="margin:10px 0 8px">เพิ่มหรือลบแพล้นท์ / สถานีได้เอง · ลบได้เมื่อไม่มีอุปกรณ์ค้างอยู่ที่นั่น (ประวัติเดิมยังอยู่)</p>
       <div class="note" style="font-weight:600">แพล้นท์</div><div class="plc" id="plP"></div>
       <div class="note" style="font-weight:600;margin-top:8px">สถานี</div><div class="plc" id="plS"></div>
       <div class="note" style="font-weight:600;margin-top:8px">ยืมไป (นอกงานสายสีส้ม)</div><div class="plc" id="plL"></div>
@@ -110,6 +113,7 @@
         <label class="f">ชื่อ<input id="pName" placeholder="เช่น OR13 หรือ บางพลี" autocomplete="off" maxlength="40"></label>
       </div>
       <div class="row" style="margin-top:8px"><button class="btn" id="pAdd" type="button">+ เพิ่มสถานที่</button><span id="placeMsg" class="note"></span></div>
+      </div>
     </section>
 
     <section>
@@ -216,6 +220,7 @@
     $("plS").innerHTML = S.places.filter((p) => !/^[PLX]-/.test(p)).map(chip).join("") || '<span class="note">—</span>';
     $("plL").innerHTML = S.places.filter((p) => p.startsWith("L-")).map(chip).join("") || '<span class="note">—</span>';
   }
+  $("plToggle").addEventListener("click", () => { const open = $("plBody").hidden; $("plBody").hidden = !open; $("plToggle").setAttribute("aria-expanded", open); });
   $("pAdd").addEventListener("click", async () => {
     const name = $("pName").value.trim(); if (!name) { $("placeMsg").textContent = "ใส่ชื่อสถานที่"; return $("pName").focus(); }
     try {
