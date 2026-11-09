@@ -32,8 +32,8 @@
   input[type=date], input[type=time], input[type=password] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
   #nMsg { color: var(--bad); font-size: .9rem; margin-top: 8px; min-height: 1.2em; }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
-  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
   .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
   .kpi b { display: block; font-size: 1.7rem; line-height: 1.2; font-variant-numeric: tabular-nums; } .kpi span { font-size: .8rem; color: var(--muted); }
   .kpi.bad b { color: var(--bad); } .kpi.warn b { color: var(--warn); } .kpi.ok b { color: var(--ok); } .kpi.on { outline: 2px solid var(--accent); }
@@ -270,7 +270,7 @@
   // ---------- list ----------
   function renderCats() {
     $("cats").innerHTML = CATS.map(([t, name, ic, h]) => { const o = jobs.filter((j) => j.type === t && !isClosed(j)), st = o.filter((j) => j.urg === "stop").length;
-      return `<button class="cat" type="button" data-cat="${h}"><span class="ic">${ic}</span><span><b>${name}</b><small>${st ? `<span class="r">หยุดผลิต ${st}</span> · ` : ""}เกิน 7 วัน ${o.filter((j) => days(j) > 7).length}</small></span>
+      return `<button class="cat" type="button" data-cat="${h}"><span class="ic">${ic}</span><span><b>${name}</b><small>${st ? `<span class="r">หยุดผลิต ${st}</span>` : "ไม่มีงานหยุดผลิต"}</small></span>
         <span class="n"><b>${o.length}</b><small>ค้างอยู่</small></span></button>`; }).join("");
   }
   // #m / #l / #c in the address = inside a group, so the phone's back button returns to the three groups
@@ -293,12 +293,11 @@
     const open = mine.filter((j) => !isClosed(j)), m = new Date();
     const doneMonth = mine.filter((j) => j.status === "done" && new Date(j.doneAt).getMonth() === m.getMonth() && new Date(j.doneAt).getFullYear() === m.getFullYear());
     const K = [["all", open.length, "ค้างซ่อมทั้งหมด", ""], ["stop", open.filter((j) => j.urg === "stop").length, "หยุดผลิตอยู่", "bad"],
-      ["old", open.filter((j) => days(j) > 7).length, "ค้างเกิน 7 วัน", "warn"], ["done", doneMonth.length, "ปิดงานเดือนนี้", "ok"]];
+      ["done", doneMonth.length, "ปิดงานเดือนนี้", "ok"]];
     $("kpis").innerHTML = K.map(([k, n, t, c]) => `<button class="kpi ${c}${kpiFilter === k ? " on" : ""}" data-k="${k}"><b>${n}</b><span>${t}</span></button>`).join("");
     const P = $("fPlant").value;
     let list = mine.filter((j) => (view === "open" ? !isClosed(j) : j.status === view) && (!P || j.plant === P));
     if (kpiFilter === "stop") list = list.filter((j) => j.urg === "stop");
-    if (kpiFilter === "old") list = list.filter((j) => days(j) > 7);
     list.sort((a, b) => view !== "open" ? b.doneAt - a.doneAt : RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
     $("list").innerHTML = list.length ? list.map((j) => { const d = days(j), cls = isClosed(j) ? "" : d > 7 ? "bad" : d >= 3 ? "warn" : "";
       return `<div class="item" data-id="${esc(j.id)}"><div class="thumb"${j.photos.length ? ` style="background:center/cover url('${photoURL(j.photos[0])}')"` : ""}>${j.photos.length ? "" : catOf(j.type)[2]}</div>
