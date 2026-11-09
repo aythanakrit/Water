@@ -105,7 +105,7 @@
     box-shadow: 0 4px 20px rgba(0,0,0,.3); }
   .a4 .hd { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; gap: 8px; }
   .a4 .hd b { font-size: 18px; display: block; } .a4 .hd .r { text-align: right; font-size: 11px; color: #444; }
-  .a4 .sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .a4 .sum { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 12px; }
   .a4 .sum div { border: 1px solid #bbb; border-radius: 6px; padding: 5px 8px; } .a4 .sum b { display: block; font-size: 18px; }
   .a4 .sum .red b { color: #b42318; }
   .a4 h3 { font-size: 13px; margin: 14px 0 4px; padding: 3px 8px; background: #eef1f5; border-left: 4px solid #1f5fbf; }
@@ -534,10 +534,9 @@
     const per = groups.map(([t, name]) => [t, name, openOf(t)]);
     $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้าง — ${cat ? esc(groups[0][1]) : "สรุปทุกหมวด"}</b>${esc(P || "ทุกแพล้น")}</div>
         <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
-      <div class="sum"><div><b>${all.length}</b>ค้างทั้งหมด</div><div class="red"><b>${all.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
-        <div class="red"><b>${all.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div></div>
-      ${cat ? "" : `<table class="bycat"><thead><tr><th>หมวด</th><th>ค้าง</th><th>หยุดผลิต</th><th>เร่งด่วน</th><th>ประคอง</th><th>ค้างเกิน 7 วัน</th></tr></thead><tbody>
-        ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td><td class="n">${o.filter((j) => days(j) > 7).length}</td></tr>`).join("")}</tbody></table>`}
+      <div class="sum"><div><b>${all.length}</b>ค้างทั้งหมด</div><div class="red"><b>${all.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div></div>
+      ${cat ? "" : `<table class="bycat"><thead><tr><th>หมวด</th><th>ค้าง</th><th>หยุดผลิต</th><th>เร่งด่วน</th><th>ประคอง</th></tr></thead><tbody>
+        ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td></tr>`).join("")}</tbody></table>`}
       ${per.map(([t, name, o], i) => `<h3>${cat ? "" : i + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)</h3>${table(t, o)}`).join("")}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
