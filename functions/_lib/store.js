@@ -554,6 +554,14 @@ export async function bleedPhotoGet(bucket, req) {
 }
 export async function bleedPhotoDelete(bucket, req) { const key = bleedKey(req.testId, req.id); if (key) await bucket.delete(key); return { ok: true }; }
 
+/** Administrator: hide every repair job at once (rows and photos stay in storage, marked removed, so they can be recovered). */
+export async function repairClearAll(db, now = Date.now()) {
+  const n = (await db.prepare("SELECT COUNT(*) AS n FROM repairs WHERE removed IS NULL").first()).n;
+  await db.batch([db.prepare("UPDATE repairs SET removed = ?, updated = ? WHERE removed IS NULL").bind(now, now),
+    db.prepare("UPDATE repair_photos SET removed = ? WHERE removed IS NULL").bind(now)]);
+  return { ok: true, removed: n };
+}
+
 /** Add a plant ("P"), a station ("S") or a place equipment is lent to ("L"); a removed one with the same name comes back. */
 export async function railPlaceAdd(db, req) {
   const name = RAIL_NAME(req.name), kind = ["P", "S", "L"].includes(req.kind) ? req.kind : "";

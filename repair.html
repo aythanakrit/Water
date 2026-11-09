@@ -141,7 +141,9 @@
     <div id="impPrev" class="note" style="margin-top:6px"></div>
     <label>รหัสผู้ดูแล</label><input type="password" class="full" id="impAdm" autocomplete="off">
     <div class="btns"><button class="btn b" id="impGo" disabled>นำเข้า</button></div>
-    <div id="impMsg" class="note" style="margin-top:6px;white-space:pre-line"></div></details>
+    <div id="impMsg" class="note" style="margin-top:6px;white-space:pre-line"></div>
+    <div class="btns" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><button class="btn" id="clrGo" type="button" style="color:var(--bad)">🗑 ลบข้อมูลแจ้งซ่อมทั้งหมด</button></div>
+    <div id="clrMsg" class="note" style="margin-top:6px"></div></details>
 </main>
 
 <button class="fab" id="newBtn" type="button">+ แจ้งซ่อม</button>
@@ -418,6 +420,16 @@
     } catch (x) { $("impPrev").textContent = "อ่านไฟล์ไม่ได้ — ต้องเป็นไฟล์ .json ที่เตรียมไว้"; }
   });
   const b64Blob = (b) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type: "image/jpeg" }); };
+  $("clrGo").onclick = async () => {
+    const adm = $("impAdm").value.trim() || admGet(); if (!adm) { $("clrMsg").textContent = "ใส่รหัสผู้ดูแลในช่องด้านบนก่อน"; return $("impAdm").focus(); }
+    try { await api("reportAdminCheck", { adminKey: adm }); } catch (e) { $("clrMsg").textContent = "รหัสผู้ดูแลไม่ถูกต้อง"; return; }
+    if (!(await uiConfirm(`ลบงานแจ้งซ่อมทั้งหมด (ทั้งค้างซ่อมและเสร็จแล้ว ทุกเดือน) รวมรูป?\nหลังลบจะเริ่มลงใหม่ได้ทันที`, { ok: "ลบทั้งหมด", danger: true }))) return;
+    const t = await uiPrompt('พิมพ์คำว่า "ลบ" เพื่อยืนยัน'); if ((t || "").trim() !== "ลบ") { $("clrMsg").textContent = "ยกเลิกแล้ว"; return; }
+    admSet(adm); $("clrGo").disabled = true;
+    try { const r = await api("repairClearAll", { adminKey: adm }); $("clrMsg").textContent = `✓ ลบแล้ว ${r.removed} รายการ`; await load(); }
+    catch (e) { $("clrMsg").textContent = "ลบไม่ได้ — ลองใหม่"; }
+    $("clrGo").disabled = false;
+  };
   $("impGo").onclick = async () => {
     if (!impJobs || busy) return;
     const adm = $("impAdm").value.trim(); if (!adm) { $("impMsg").textContent = "ใส่รหัสผู้ดูแล"; return $("impAdm").focus(); }
