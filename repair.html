@@ -95,7 +95,7 @@
     box-shadow: 0 4px 20px rgba(0,0,0,.3); }
   .a4 .hd { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; gap: 8px; }
   .a4 .hd b { font-size: 18px; display: block; } .a4 .hd .r { text-align: right; font-size: 11px; color: #444; }
-  .a4 .sum { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+  .a4 .sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
   .a4 .sum div { border: 1px solid #bbb; border-radius: 6px; padding: 5px 8px; } .a4 .sum b { display: block; font-size: 18px; }
   .a4 .sum .red b { color: #b42318; }
   .a4 h3 { font-size: 13px; margin: 14px 0 4px; padding: 3px 8px; background: #eef1f5; border-left: 4px solid #1f5fbf; }
@@ -181,7 +181,6 @@
 <div id="rep" hidden>
   <div class="bar">
     <select id="rPlant"><option value="">ทุกแพล้น</option></select>
-    <select id="rMonth"></select>
     <button class="btn b" id="rPrint" type="button">🖨 พิมพ์ / บันทึก PDF</button>
     <button class="btn" id="rClose" type="button">ปิด</button>
   </div>
@@ -458,39 +457,27 @@
   // ---------- report (A4) ----------
   const MONTHS = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
   const dmy = (t) => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543) % 100}`; };
-  for (let i = 0; i < 12; i++) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); $("rMonth").add(new Option(`ปิดงานเดือน ${MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`, d.getFullYear() + "-" + d.getMonth())); }
   function renderReport() {
     syncFilter($("rPlant"), "ทุกแพล้น");
-    const P = $("rPlant").value, [y, m] = $("rMonth").value.split("-").map(Number);
+    const P = $("rPlant").value;
     const mine = jobs.filter((j) => !P || j.plant === P);
     const open = mine.filter((j) => !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
-    const done = mine.filter((j) => j.status === "done" && new Date(j.doneAt).getFullYear() === y && new Date(j.doneAt).getMonth() === m).sort((a, b) => a.doneAt - b.doneAt);
-    const rejected = mine.filter((j) => j.status === "rejected" && new Date(j.doneAt).getFullYear() === y && new Date(j.doneAt).getMonth() === m).sort((a, b) => a.doneAt - b.doneAt);
-    const avg = done.length ? (done.reduce((s, j) => s + days(j), 0) / done.length).toFixed(1) : "-";
     const last = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
     $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้างซ่อม เครื่องจักร / รถตัก</b>${esc(P || "ทุกแพล้น")}</div>
         <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
       <div class="sum"><div><b>${open.length}</b>ค้างซ่อม</div><div class="red"><b>${open.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
-        <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div><div><b>${done.length}</b>ปิดงานในเดือน</div><div><b>${avg}</b>วันซ่อมเฉลี่ย</div></div>
-      <h3>1. งานค้างซ่อม (${open.length} รายการ)</h3>
+        <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div></div>
+      <h3>งานค้างซ่อม (${open.length} รายการ)</h3>
       ${open.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
         ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td>
           <td>${esc(j.symptom)}</td><td class="c"><span class="ru ru-${j.urg}">${URG[j.urg][0]}</span></td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`}
-      <h3>2. งานที่ซ่อมเสร็จในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${done.length} รายการ · เฉลี่ย ${avg} วัน/งาน)</h3>
-      ${done.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th></tr></thead><tbody>
-        ${done.map((j, i) => `<tr><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td><td>${esc(j.symptom)}</td><td>${esc(last(j).replace(/^ปิดงาน( — )?/, ""))}</td>
-          <td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td><td class="n">${days(j)}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานที่ปิดในเดือนนี้</p>`}
-      <h3>3. งานไม่อนุมัติในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${rejected.length} รายการ)</h3>
-      ${rejected.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>เหตุผล</th><th>แจ้ง</th><th>ไม่อนุมัติ</th></tr></thead><tbody>
-        ${rejected.map((j) => `<tr><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td><td>${esc(j.symptom)}</td>
-          <td>${esc(last(j).replace(/^ไม่อนุมัติ( — )?/, ""))}</td><td class="c">${dmy(j.at)}</td><td class="c">${dmy(j.doneAt)}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานที่ไม่อนุมัติในเดือนนี้</p>`}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
   }
   $("repBtn").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("rClose").onclick = () => { $("rep").hidden = true; };
-  $("rPlant").onchange = $("rMonth").onchange = renderReport;
+  $("rPlant").onchange = renderReport;
   $("rPrint").onclick = () => window.print();
 
   // every device sees the same list: refresh every 15 s while the page is showing
