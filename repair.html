@@ -113,6 +113,7 @@
   .a4 th, .a4 td { border: 1px solid #bbb; padding: 3px 5px; vertical-align: top; text-align: left; }
   .a4 th { background: #f3f4f6; font-size: 11px; } .a4 td.n { text-align: right; white-space: nowrap; } .a4 td.c { text-align: center; white-space: nowrap; }
   .a4 tr.stop td { background: #fde4e1; }
+  .a4 table.bycat { width: auto; min-width: 60%; margin-bottom: 12px; } .a4 table.bycat td.n, .a4 table.bycat th { text-align: center; }
   .a4 .ru { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .a4 .ru-stop { background: #b42318; color: #fff; } .a4 .ru-soon { background: #f5b301; color: #1d2330; } .a4 .ru-wait { border: 1px solid #c5cad3; color: #1d2330; } .a4 .old { color: #b42318; font-weight: 700; }
   .a4 .tot td { font-weight: 700; background: #f3f4f6; }
@@ -137,7 +138,7 @@
   <a class="back" href="index.html">← หน้าหลัก</a>
   <div class="msg" id="msg" role="status"></div>
   <div id="home">
-    <div class="top"><h1>รายการค้างซ่อม</h1></div>
+    <div class="top"><h1>รายการค้างซ่อม</h1><button class="btn" id="homeRep" type="button">📄 รายงานสรุป</button></div>
     <p class="sub">เลือกหมวด · แจ้ง → ติดตาม → ปิดงาน · แนบรูปหรือเมมโม่ PDF ได้ · เห็นตรงกันทุกเครื่อง</p>
     <div class="cats" id="cats"></div>
   </div>
@@ -521,22 +522,27 @@
   const dmy = (t) => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543) % 100}`; };
   function renderReport() {
     syncFilter($("rPlant"), "ทุกแพล้น");
-    const P = $("rPlant").value;
-    const mine = jobs.filter((j) => j.type === cat && (!P || j.plant === P)), c = catOf(cat), loader = cat === "รถตัก";
-    const open = mine.filter((j) => !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
+    const P = $("rPlant").value, groups = cat ? [catOf(cat)] : CATS;
     const last = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
-    $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้าง — ${esc(c[1])}</b>${esc(P || "ทุกแพล้น")}</div>
-        <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
-      <div class="sum"><div><b>${open.length}</b>ค้างซ่อม</div><div class="red"><b>${open.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
-        <div class="red"><b>${open.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div></div>
-      <h3>งานค้างซ่อม (${open.length} รายการ)</h3>
-      ${open.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th>${loader ? "<th>รถ</th>" : ""}<th>${cat === "ก่อสร้าง" ? "รายละเอียดงาน" : "อาการ"}</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
-        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td>${loader ? `<td>${esc(j.machine)}</td>` : ""}
+    const openOf = (t) => jobs.filter((j) => j.type === t && (!P || j.plant === P) && !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
+    const all = groups.flatMap(([t]) => openOf(t));
+    const table = (t, open) => { const loader = t === "รถตัก";
+      return open.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th>${loader ? "<th>รถ</th>" : ""}<th>${t === "ก่อสร้าง" ? "รายละเอียดงาน" : "อาการ"}</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
+        ${open.map((j) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td>${loader ? `<td>${esc(j.machine)}</td>` : ""}
           <td>${esc(j.symptom)}</td><td class="c"><span class="ru ru-${j.urg}">${URG[j.urg][0]}</span></td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
-          <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`}
+          <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`; };
+    const per = groups.map(([t, name]) => [t, name, openOf(t)]);
+    $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้าง — ${cat ? esc(groups[0][1]) : "สรุปทุกหมวด"}</b>${esc(P || "ทุกแพล้น")}</div>
+        <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
+      <div class="sum"><div><b>${all.length}</b>ค้างทั้งหมด</div><div class="red"><b>${all.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div>
+        <div class="red"><b>${all.filter((j) => days(j) > 7).length}</b>ค้างเกิน 7 วัน</div></div>
+      ${cat ? "" : `<table class="bycat"><thead><tr><th>หมวด</th><th>ค้าง</th><th>หยุดผลิต</th><th>เร่งด่วน</th><th>ประคอง</th><th>ค้างเกิน 7 วัน</th></tr></thead><tbody>
+        ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td><td class="n">${o.filter((j) => days(j) > 7).length}</td></tr>`).join("")}</tbody></table>`}
+      ${per.map(([t, name, o], i) => `<h3>${cat ? "" : i + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)</h3>${table(t, o)}`).join("")}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
   }
+  $("homeRep").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("repBtn").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("rClose").onclick = () => { $("rep").hidden = true; };
   $("rPlant").onchange = renderReport;
