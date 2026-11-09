@@ -456,7 +456,7 @@ export async function repairUpdate(db, req, now = Date.now()) {
   if (CLOSED(r)) return req.docNo != null ? { ok: true } : { ok: false, error: "closed" };
   const status = REPAIR_STATUS.includes(req.status) ? req.status : r.status, note = txt(req.note, 300);
   const urg = REPAIR_URG.includes(req.urg) ? req.urg : r.urg;
-  const NAMES = { new: "แจ้งแล้ว", fix: "กำลังซ่อม", part: "รออะไหล่" }, U = { stop: "หยุดผลิต", soon: "ใช้ได้ แต่ต้องซ่อม", wait: "รอได้" };
+  const NAMES = { new: "แจ้งแล้ว", fix: "กำลังซ่อม", part: "รออะไหล่" }, U = { stop: "หยุดผลิต", soon: "เร่งด่วน", wait: "ประคอง" };
   const parts = [];
   if (status !== r.status) parts.push("สถานะ: " + NAMES[status]);
   if (urg !== r.urg) parts.push("ความเร่งด่วน: " + U[urg]);

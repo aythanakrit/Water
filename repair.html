@@ -51,7 +51,7 @@
   .chip { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: .78rem; font-weight: 600; margin-right: 4px; }
   .s-new { background: var(--info-bg); color: var(--accent); } .s-fix { background: var(--warn-bg); color: var(--warn); } .s-part { background: var(--bad-bg); color: var(--bad); } .s-done { background: var(--ok-bg); color: var(--ok); }
   .s-rej { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
-  .u-stop { background: var(--bad); color: #fff; } .u-soon { background: var(--warn-bg); color: var(--warn); } .u-wait { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .u-stop { background: var(--bad); color: #fff; } .u-soon { background: #f5b301; color: #1d2330; } .u-wait { background: transparent; color: var(--muted); border: 1px solid var(--line); }
   .empty { color: var(--muted); padding: 18px 0; text-align: center; }
   .fab { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); font: inherit; font-size: 1.05rem; font-weight: 600;
     border: 0; border-radius: 999px; padding: 14px 22px; background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.25); cursor: pointer; }
@@ -67,6 +67,9 @@
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .pick { display: flex; gap: 6px; flex-wrap: wrap; } .pick button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
   .pick button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .pick.u button[data-v="stop"].on { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .pick.u button[data-v="soon"].on { background: #f5b301; border-color: #f5b301; color: #1d2330; }
+  .pick.u button[data-v="wait"].on { background: var(--card); border: 2px solid var(--text); color: var(--text); }
   .pick.st button[data-v="done"] { color: var(--ok); } .pick.st button[data-v="done"].on { background: var(--ok); border-color: var(--ok); color: #fff; }
   .pick.st button[data-v="rejected"] { color: var(--muted); } .pick.st button[data-v="rejected"].on { background: var(--muted); border-color: var(--muted); color: #fff; } .pick.u button.on[data-v="stop"] { background: var(--bad); border-color: var(--bad); }
   .photos { display: flex; gap: 8px; flex-wrap: wrap; } .photos .ph { width: 76px; height: 76px; border-radius: 10px; background: var(--info-bg) center/cover; display: grid; place-items: center; font-size: 1.6rem; }
@@ -160,7 +163,7 @@
   <datalist id="machines"></datalist>
   <label>อาการ</label><textarea id="nSymptom" placeholder="เช่น สกรูลำเลียงปูนเสียงดัง ลูกปืนร้อน"></textarea>
   <label>ความเร่งด่วน</label>
-  <div class="pick u" id="nUrg"><button data-v="stop">🛑 หยุดผลิต</button><button data-v="soon" class="on">ใช้ได้ แต่ต้องซ่อม</button><button data-v="wait">รอได้</button></div>
+  <div class="pick u" id="nUrg"><button data-v="stop">🛑 หยุดผลิต</button><button data-v="soon" class="on">เร่งด่วน</button><button data-v="wait">ประคอง</button></div>
   <label>รูป (ถ่าย/แนบ)</label>
   <div class="photos" id="nPhotos"></div>
   <input type="file" id="nFile" accept="image/*" multiple hidden>
@@ -198,7 +201,7 @@
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a"; // same code as deleting a field report
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
   const STATUS = { new: ["แจ้งแล้ว", "s-new"], fix: ["กำลังซ่อม", "s-fix"], part: ["รออะไหล่", "s-part"], done: ["ซ่อมเสร็จ", "s-done"], rejected: ["ไม่อนุมัติ", "s-rej"] };
-  const URG = { stop: ["หยุดผลิต", "u-stop"], soon: ["ต้องซ่อม", "u-soon"], wait: ["รอได้", "u-wait"] };
+  const URG = { stop: ["หยุดผลิต", "u-stop"], soon: ["เร่งด่วน", "u-soon"], wait: ["ประคอง", "u-wait"] };
   const RANK = { stop: 0, soon: 1, wait: 2 };
   const PLANTS = [...((window.FieldReport && FieldReport.PLANTS) || [])].sort((a, b) => a[0].localeCompare(b[0])).map(([c, n]) => `P${c} ${n}`);
   const isLoader = (j) => j.type === "รถตัก";
@@ -333,7 +336,7 @@
       <div class="pick st" id="uSt">${["new", "fix", "part", "done", "rejected"].map((k) => `<button data-v="${k}" class="${j.status === k ? "on" : ""}">${k === "done" ? "✓ ซ่อมเสร็จ" : k === "rejected" ? "✕ ไม่อนุมัติ" : STATUS[k][0]}</button>`).join("")}</div>
       <div id="uOpen">
         <label>ความเร่งด่วน</label>
-        <div class="pick u" id="uUrg">${["stop", "soon", "wait"].map((k) => `<button data-v="${k}" class="${j.urg === k ? "on" : ""}">${k === "stop" ? "🛑 หยุดผลิต" : k === "soon" ? "ใช้ได้ แต่ต้องซ่อม" : "รอได้"}</button>`).join("")}</div>
+        <div class="pick u" id="uUrg">${["stop", "soon", "wait"].map((k) => `<button data-v="${k}" class="${j.urg === k ? "on" : ""}">${k === "stop" ? "🛑 หยุดผลิต" : k === "soon" ? "เร่งด่วน" : "ประคอง"}</button>`).join("")}</div>
         <label>บันทึก (ถ้ามี)</label><input type="text" class="full" id="uNote" placeholder="เช่น สั่งอะไหล่แล้ว คาดว่าได้ศุกร์"></div>
       <div id="uClose" hidden>
         <div id="uByBox"><label>ผู้ซ่อม</label><input type="text" class="full" id="cBy" placeholder="ช่างในบริษัท / ร้าน…"></div>
