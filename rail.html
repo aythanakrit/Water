@@ -44,6 +44,9 @@
   .doc { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .doc .t { flex: 1; min-width: 180px; } .doc .t b { display: block; } [hidden] { display: none !important; }
   .log td { font-size: .85rem; }
+  .plc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .plc span { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 12px; background: var(--card); }
+  .plc button { border: 0; background: none; color: var(--bad, #b42318); font-size: 1.1rem; cursor: pointer; padding: 0 8px; min-height: 36px; min-width: 36px; border-radius: 999px; }
 </style>
 <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#14171c" media="(prefers-color-scheme: dark)">
@@ -94,6 +97,18 @@
         <label class="f">นับได้จริง (ชิ้น/คัน)<input id="cCount" type="number" inputmode="numeric" min="0" step="1"></label>
       </div>
       <div class="row" style="margin-top:8px"><button class="btn" id="cGo" type="button">บันทึกยอด</button><span id="countMsg" class="note"></span></div>
+    </section>
+
+    <section>
+      <h2>จัดการสถานที่</h2>
+      <p class="note" style="margin:-4px 0 8px">เพิ่มหรือลบแพล้นท์ / สถานีได้เอง · ลบได้เมื่อไม่มีอุปกรณ์ค้างอยู่ที่นั่น (ประวัติเดิมยังอยู่)</p>
+      <div class="note" style="font-weight:600">แพล้นท์</div><div class="plc" id="plP"></div>
+      <div class="note" style="font-weight:600;margin-top:8px">สถานี</div><div class="plc" id="plS"></div>
+      <div class="grid" style="margin-top:10px">
+        <label class="f">ประเภท<select id="pKind"><option value="S">สถานี</option><option value="P">แพล้นท์</option></select></label>
+        <label class="f">ชื่อ<input id="pName" placeholder="เช่น OR13 หรือ บางพลี" autocomplete="off" maxlength="40"></label>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="pAdd" type="button">+ เพิ่มสถานที่</button><span id="placeMsg" class="note"></span></div>
     </section>
 
     <section>
@@ -178,7 +193,7 @@
     if ($("mFrom").value === $("mTo").value) $("mTo").value = S.places.find((p) => p !== $("mFrom").value);
     $("log").innerHTML = S.log.length ? S.log.map((m) => `<tr><td>${esc(when(m.at))}</td><td>${esc(itemName(m.item))} <b>${m.qty}</b> · ${esc(moveText(m))}${m.note ? ` <span class="note">(${esc(m.note)})</span>` : ""}${thumbs(m)}</td></tr>`).join("")
       : `<tr><td class="note">ยังไม่มีประวัติ — เริ่มจาก "ตั้งยอด / ตรวจนับ"</td></tr>`;
-    preview();
+    preview(); renderPlaces();
   }
   // what the move will do: place A x → y, place B x → y
   function preview() {
@@ -193,6 +208,31 @@
       : `${placeName(f)}: ${a} → ${a - q} · ${placeName(t)}: ${b} → ${b + q}`;
   }
   ["mItem", "mFrom", "mTo", "mQty"].forEach((id) => { $(id).addEventListener("input", preview); $(id).addEventListener("change", preview); });
+  function renderPlaces() {
+    if (!S) return;
+    const chip = (p) => `<span>${esc(p.startsWith("P-") ? p.slice(2) : p)}<button type="button" data-rmplace="${esc(p)}" title="ลบ" aria-label="ลบ ${esc(placeName(p))}">×</button></span>`;
+    $("plP").innerHTML = S.places.filter((p) => p.startsWith("P-")).map(chip).join("") || '<span class="note">—</span>';
+    $("plS").innerHTML = S.places.filter((p) => !p.startsWith("P-") && !p.startsWith("X-")).map(chip).join("") || '<span class="note">—</span>';
+  }
+  $("pAdd").addEventListener("click", async () => {
+    const name = $("pName").value.trim(); if (!name) { $("placeMsg").textContent = "ใส่ชื่อสถานที่"; return $("pName").focus(); }
+    try {
+      const r = await api("railPlaceAdd", { kind: $("pKind").value, name });
+      if (r.ok) { S = r; renderStock(); $("pName").value = ""; $("placeMsg").textContent = `✓ เพิ่ม${$("pKind").value === "P" ? "แพล้นท์" : "สถานี"} ${name} แล้ว`; }
+      else $("placeMsg").textContent = r.error === "exists" ? "มีชื่อนี้อยู่แล้ว" : "ชื่อไม่ถูกต้อง (ห้ามขึ้นต้นด้วย P- หรือ X-)";
+    } catch (e) { $("placeMsg").textContent = "ออฟไลน์ — ยังไม่ได้เพิ่ม"; }
+  });
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-rmplace]"); if (!b) return;
+    const code = b.dataset.rmplace;
+    if (!(await uiConfirm(`ลบ${placeName(code)} ออกจากรายการ?`, { ok: "ลบ", danger: true }))) return;
+    try {
+      const r = await api("railPlaceRemove", { code });
+      if (r.ok) { S = r; renderStock(); $("placeMsg").textContent = `✓ ลบ${placeName(code)} แล้ว`; }
+      else if (r.error === "not_empty") uiAlert(`ยังลบไม่ได้ — ${placeName(code)} ยังมีอุปกรณ์อยู่: ${Object.entries(r.have).filter(([, n]) => n).map(([i, n]) => `${itemName(i)} ${n}`).join(", ")}\nย้ายออกหรือตั้งยอดเป็น 0 ก่อน`);
+      else uiAlert("ลบไม่ได้");
+    } catch (x) { $("placeMsg").textContent = "ออฟไลน์ — ยังไม่ได้ลบ"; }
+  });
   async function loadStock() { try { const r = await api("railStock"); if (r.ok) { S = r; renderStock(); $("offline").hidden = true; } } catch (e) { $("offline").hidden = false; } }
   $("mGo").addEventListener("click", async () => {
     const body = { item: $("mItem").value, qty: $("mQty").value, from: $("mFrom").value, to: $("mTo").value, note: $("mNote").value, dev: DEV };

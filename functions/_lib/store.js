@@ -319,13 +319,33 @@ export async function scanClear(db, list, now = Date.now()) {
 // ---------- rail project (สายสีส้ม): equipment at plants and stations, and a shared PDF library ----------
 // Stock is never stored: it is the sum of moves (in to a place, out of a place), so every change has a record.
 // X- places hold what is out of use: damaged (can come back after repair) and lost
-export const RAIL_PLACES = ["P-คลองตัน", "P-เพชรพระราม", "OR07", "OR08", "OR09", "OR10", "OR11", "OR12", "X-ชำรุด", "X-สูญหาย"];
+// Places are kept in rail_places (plants "P-<name>", stations "<name>"); "X-" places (damaged / lost) are fixed.
+// The first look fills the list with the places the card started with.
+const RAIL_START = [["P-คลองตัน", "P"], ["P-เพชรพระราม", "P"], ...["OR07", "OR08", "OR09", "OR10", "OR11", "OR12"].map((x) => [x, "S"])];
+export const RAIL_OUT = ["X-ชำรุด", "X-สูญหาย"];
+async function railPlaceRows(db) {
+  await db.prepare("CREATE TABLE IF NOT EXISTS rail_places (code TEXT PRIMARY KEY, kind TEXT NOT NULL, created INTEGER, removed INTEGER)").run();
+  let { results } = await db.prepare("SELECT code, kind, removed FROM rail_places ORDER BY created, code").all();
+  if (!results.length) {
+    const t = Date.now();
+    await db.batch(RAIL_START.map(([c, k], i) => db.prepare("INSERT OR IGNORE INTO rail_places (code, kind, created) VALUES (?,?,?)").bind(c, k, t + i)));
+    results = RAIL_START.map(([code, kind]) => ({ code, kind, removed: null }));
+  }
+  return results;
+}
+async function railPlaces(db) {
+  const rows = (await railPlaceRows(db)).filter((r) => !r.removed);
+  const byName = (a, b) => a.code.localeCompare(b.code, "th", { numeric: true });
+  return [...rows.filter((r) => r.kind === "P"), ...rows.filter((r) => r.kind === "S").sort(byName)].map((r) => r.code).concat(RAIL_OUT);
+}
+const RAIL_NAME = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 40);
 export const RAIL_ITEMS = ["โมลคิว", "รถเข็น"];
-async function railBalances(db) {
+async function railBalances(db, places) {
+  places = places || (await railPlaces(db));
   const { results } = await db.prepare(`SELECT to_loc AS loc, item, SUM(qty) AS n FROM rail_moves WHERE to_loc != '' GROUP BY to_loc, item
     UNION ALL SELECT from_loc AS loc, item, -SUM(qty) AS n FROM rail_moves WHERE from_loc != '' GROUP BY from_loc, item`).all();
   const bal = {};
-  RAIL_PLACES.forEach((p) => { bal[p] = {}; RAIL_ITEMS.forEach((i) => { bal[p][i] = 0; }); });
+  places.forEach((p) => { bal[p] = {}; RAIL_ITEMS.forEach((i) => { bal[p][i] = 0; }); });
   results.forEach((r) => { if (bal[r.loc] && r.item in bal[r.loc]) bal[r.loc][r.item] += Number(r.n) || 0; });
   return bal;
 }
@@ -341,13 +361,15 @@ async function withPhotos(db, moves) {
 }
 export async function railStock(db) {
   const { results } = await db.prepare("SELECT * FROM rail_moves ORDER BY at DESC LIMIT 10").all();
-  return { ok: true, places: RAIL_PLACES, items: RAIL_ITEMS, stock: await railBalances(db), log: await withPhotos(db, results) };
+  const places = await railPlaces(db);
+  return { ok: true, places, items: RAIL_ITEMS, stock: await railBalances(db, places), log: await withPhotos(db, results) };
 }
 /** History between two days (yyyy-mm-dd, Thai time), optionally one place / one item. */
 export async function railHistory(db, req) {
   const day = (s, end) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); return m ? Date.UTC(+m[1], m[2] - 1, +m[3] + (end ? 1 : 0)) - 7 * 3600e3 : null; };
   const from = day(req.from) ?? 0, to = day(req.to, true) ?? 9e15;
-  const place = RAIL_PLACES.includes(req.place) ? req.place : "", item = RAIL_ITEMS.includes(req.item) ? req.item : "";
+  const all = (await railPlaceRows(db)).map((r) => r.code).concat(RAIL_OUT);
+  const place = all.includes(req.place) ? req.place : "", item = RAIL_ITEMS.includes(req.item) ? req.item : "";
   const { results } = await db.prepare(`SELECT * FROM rail_moves WHERE at >= ? AND at < ? AND (? = '' OR from_loc = ? OR to_loc = ?) AND (? = '' OR item = ?)
     ORDER BY at DESC LIMIT 1000`).bind(from, to, place, place, place, item, item).all();
   return { ok: true, moves: await withPhotos(db, results) };
@@ -355,9 +377,10 @@ export async function railHistory(db, req) {
 /** Move qty of an item from one place to another (never below 0 at the place it leaves). */
 export async function railMove(db, req, now = Date.now()) {
   const { item, from, to } = req, qty = Math.round(Number(req.qty));
-  if (!RAIL_ITEMS.includes(item) || !RAIL_PLACES.includes(from) || !RAIL_PLACES.includes(to) || from === to || !(qty >= 1 && qty <= 999))
+  const places = await railPlaces(db);
+  if (!RAIL_ITEMS.includes(item) || !places.includes(from) || !places.includes(to) || from === to || !(qty >= 1 && qty <= 999))
     return { ok: false, error: "bad_request" };
-  const bal = await railBalances(db);
+  const bal = await railBalances(db, places);
   if (bal[from][item] < qty) return { ok: false, error: "not_enough", have: bal[from][item] };
   const id = crypto.randomUUID();
   await db.prepare("INSERT INTO rail_moves (id, at, item, from_loc, to_loc, qty, kind, note, dev) VALUES (?,?,?,?,?,?,'move',?,?)")
@@ -367,7 +390,7 @@ export async function railMove(db, req, now = Date.now()) {
 /** Count at a place (first stock, a count after checking): stored as the difference, so the record stays. */
 export async function railSet(db, req, now = Date.now()) {
   const { item, place } = req, count = Math.round(Number(req.count));
-  if (!RAIL_ITEMS.includes(item) || !RAIL_PLACES.includes(place) || !(count >= 0 && count <= 9999)) return { ok: false, error: "bad_request" };
+  if (!RAIL_ITEMS.includes(item) || !(await railPlaces(db)).includes(place) || !(count >= 0 && count <= 9999)) return { ok: false, error: "bad_request" };
   const diff = count - (await railBalances(db))[place][item];
   if (diff) await db.prepare("INSERT INTO rail_moves (id, at, item, from_loc, to_loc, qty, kind, note, dev) VALUES (?,?,?,?,?,?,'count',?,?)")
     .bind(crypto.randomUUID(), now, item, diff < 0 ? place : "", diff > 0 ? place : "", Math.abs(diff), String(req.note || "").slice(0, 200), String(req.dev || "").slice(0, 40)).run();
@@ -527,3 +550,26 @@ export async function bleedPhotoGet(bucket, req) {
   return obj ? { ok: true, data: bytesToB64(await obj.arrayBuffer()) } : { ok: false, error: "not_found" };
 }
 export async function bleedPhotoDelete(bucket, req) { const key = bleedKey(req.testId, req.id); if (key) await bucket.delete(key); return { ok: true }; }
+
+/** Add a plant ("P") or a station ("S"); a removed one with the same name comes back. */
+export async function railPlaceAdd(db, req) {
+  const name = RAIL_NAME(req.name), kind = req.kind === "P" ? "P" : req.kind === "S" ? "S" : "";
+  if (!name || !kind || /^(P-|X-)/i.test(name)) return { ok: false, error: "bad_name" };
+  const code = kind === "P" ? "P-" + name : name;
+  const rows = await railPlaceRows(db), had = rows.find((r) => r.code === code);
+  if (had && !had.removed) return { ok: false, error: "exists" };
+  if (had) await db.prepare("UPDATE rail_places SET removed = NULL, kind = ? WHERE code = ?").bind(kind, code).run();
+  else await db.prepare("INSERT INTO rail_places (code, kind, created) VALUES (?,?,?)").bind(code, kind, Date.now()).run();
+  return railStock(db);
+}
+/** Remove a place: only when nothing is there (its history stays). */
+export async function railPlaceRemove(db, req, now = Date.now()) {
+  const code = String(req.code || "");
+  if (RAIL_OUT.includes(code)) return { ok: false, error: "fixed" };
+  const places = await railPlaces(db);
+  if (!places.includes(code)) return { ok: false, error: "not_found" };
+  const bal = (await railBalances(db, places))[code];
+  if (Object.values(bal).some((n) => n !== 0)) return { ok: false, error: "not_empty", have: bal };
+  await db.prepare("UPDATE rail_places SET removed = ? WHERE code = ?").bind(now, code).run();
+  return railStock(db);
+}
