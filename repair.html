@@ -102,7 +102,9 @@
   .a4 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   .a4 th, .a4 td { border: 1px solid #bbb; padding: 3px 5px; vertical-align: top; text-align: left; }
   .a4 th { background: #f3f4f6; font-size: 11px; } .a4 td.n { text-align: right; white-space: nowrap; } .a4 td.c { text-align: center; white-space: nowrap; }
-  .a4 tr.stop td { background: #fde4e1; } .a4 .old { color: #b42318; font-weight: 700; }
+  .a4 tr.stop td { background: #fde4e1; }
+  .a4 .ru { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .a4 .ru-stop { background: #b42318; color: #fff; } .a4 .ru-soon { background: #f5b301; color: #1d2330; } .a4 .ru-wait { border: 1px solid #c5cad3; color: #1d2330; } .a4 .old { color: #b42318; font-weight: 700; }
   .a4 .tot td { font-weight: 700; background: #f3f4f6; }
   .a4 .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 28px; text-align: center; font-size: 11px; }
   .a4 .sign div { border-top: 1px dotted #555; padding-top: 4px; margin-top: 30px; }
@@ -473,7 +475,7 @@
       <h3>1. งานค้างซ่อม (${open.length} รายการ)</h3>
       ${open.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
         ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${esc(j.docNo) || "-"}</td><td>${esc(j.plant)}</td><td>${isLoader(j) ? esc(j.machine) : "เครื่องจักร"}</td>
-          <td>${esc(j.symptom)}</td><td class="c">${URG[j.urg][0]}</td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
+          <td>${esc(j.symptom)}</td><td class="c"><span class="ru ru-${j.urg}">${URG[j.urg][0]}</span></td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`}
       <h3>2. งานที่ซ่อมเสร็จในเดือน${esc($("rMonth").selectedOptions[0].text.replace("ปิดงานเดือน", ""))} (${done.length} รายการ · เฉลี่ย ${avg} วัน/งาน)</h3>
       ${done.length ? `<table><thead><tr><th>เลขที่เอกสาร</th><th>แพล้น</th><th>เครื่อง / รถ</th><th>อาการ</th><th>สิ่งที่ทำ</th><th>แจ้ง</th><th>เสร็จ</th><th>ใช้เวลา (วัน)</th></tr></thead><tbody>
