@@ -94,6 +94,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "repairUpdate": return json(await S.repairUpdate(db, req));
       case "repairClose": return json(await S.repairClose(db, req, admin));
       case "repairDelete": return json(await S.repairDelete(db, bucket, req.id));
+      case "repairExport": return json(admin ? await S.repairExport(db) : { ok: false, error: "not_admin" });
       case "repairClearAll": return json(admin ? await S.repairClearAll(db) : { ok: false, error: "not_admin" });
       case "repairImport": return json(admin ? await S.repairImport(db, req.job) : { ok: false, error: "not_admin" });
       // ---- Bleeding test ----

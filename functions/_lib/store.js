@@ -566,6 +566,15 @@ export async function bleedPhotoGet(bucket, req) {
 }
 export async function bleedPhotoDelete(bucket, req) { const key = bleedKey(req.testId, req.id); if (key) await bucket.delete(key); return { ok: true }; }
 
+/** Administrator: every repair job (open and closed, all groups) in the same shape the import takes, so the file can be loaded back. */
+export async function repairExport(db, now = Date.now()) {
+  const { results } = await db.prepare("SELECT * FROM repairs WHERE removed IS NULL ORDER BY at").all();
+  const jobs = results.map((r) => { const log = parse(r.log, []), last = log.length ? String(log[log.length - 1][1]) : "";
+    return { docNo: r.doc_no || "", plant: r.plant, type: r.type, machine: r.machine || "", symptom: r.symptom, urg: r.urg, status: r.status,
+      at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, closeText: /^(ปิดงาน|ไม่อนุมัติ) — /.test(last) ? last.replace(/^(ปิดงาน|ไม่อนุมัติ) — /, "") : "", log }; });
+  return { ok: true, at: now, jobs };
+}
+
 /** Administrator: hide every repair job at once (rows and photos stay in storage, marked removed, so they can be recovered). */
 export async function repairClearAll(db, now = Date.now()) {
   const n = (await db.prepare("SELECT COUNT(*) AS n FROM repairs WHERE removed IS NULL").first()).n;

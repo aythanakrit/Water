@@ -156,13 +156,15 @@
   </section>
   <p class="note">เรียงงานหยุดผลิตก่อน แล้วตามจำนวนวันที่ค้าง · สีแดง = ค้างเกิน 7 วัน · สีส้ม = 3–7 วัน</p>
   </div>
-  <details class="adm" id="impBox" style="margin-bottom:80px"><summary>📥 นำเข้าข้อมูลจากไฟล์ (ผู้ดูแล)</summary>
+  <details class="adm" id="impBox" style="margin-bottom:80px"><summary>📥 นำเข้า / 📤 ส่งออกข้อมูล (ผู้ดูแล)</summary>
     <p class="note" style="margin:6px 0">ไฟล์ .json ที่เตรียมให้ · งานที่มีเลขที่เอกสารอยู่ในระบบแล้วจะข้าม (นำเข้าซ้ำได้ไม่ซ้อน)</p>
     <input type="file" id="impFile" accept=".json,application/json">
     <div id="impPrev" class="note" style="margin-top:6px"></div>
     <label>รหัสผู้ดูแล</label><input type="password" class="full" id="impAdm" autocomplete="off">
     <div class="btns"><button class="btn b" id="impGo" disabled>นำเข้า</button></div>
     <div id="impMsg" class="note" style="margin-top:6px;white-space:pre-line"></div>
+    <div class="btns" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><button class="btn" id="expGo" type="button">📤 ส่งออกข้อมูลทั้งหมด (.json)</button></div>
+    <div id="expMsg" class="note" style="margin-top:6px">ทุกงานทุกหมวด ทั้งค้างและปิดแล้ว · ไม่รวมรูป/PDF · นำไฟล์นี้กลับเข้าระบบได้ (งานที่มีเลขที่อยู่แล้วจะข้าม)</div>
     <div class="btns" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><button class="btn" id="clrGo" type="button" style="color:var(--bad)">🗑 ลบข้อมูลแจ้งซ่อมทั้งหมด</button></div>
     <div id="clrMsg" class="note" style="margin-top:6px"></div></details>
 </main>
@@ -471,6 +473,19 @@
     } catch (x) { $("impPrev").textContent = "อ่านไฟล์ไม่ได้ — ต้องเป็นไฟล์ .json ที่เตรียมไว้"; }
   });
   const b64Blob = (b) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type: "image/jpeg" }); };
+  $("expGo").onclick = async () => {
+    const adm = $("impAdm").value.trim() || admGet(); if (!adm) { $("expMsg").textContent = "ใส่รหัสผู้ดูแลในช่องด้านบนก่อน"; return $("impAdm").focus(); }
+    $("expGo").disabled = true; $("expMsg").textContent = "กำลังดึงข้อมูล…";
+    try {
+      const x = await api("repairExport", { adminKey: adm }); admSet(adm);
+      const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const c = {}; x.jobs.forEach((j) => (c[j.type] = (c[j.type] || 0) + 1));
+      const blob = new Blob([JSON.stringify({ source: `ส่งออก ${stamp} (${x.jobs.length} รายการ)`, exported: x.at, jobs: x.jobs }, null, 1)], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `repair-backup-${stamp}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      $("expMsg").textContent = `✓ ส่งออก ${x.jobs.length} รายการ — ` + CATS.map(([t, n]) => `${n} ${c[t] || 0}`).join(" · ");
+    } catch (e) { $("expMsg").textContent = e.message === "not_admin" ? "รหัสผู้ดูแลไม่ถูกต้อง" : "ส่งออกไม่ได้ — ลองใหม่"; }
+    $("expGo").disabled = false;
+  };
   $("clrGo").onclick = async () => {
     const adm = $("impAdm").value.trim() || admGet(); if (!adm) { $("clrMsg").textContent = "ใส่รหัสผู้ดูแลในช่องด้านบนก่อน"; return $("impAdm").focus(); }
     try { await api("reportAdminCheck", { adminKey: adm }); } catch (e) { $("clrMsg").textContent = "รหัสผู้ดูแลไม่ถูกต้อง"; return; }
