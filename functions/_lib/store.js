@@ -319,24 +319,27 @@ export async function scanClear(db, list, now = Date.now()) {
 // ---------- rail project (สายสีส้ม): equipment at plants and stations, and a shared PDF library ----------
 // Stock is never stored: it is the sum of moves (in to a place, out of a place), so every change has a record.
 // X- places hold what is out of use: damaged (can come back after repair) and lost
-// Places are kept in rail_places (plants "P-<name>", stations "<name>"); "X-" places (damaged / lost) are fixed.
-// The first look fills the list with the places the card started with.
-const RAIL_START = [["P-คลองตัน", "P"], ["P-เพชรพระราม", "P"], ...["OR07", "OR08", "OR09", "OR10", "OR11", "OR12"].map((x) => [x, "S"])];
+// Places are kept in rail_places (plants "P-<name>", stations "<name>", lent out "L-<name>"); "X-" places (damaged / lost) are fixed.
+// Any place below that was never in the table is added once (a place removed later stays removed).
+const RAIL_START = [["P-คลองตัน", "P"], ["P-เพชรพระราม", "P"],
+  ...["OR07", "OR08", "OR09", "OR10", "OR11", "OR12", "IVS03", "IVS04", "IVS05", "IVS07A", "Retrivel Shaft", "DEPO"].map((x) => [x, "S"]),
+  ["L-ราชพฤกษ์ สิรินธร", "L"]];
 export const RAIL_OUT = ["X-ชำรุด", "X-สูญหาย"];
 async function railPlaceRows(db) {
   await db.prepare("CREATE TABLE IF NOT EXISTS rail_places (code TEXT PRIMARY KEY, kind TEXT NOT NULL, created INTEGER, removed INTEGER)").run();
   let { results } = await db.prepare("SELECT code, kind, removed FROM rail_places ORDER BY created, code").all();
-  if (!results.length) {
+  const have = new Set(results.map((r) => r.code)), missing = RAIL_START.filter(([c]) => !have.has(c));
+  if (missing.length) {
     const t = Date.now();
-    await db.batch(RAIL_START.map(([c, k], i) => db.prepare("INSERT OR IGNORE INTO rail_places (code, kind, created) VALUES (?,?,?)").bind(c, k, t + i)));
-    results = RAIL_START.map(([code, kind]) => ({ code, kind, removed: null }));
+    await db.batch(missing.map(([c, k], i) => db.prepare("INSERT OR IGNORE INTO rail_places (code, kind, created) VALUES (?,?,?)").bind(c, k, t + i)));
+    results = results.concat(missing.map(([code, kind]) => ({ code, kind, removed: null })));
   }
   return results;
 }
 async function railPlaces(db) {
   const rows = (await railPlaceRows(db)).filter((r) => !r.removed);
   const byName = (a, b) => a.code.localeCompare(b.code, "th", { numeric: true });
-  return [...rows.filter((r) => r.kind === "P"), ...rows.filter((r) => r.kind === "S").sort(byName)].map((r) => r.code).concat(RAIL_OUT);
+  return [...rows.filter((r) => r.kind === "P"), ...rows.filter((r) => r.kind === "S").sort(byName), ...rows.filter((r) => r.kind === "L").sort(byName)].map((r) => r.code).concat(RAIL_OUT);
 }
 const RAIL_NAME = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 40);
 export const RAIL_ITEMS = ["โมลคิว", "รถเข็น"];
@@ -551,11 +554,11 @@ export async function bleedPhotoGet(bucket, req) {
 }
 export async function bleedPhotoDelete(bucket, req) { const key = bleedKey(req.testId, req.id); if (key) await bucket.delete(key); return { ok: true }; }
 
-/** Add a plant ("P") or a station ("S"); a removed one with the same name comes back. */
+/** Add a plant ("P"), a station ("S") or a place equipment is lent to ("L"); a removed one with the same name comes back. */
 export async function railPlaceAdd(db, req) {
-  const name = RAIL_NAME(req.name), kind = req.kind === "P" ? "P" : req.kind === "S" ? "S" : "";
-  if (!name || !kind || /^(P-|X-)/i.test(name)) return { ok: false, error: "bad_name" };
-  const code = kind === "P" ? "P-" + name : name;
+  const name = RAIL_NAME(req.name), kind = ["P", "S", "L"].includes(req.kind) ? req.kind : "";
+  if (!name || !kind || /^(P-|X-|L-)/i.test(name)) return { ok: false, error: "bad_name" };
+  const code = kind === "S" ? name : kind + "-" + name;
   const rows = await railPlaceRows(db), had = rows.find((r) => r.code === code);
   if (had && !had.removed) return { ok: false, error: "exists" };
   if (had) await db.prepare("UPDATE rail_places SET removed = NULL, kind = ? WHERE code = ?").bind(kind, code).run();

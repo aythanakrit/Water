@@ -36,7 +36,7 @@
   td.n, th.n { text-align: right; width: 6em; } td.n b { font-size: 1.15rem; }
   tr.plant td:first-child { font-weight: 700; } tr.tot td { font-weight: 700; border-top: 2px solid var(--muted); }
   .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; background: var(--orange); color: #fff; margin-right: 6px; }
-  .chip.p { background: var(--accent); } .chip.x { background: var(--bad); }
+  .chip.p { background: var(--accent); } .chip.l { background: #b26a00; } .chip.x { background: var(--bad); }
   tr.out td { color: var(--bad); }
   .thumbs { display: flex; gap: 6px; flex-wrap: wrap; } .thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); cursor: pointer; }
   .thumbs .x { position: relative; } .thumbs .x button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--bad); color: #fff; font-size: 12px; cursor: pointer; }
@@ -104,8 +104,9 @@
       <p class="note" style="margin:-4px 0 8px">เพิ่มหรือลบแพล้นท์ / สถานีได้เอง · ลบได้เมื่อไม่มีอุปกรณ์ค้างอยู่ที่นั่น (ประวัติเดิมยังอยู่)</p>
       <div class="note" style="font-weight:600">แพล้นท์</div><div class="plc" id="plP"></div>
       <div class="note" style="font-weight:600;margin-top:8px">สถานี</div><div class="plc" id="plS"></div>
+      <div class="note" style="font-weight:600;margin-top:8px">ยืมไป (นอกงานสายสีส้ม)</div><div class="plc" id="plL"></div>
       <div class="grid" style="margin-top:10px">
-        <label class="f">ประเภท<select id="pKind"><option value="S">สถานี</option><option value="P">แพล้นท์</option></select></label>
+        <label class="f">ประเภท<select id="pKind"><option value="S">สถานี</option><option value="P">แพล้นท์</option><option value="L">ยืมไป</option></select></label>
         <label class="f">ชื่อ<input id="pName" placeholder="เช่น OR13 หรือ บางพลี" autocomplete="off" maxlength="40"></label>
       </div>
       <div class="row" style="margin-top:8px"><button class="btn" id="pAdd" type="button">+ เพิ่มสถานที่</button><span id="placeMsg" class="note"></span></div>
@@ -156,8 +157,8 @@
   const sha256 = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
   const ITEM_LABEL = { "โมลคิว": "โมล Cube" }; // stored name → shown name
   const itemName = (i) => ITEM_LABEL[i] || i;
-  const placeName = (p) => p.startsWith("P-") ? "แพล้นท์" + p.slice(2) : p.startsWith("X-") ? p.slice(2) : p ? "สถานี " + p : "";
-  const kindOf = (p) => p.startsWith("P-") ? ["แพล้นท์", "p"] : p.startsWith("X-") ? ["นอกการใช้งาน", "x"] : ["สถานี", ""];
+  const placeName = (p) => p.startsWith("P-") ? "แพล้นท์" + p.slice(2) : p.startsWith("L-") ? "ยืมไป " + p.slice(2) : p.startsWith("X-") ? p.slice(2) : p ? "สถานี " + p : "";
+  const kindOf = (p) => p.startsWith("P-") ? ["แพล้นท์", "p"] : p.startsWith("L-") ? ["ยืมไป", "l"] : p.startsWith("X-") ? ["นอกการใช้งาน", "x"] : ["สถานี", ""];
   const pad = (n) => String(n).padStart(2, "0");
   const when = (ms) => { const d = new Date(ms); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() + 543} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   let DEV = ""; try { DEV = localStorage.getItem("rail-dev") || ""; if (!DEV) { DEV = Math.random().toString(36).slice(2, 6).toUpperCase(); localStorage.setItem("rail-dev", DEV); } } catch (e) {}
@@ -180,12 +181,12 @@
     if (!S) return;
     $("stockHead").innerHTML = `<tr><th>ที่</th>${S.items.map((i) => `<th class="n">${esc(itemName(i))}</th>`).join("")}</tr>`;
     const sum = (ps, i) => ps.reduce((a, p) => a + S.stock[p][i], 0);
-    const live = S.places.filter((p) => !p.startsWith("X-")), out = S.places.filter((p) => p.startsWith("X-"));
-    const row = (p) => { const [k, c] = kindOf(p); return `<tr class="${c === "p" ? "plant" : c === "x" ? "out" : ""}"><td><span class="chip ${c}">${k}</span>${esc(p.replace(/^[PX]-/, ""))}</td>
+    const live = S.places.filter((p) => !/^[XL]-/.test(p)), lent = S.places.filter((p) => p.startsWith("L-")), out = S.places.filter((p) => p.startsWith("X-"));
+    const row = (p) => { const [k, c] = kindOf(p); return `<tr class="${c === "p" ? "plant" : c === "x" ? "out" : ""}"><td><span class="chip ${c}">${k}</span>${esc(p.replace(/^[PLX]-/, ""))}</td>
       ${S.items.map((i) => `<td class="n"><b>${S.stock[p][i]}</b></td>`).join("")}</tr>`; };
     $("stockBody").innerHTML = live.map(row).join("") +
       `<tr class="tot"><td>รวมที่ใช้งานได้</td>${S.items.map((i) => `<td class="n">${sum(live, i)}</td>`).join("")}</tr>` +
-      out.map(row).join("") +
+      lent.map(row).join("") + out.map(row).join("") +
       `<tr class="tot"><td>รวมทั้งหมด</td>${S.items.map((i) => `<td class="n">${sum(S.places, i)}</td>`).join("")}</tr>`;
     $("stockAt").textContent = `อัปเดต ${when(Date.now())} · อัปเดตเองทุก 15 วินาที`;
     [$("mItem"), $("cItem")].forEach((s) => opts(s, S.items, itemName));
@@ -210,16 +211,17 @@
   ["mItem", "mFrom", "mTo", "mQty"].forEach((id) => { $(id).addEventListener("input", preview); $(id).addEventListener("change", preview); });
   function renderPlaces() {
     if (!S) return;
-    const chip = (p) => `<span>${esc(p.startsWith("P-") ? p.slice(2) : p)}<button type="button" data-rmplace="${esc(p)}" title="ลบ" aria-label="ลบ ${esc(placeName(p))}">×</button></span>`;
+    const chip = (p) => `<span>${esc(p.replace(/^[PL]-/, ""))}<button type="button" data-rmplace="${esc(p)}" title="ลบ" aria-label="ลบ ${esc(placeName(p))}">×</button></span>`;
     $("plP").innerHTML = S.places.filter((p) => p.startsWith("P-")).map(chip).join("") || '<span class="note">—</span>';
-    $("plS").innerHTML = S.places.filter((p) => !p.startsWith("P-") && !p.startsWith("X-")).map(chip).join("") || '<span class="note">—</span>';
+    $("plS").innerHTML = S.places.filter((p) => !/^[PLX]-/.test(p)).map(chip).join("") || '<span class="note">—</span>';
+    $("plL").innerHTML = S.places.filter((p) => p.startsWith("L-")).map(chip).join("") || '<span class="note">—</span>';
   }
   $("pAdd").addEventListener("click", async () => {
     const name = $("pName").value.trim(); if (!name) { $("placeMsg").textContent = "ใส่ชื่อสถานที่"; return $("pName").focus(); }
     try {
       const r = await api("railPlaceAdd", { kind: $("pKind").value, name });
-      if (r.ok) { S = r; renderStock(); $("pName").value = ""; $("placeMsg").textContent = `✓ เพิ่ม${$("pKind").value === "P" ? "แพล้นท์" : "สถานี"} ${name} แล้ว`; }
-      else $("placeMsg").textContent = r.error === "exists" ? "มีชื่อนี้อยู่แล้ว" : "ชื่อไม่ถูกต้อง (ห้ามขึ้นต้นด้วย P- หรือ X-)";
+      if (r.ok) { S = r; renderStock(); $("pName").value = ""; $("placeMsg").textContent = `✓ เพิ่ม${{ P: "แพล้นท์", S: "สถานี", L: "ที่ยืมไป" }[$("pKind").value]} ${name} แล้ว`; }
+      else $("placeMsg").textContent = r.error === "exists" ? "มีชื่อนี้อยู่แล้ว" : "ชื่อไม่ถูกต้อง (ห้ามขึ้นต้นด้วย P- L- หรือ X-)";
     } catch (e) { $("placeMsg").textContent = "ออฟไลน์ — ยังไม่ได้เพิ่ม"; }
   });
   document.addEventListener("click", async (e) => {
