@@ -117,6 +117,10 @@
   .a4 .ru { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .a4 .ru-stop { background: #b42318; color: #fff; } .a4 .ru-soon { background: #f5b301; color: #1d2330; } .a4 .ru-wait { border: 1px solid #c5cad3; color: #1d2330; } .a4 .old { color: #b42318; font-weight: 700; }
   .a4 .tot td { font-weight: 700; background: #f3f4f6; }
+  .a4 .pb { break-before: page; page-break-before: always; height: 0; margin: 18px -12mm; border-top: 2px dashed #9aa3af; }
+  .a4 .phd { display: flex; justify-content: space-between; font-size: 10.5px; color: #555; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-bottom: 6px; }
+  .a4 h3 small { font-weight: 400; color: #555; }
+  .a4 tr { break-inside: avoid; page-break-inside: avoid; }
   .a4 .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 28px; text-align: center; font-size: 11px; }
   .a4 .sign div { border-top: 1px dotted #555; padding-top: 4px; margin-top: 30px; }
   .a4 .ft { margin-top: 16px; font-size: 10px; color: #666; }
@@ -126,6 +130,8 @@
     body > *:not(#rep) { display: none !important; }
     #rep { position: static; background: none; padding: 0; overflow: visible; } #rep .bar { display: none; }
     .a4 { box-shadow: none; padding: 0; min-height: 0; max-width: none; }
+    .a4 .pb { margin: 0; border: 0; }
+    html, body { background: #fff !important; }
   }
 </style>
 <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
@@ -525,18 +531,24 @@
     const last = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
     const openOf = (t) => jobs.filter((j) => j.type === t && (!P || j.plant === P) && !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
     const all = groups.flatMap(([t]) => openOf(t));
-    const table = (t, open) => { const loader = t === "รถตัก";
+    const table = (t, open, off = 0) => { const loader = t === "รถตัก";
       return open.length ? `<table><thead><tr><th>ลำดับ</th><th>แพล้น</th>${loader ? "<th>รถ</th>" : ""}<th>${t === "ก่อสร้าง" ? "รายละเอียดงาน" : "อาการ"}</th><th>ความเร่งด่วน</th><th>สถานะ</th><th>แจ้งเมื่อ</th><th>ค้าง (วัน)</th><th>ความคืบหน้าล่าสุด</th></tr></thead><tbody>
-        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${i + 1}</td><td>${esc(j.plant)}</td>${loader ? `<td>${esc(j.machine)}</td>` : ""}
+        ${open.map((j, i) => `<tr class="${j.urg === "stop" ? "stop" : ""}"><td class="c">${off + i + 1}</td><td>${esc(j.plant)}</td>${loader ? `<td>${esc(j.machine)}</td>` : ""}
           <td>${esc(j.symptom)}</td><td class="c"><span class="ru ru-${j.urg}">${URG[j.urg][0]}</span></td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`; };
     const per = groups.map(([t, name]) => [t, name, openOf(t)]);
-    $("rPage").innerHTML = `<div class="hd"><div><b>รายงานงานค้าง — ${cat ? esc(groups[0][1]) : "สรุปทุกหมวด"}</b>${esc(P || "ทุกแพล้น")}</div>
+    // printed pages: at most 10 rows a page, and every group starts on a new page
+    const PER_PAGE = 10, title = `รายงานงานค้าง — ${cat ? groups[0][1] : "สรุปทุกหมวด"}`, pages = [];
+    per.forEach(([t, name, o], gi) => { const n = Math.max(1, Math.ceil(o.length / PER_PAGE));
+      for (let c = 0; c < n; c++) pages.push({ t, rows: o.slice(c * PER_PAGE, (c + 1) * PER_PAGE), off: c * PER_PAGE, part: c + 1, n,
+        head: `${cat ? "" : gi + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)` }); });
+    $("rPage").innerHTML = `<div class="hd"><div><b>${esc(title)}</b>${esc(P || "ทุกแพล้น")}${pages.length > 1 ? ` · หน้า 1/${pages.length}` : ""}</div>
         <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
       <div class="sum"><div><b>${all.length}</b>ค้างทั้งหมด</div><div class="red"><b>${all.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div></div>
       ${cat ? "" : `<table class="bycat"><thead><tr><th>หมวด</th><th>ค้าง</th><th>หยุดผลิต</th><th>เร่งด่วน</th><th>ประคอง</th></tr></thead><tbody>
         ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td></tr>`).join("")}</tbody></table>`}
-      ${per.map(([t, name, o], i) => `<h3>${cat ? "" : i + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)</h3>${table(t, o)}`).join("")}
+      ${pages.map((pg, k) => `${k ? `<div class="pb"></div><div class="phd"><span>${esc(title)} · ${esc(P || "ทุกแพล้น")}</span><span>หน้า ${k + 1}/${pages.length}</span></div>` : ""}
+        <h3>${pg.head}${pg.n > 1 ? ` <small>(${pg.part}/${pg.n})</small>` : ""}</h3>${table(pg.t, pg.rows, pg.off)}`).join("")}
       <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
   }
