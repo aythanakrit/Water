@@ -421,6 +421,15 @@ function pastTime(v, now, min = 0) {
   const t = Math.round(Number(v));
   return Number.isFinite(t) && t <= now + 60000 && t >= now - 3 * 366 * DAY && t >= min ? Math.min(t, now) : null;
 }
+// no document number given → RP-<plant code>-<YYMMDD>-<running no. for that plant and day>, e.g. RP-036-261109-01 (like a D/O number)
+async function repairDocNo(db, plant, at) {
+  const code = (/^P(\d{3})/.exec(plant) || [, "000"])[1];
+  const day = new Date(at + 7 * 3600e3).toISOString().slice(2, 10).replace(/-/g, "");
+  const pre = `RP-${code}-${day}-`;
+  const { results } = await db.prepare("SELECT doc_no FROM repairs WHERE doc_no LIKE ?").bind(pre + "%").all();
+  const n = results.reduce((m, r) => Math.max(m, Number(String(r.doc_no).slice(pre.length)) || 0), 0) + 1;
+  return pre + String(n).padStart(2, "0");
+}
 function repairOut(r, photos) {
   return { id: r.id, docNo: r.doc_no || "", plant: r.plant, type: r.type, machine: r.machine || "", symptom: r.symptom, urg: r.urg, status: r.status,
     at: Number(r.at), doneAt: r.done_at ? Number(r.done_at) : null, log: parse(r.log, []), updated: Number(r.updated), photos: photos[r.id] || [] };
@@ -443,7 +452,7 @@ export async function repairAdd(db, req, admin, now = Date.now()) {
   }
   const id = crypto.randomUUID();
   await db.prepare("INSERT INTO repairs (id, doc_no, plant, type, machine, symptom, urg, status, at, log, updated) VALUES (?,?,?,?,?,?,?,'new',?,?,?)")
-    .bind(id, docNo, plant, type, machine, symptom, urg, at, JSON.stringify([[at, at < now - 60000 ? "แจ้งซ่อม (ลงย้อนหลัง)" : "แจ้งซ่อม"]]), now).run();
+    .bind(id, docNo || (await repairDocNo(db, plant, at)), plant, type, machine, symptom, urg, at, JSON.stringify([[at, at < now - 60000 ? "แจ้งซ่อม (ลงย้อนหลัง)" : "แจ้งซ่อม"]]), now).run();
   return { ok: true, id };
 }
 export async function repairUpdate(db, req, now = Date.now()) {
@@ -514,7 +523,7 @@ export async function repairImport(db, job, now = Date.now()) {
   if (status === "rejected") log.push([doneAt, "ไม่อนุมัติ" + (j.closeText ? " — " + txt(j.closeText, 200) : "")]);
   const id = crypto.randomUUID();
   await db.prepare("INSERT INTO repairs (id, doc_no, plant, type, machine, symptom, urg, status, at, done_at, log, updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, docNo, plant, type, machine, symptom, j.urg, status, at, doneAt, JSON.stringify(log), now).run();
+    .bind(id, docNo || (await repairDocNo(db, plant, at)), plant, type, machine, symptom, j.urg, status, at, doneAt, JSON.stringify(log), now).run();
   return { ok: true, id };
 }
 
