@@ -89,6 +89,10 @@
         <tr><td>A&amp;D</td><td><input id="oAD" type="number" step="50"></td><td class="u">cc</td></tr>
         <tr><td>Type G</td><td><input id="oG" type="number" step="50"></td><td class="u">cc</td></tr>
         <tr><td>Type F</td><td><input id="oF" type="number" step="50"></td><td class="u">cc</td></tr>
+        <tr><td>หิน (SSD)</td><td><input id="oSt" type="number" step="5"></td><td class="u">Kg</td></tr>
+        <tr><td>ความชื้นหิน</td><td><input id="mSt" type="number" step="0.1"></td><td class="u">%</td></tr>
+        <tr><td>ทราย (SSD)</td><td><input id="oSa" type="number" step="5"></td><td class="u">Kg</td></tr>
+        <tr><td>ความชื้นทราย</td><td><input id="mSa" type="number" step="0.1"></td><td class="u">%</td></tr>
       </tbody></table>
       <table style="margin-top:12px"><tbody id="doseRows"></tbody></table>
     </section>
@@ -118,6 +122,11 @@
         <tr><td>ในนี้โดฟเพิ่ม</td><td class="out" id="lAdd"></td><td class="u"></td></tr></tfoot></table>
     </section>
   </div>
+
+  <section style="margin-top:16px">
+    <h2>ปรับตามความชื้นหินทราย</h2>
+    <div id="wetBox"><p class="note" style="margin:0">ใส่ หิน ทราย และความชื้น (%) ใน Mix เดิม</p></div>
+  </section>
 
   <section style="margin-top:16px">
     <h2>กำลังอัดโดยประมาณ (28 วัน)</h2>
@@ -154,7 +163,24 @@
   $("capChips").innerHTML = CAPS.map((c) => `<button type="button" data-cap="${c}">${c} คิว</button>`).join("");
   $("capChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("cap").value = b.dataset.cap; run(); });
 
+  // Moisture of stone and sand (% above SSD = free water): weigh the wet aggregate, take that water off the mix water
+  function wet() {
+    const st = v("oSt"), sa = v("oSa"), ms = v("mSt"), mn = v("mSa"), w = v("oW"), cap = v("cap");
+    if (!(st > 0 || sa > 0) || !(has("mSt") || has("mSa"))) { $("wetBox").innerHTML = '<p class="note" style="margin:0">ใส่ หิน ทราย และความชื้น (%) ใน Mix เดิม</p>'; return; }
+    const wSt = st * ms / 100, wSa = sa * mn / 100, add = w - wSt - wSa;
+    const row = (k, a, u, d = 2) => `<tr><td>${k}</td><td class="out">${f(a, d)}</td><td class="out">${cap > 0 ? f(a * cap, d) : "–"}</td><td class="u">${u}</td></tr>`;
+    $("wetBox").innerHTML = `<div class="scroll"><table><thead><tr><th></th><th>ต่อคิว</th><th>ต่อเที่ยว${cap > 0 ? ` (${f(cap, 2)} คิว)` : ""}</th><th></th></tr></thead><tbody>
+      ${row("หินชั่งเปียก", st + wSt, "Kg")}${row("ทรายชั่งเปียก", sa + wSa, "Kg")}
+      ${row("น้ำจากหิน", wSt, "Kg")}${row("น้ำจากทราย", wSa, "Kg")}
+      ${has("oW") ? `<tr><td><b>น้ำที่ต้องเติมจริง</b></td><td class="out"><b>${f(add)}</b></td><td class="out"><b>${cap > 0 ? f(add * cap) : "–"}</b></td><td class="u">Kg</td></tr>` : ""}
+      </tbody></table></div>
+      ${has("oW") && add < 0 ? '<div class="warn" style="margin-top:8px">น้ำในหินทรายมากกว่าน้ำที่สูตรต้องการ — ตรวจค่าความชื้นอีกครั้ง</div>' : ""}
+      <p class="note" style="margin:8px 0 0">หิน/ทรายชั่งเปียก = น้ำหนัก SSD × (1 + ความชื้น%) · น้ำจากหินทราย = น้ำหนัก SSD × ความชื้น% · น้ำที่เติมจริง = น้ำในสูตร − น้ำจากหิน − น้ำจากทราย ·
+        ถือว่าความชื้นที่ใส่เป็นความชื้นส่วนเกินจากสภาพ SSD (ถ้าใช้ความชื้นทั้งหมด ให้หักค่าดูดซึมออกก่อน) · ต่อเที่ยว = ต่อคิว × cap · ต้องให้วิศวกรผู้รับผิดชอบตรวจสอบก่อนใช้งาน</p>`;
+  }
+
   function run() {
+    wet();
     OUT.forEach((id) => { $(id).textContent = "–"; });
     $("doseRows").innerHTML = "";
     $("capChips").querySelectorAll("button").forEach((b) => b.classList.toggle("on", has("cap") && Number(b.dataset.cap) === v("cap")));
