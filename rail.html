@@ -49,6 +49,12 @@
   .tabs { flex-wrap: wrap; } .tabs button { min-width: 40%; }
   .rr-it { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; } .rr-it:last-child { border-bottom: 0; }
   .rr-it .t { flex: 1; min-width: 0; } .rr-it .t b { display: block; } .rr-it .q { text-align: right; } .rr-it .q b { font-size: 1.2rem; display: block; }
+  .rr-scroll { overflow-x: auto; }
+  table.rr-list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
+  table.rr-list th, table.rr-list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  table.rr-list th { font-size: .78rem; color: var(--muted); font-weight: 600; }
+  table.rr-list tbody tr { cursor: pointer; } table.rr-list tbody tr:hover { background: var(--bg); }
+  table.rr-list td.rm { white-space: normal; min-width: 10em; font-size: .85rem; }
   .rr-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
   .rr-row .no { width: 30px; height: 30px; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .85rem; }
   .rr-row .m { font-size: .82rem; color: var(--muted); } .rr-sum { font-weight: 700; padding-top: 8px; text-align: right; }
@@ -191,8 +197,9 @@
         <div class="row" style="margin-top:8px"><button class="btn b" id="rhSave" type="button">บันทึกหัวกระดาษ</button><span class="note" id="rhMsg"></span></div>
       </section>
       <section>
-        <div class="row" style="justify-content:space-between"><h2 style="margin:0">รายการรถ</h2><button class="btn o" id="rrAdd" type="button">+ เพิ่มรถ</button></div>
-        <div id="rrRows"></div>
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">รายการรถ</h2><button class="btn o" id="rrAdd" type="button">+ เพิ่มรถ</button></div>
+        <p class="note" style="margin:0 0 6px">แตะแถวเพื่อแก้ไข / กรอกเวลาเท, slump, ก้อนตัวอย่าง</p>
+        <div class="rr-scroll"><table class="rr-list" id="rrRows"></table></div>
         <div class="rr-sum" id="rrSum"></div>
       </section>
       <section>
@@ -477,9 +484,12 @@
       [...$("rhReq").options].forEach((o) => { if (o.dataset.old) o.remove(); });
       if (fh.reqSlump && ![...$("rhReq").options].some((o) => o.value === fh.reqSlump)) $("rhReq").insertAdjacentHTML("beforeend", `<option data-old="1">${esc(fh.reqSlump)}</option>`); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; }); showGrade();
       const rows = cur.rows;
-      $("rrRows").innerHTML = rows.length ? rows.map((r, i) => `<div class="rr-row" data-row="${esc(r.id)}"><span class="no">${i + 1}</span>
-        <div><b>${esc(r.truck || "-")}</b> · DO ${esc(r.doNo || "-")} · ${esc(r.plant || "")}<div class="m">ผสม ${esc(r.batch || "-")} · ถึง ${esc(r.arrive || "-")} · เท ${esc(r.start || "-")}–${esc(r.end || "-")} · ${r.temp ? esc(r.temp) + "°C" : "-"} · สลัมป์ ${esc(r.slump || "-")}${r.spNo ? ` · ตัวอย่าง ${esc(r.spType)} ${esc(r.spNo)} ${esc(r.spCode)}` : ""}</div></div>
-        <b>${esc(r.qty || "-")}</b></div>`).join("") : `<p class="note">ยังไม่มีรถ — กด "+ เพิ่มรถ" เมื่อรถคันแรกถึง</p>`;
+      // same columns as the field report's truck list
+      const COLS = [["no", "ลำดับ"], ["truck", "รถ"], ["doNo", "D/O"], ["qty", "m³"], ["plant", "หน่วยผลิต"], ["batch", "ผสม"], ["arrive", "ถึง"], ["start", "เริ่มเท"], ["end", "เทเสร็จ"],
+        ["temp", "°C คอนกรีต"], ["slump", "Slump"], ["sp", "ก้อน"], ["spCode", "Code"], ["remark", "หมายเหตุ"]];
+      $("rrRows").innerHTML = `<thead><tr>${COLS.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>` + (rows.length ? rows.map((r, i) => `<tr data-row="${esc(r.id)}">${COLS.map(([k]) =>
+          k === "remark" ? `<td class="rm">${esc(r.remark)}</td>` : `<td>${k === "no" ? i + 1 : k === "sp" ? (r.spNo ? esc(`${r.spType} ${r.spNo}`.trim()) : "") : esc(r[k] || "")}</td>`).join("")}</tr>`).join("")
+        : `<tr><td colspan="${COLS.length}" class="note">ยังไม่มีรถ — กด "+ เพิ่มรถ" เมื่อรถคันแรกถึง</td></tr>`) + "</tbody>";
       $("rrSum").textContent = `รวม ${fmt(sumQty(rows))} m³ · ${rows.length} คัน`;
     }
     function openRow(r) {
