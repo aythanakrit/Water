@@ -57,17 +57,11 @@
   @media (min-width: 700px) { .sheet { align-items: center; } .sheet .panel { border-radius: 16px; } }
   .tnow { display: flex; gap: 4px; } .tnow input { flex: 1; } .tnow button { flex: 0 0 auto; padding: 4px 8px; font-size: .8rem; }
   #ckHost { position: fixed; left: -20000px; top: 0; }
-  .ck { width: 1123px; height: 794px; background: #fff; color: #000; padding: 26px 30px 18px; box-sizing: border-box; font: 11px/1.25 "Sarabun", "Noto Sans Thai", system-ui, sans-serif; position: relative; }
-  .ck .top { display: grid; grid-template-columns: 250px 1fr; } .ck .co { font-size: 10px; padding-top: 40px; }
-  .ck .ttl { text-align: right; } .ck .ttl b { display: block; font-size: 15px; } .ck .ttl span { font-size: 13px; }
-  .ck .hdr { display: grid; grid-template-columns: 250px 1fr 1fr 1fr; column-gap: 14px; row-gap: 3px; margin: 8px 0 8px; font-weight: 700; font-size: 10.5px; }
-  .ck .hdr div { display: flex; gap: 6px; align-items: flex-end; justify-content: flex-end; } .ck .hdr i { font-style: normal; font-weight: 400; flex: 1; border-bottom: 1px solid #000; min-height: 15px; padding: 0 4px; text-align: left; }
-  .ck table { width: 100%; border-collapse: collapse; table-layout: fixed; } .ck th, .ck td { border: 1px solid #000; padding: 1px 3px; text-align: center; font-size: 10.5px; height: 20px; overflow: hidden; white-space: nowrap; }
-  .ck thead th { background: #fbe4d5; font-weight: 700; height: auto; white-space: normal; line-height: 1.15; } .ck thead small { display: block; font-weight: 400; font-size: 9.5px; }
-  .ck .sumt { width: 130px; margin-left: 206px; margin-top: -1px; } .ck .sumt td { height: 20px; }
-  .ck .sig { display: grid; grid-template-columns: 300px 300px 130px; column-gap: 60px; row-gap: 1px; margin: 12px 0 0 120px; font-size: 9.5px; font-weight: 700; text-align: center; }
-  .ck .sig div { border: 1px solid #000; height: 19px; } .ck .sig span { display: block; margin-bottom: 3px; }
-  .ck .foot { position: absolute; left: 30px; bottom: 12px; font-size: 10px; } .ck .pg { position: absolute; right: 30px; bottom: 12px; font-size: 10px; }
+  .ck { width: 1123px; height: 794px; position: relative; background: #fff; color: #000; font: 10.5px/1 "Sarabun", "Noto Sans Thai", system-ui, sans-serif; overflow: hidden; }
+  .ck > img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ck > span { position: absolute; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+  .ck > span > i { font-style: normal; white-space: nowrap; flex: none; }
+  .ck > span.l { justify-content: flex-start; padding-left: 3px; } .ck > span.h { justify-content: flex-start; align-items: flex-end; padding: 0 0 2px 4px; font-size: 11px; }
   .plc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .plc span { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 12px; background: var(--card); }
   .plc button { border: 0; background: none; color: var(--bad, #b42318); font-size: 1.1rem; cursor: pointer; padding: 0 8px; min-height: 36px; min-width: 36px; border-radius: 999px; }
@@ -528,26 +522,24 @@
 
     // ---------- PDF on the contractor's form: 17 trucks a sheet, landscape A4 ----------
     const PER = 17;
-    function ckSheet(rows, off, k, n, total) {
-      const h = cur.header, c = (v) => esc(v || ""), blank = Math.max(0, PER - rows.length);
-      return `<div class="ck"><div class="top"><div class="co">CH.KARNCHANG PUBLIC COMPANY LIMITED</div><div class="ttl"><b>Concrete Control on Site</b><span>การควบคุมคุณภาพของคอนกรีตที่หน้างาน</span></div></div>
-        <div class="hdr"><div>Date <i>${c(dmyCE(h.date))}</i></div><div>Area <i>${c(h.area)}</i></div><div style="grid-column:4">Supplier <i>${c(h.supplier)}</i></div>
-          <div style="grid-column:2">Structure Type <i>${c(h.structType)}</i></div><div style="grid-column:4">Mix-Design No. <i>${c(h.mixNo)}</i></div>
-          <div style="grid-column:2">Structure No. <i>${c(h.structNo)}</i></div><div style="grid-column:4">Mix-Design Grade <i>${c(h.grade)}</i></div>
-          <div style="grid-column:2">Ambient Temp. <i>${c(h.ambient)}${h.ambient ? " °C" : ""}</i></div><div style="grid-column:4">Required Slump <i>${c(h.reqSlump)}</i></div></div>
-        <table><colgroup><col style="width:34px"><col style="width:76px"><col style="width:96px"><col style="width:76px"><col style="width:54px"><col style="width:66px"><col style="width:66px"><col style="width:64px"><col style="width:64px"><col style="width:58px"><col style="width:52px"><col style="width:54px"><col style="width:46px"><col style="width:80px"><col></colgroup>
-        <thead><tr><th colspan="6">Concrete Delivery<small>รายละเอียดการจัดส่งคอนกรีต</small></th><th colspan="5">Casting<small>รายละเอียดการเทคอนกรีต</small></th><th colspan="3">Specimen<small>การเก็บตัวอย่าง</small></th><th rowspan="3">Remarks<small>หมายเหตุ</small></th></tr>
-        <tr><th rowspan="2">No.<small>ลำดับที่</small></th><th rowspan="2">Truck No.<small>เลขรถ</small></th><th rowspan="2">Delivery Note No.<small>ใบส่งสินค้า</small></th><th rowspan="2">Plant<small>หน่วยผลิต</small></th><th rowspan="2">Quantity<small>ปริมาณ (m³)</small></th><th rowspan="2">Batching Time<small>เวลาผสม</small></th>
-          <th rowspan="2">Truck at Site<small>เวลาที่ รถถึง</small></th><th colspan="2">Unloading</th><th rowspan="2">Concrete Temp.<small>อุณหภูมิ (°C)</small></th><th rowspan="2">Slump<small>ค่ายุบตัว (cm.)</small></th><th colspan="3">Mold</th></tr>
-        <tr><th>Start<small>เวลาที่ เริ่มเท</small></th><th>End<small>เวลาที่ เทเสร็จ</small></th><th>Type<small>ชนิด (□ / ∅)</small></th><th>No.<small>จำนวน</small></th><th>Code<small>หมายเลข</small></th></tr></thead>
-        <tbody>${rows.map((r, i) => `<tr><td>${off + i + 1}</td><td>${c(r.truck)}</td><td>${c(r.doNo)}</td><td>${c(r.plant)}</td><td>${c(r.qty)}</td><td>${c(r.batch)}</td><td>${c(r.arrive)}</td><td>${c(r.start)}</td><td>${c(r.end)}</td><td>${c(r.temp)}</td><td>${c(r.slump)}</td><td>${c(r.spType)}</td><td>${c(r.spNo)}</td><td>${c(r.spCode)}</td><td style="text-align:left">${c(r.remark)}</td></tr>`).join("")}
-          ${("<tr>" + "<td></td>".repeat(15) + "</tr>").repeat(blank)}</tbody></table>
-        <table class="sumt"><tr><td style="width:76px;font-weight:700">Sum</td><td style="width:54px">${k === n - 1 ? fmt(total) : ""}</td></tr></table>
-        <div class="sig"><div></div><div></div><div></div><span>SUPPLIER</span><span>SIGNATURE</span><span>DATE</span>
-          <div></div><div></div><div></div><span>CK SITE ENGINEER</span><span>SIGNATURE</span><span>DATE</span>
-          <div></div><div></div><div></div><span>CK STATION MANAGER</span><span>SIGNATURE</span><span>DATE</span>
-          <div></div><div></div><div></div><span>CONSULTANT</span><span>SIGNATURE</span><span>DATE</span></div>
-        <div class="foot">CM/GEN-OLW-CI-F03 Rev.A 16/09/24</div>${n > 1 ? `<div class="pg">${k + 1}/${n}</div>` : ""}</div>`;
+    // the contractor's own blank form (forms/ck-concrete-control-on-site.png, 2338 × 1654 px) with the values written on it;
+    // positions below are in the picture's pixels and are scaled to the 1123 × 794 sheet
+    const K = 1123 / 2338;
+    const COLS = [76.5, 157.5, 324.5, 491.5, 657.5, 779.5, 940.5, 1100.5, 1268.5, 1436.5, 1571.5, 1706.5, 1838.5, 1970.5, 2102.5, 2257.5];
+    const ROWS = [517, 556, 595, 634, 673, 712, 751, 790, 829, 869, 908, 947, 986, 1025, 1064, 1103, 1142, 1180];
+    const HEAD = { date: [780, 1102, 195], area: [1269, 1708, 195], supplier: [1971, 2258, 195], structType: [1269, 1708, 238], mixNo: [1971, 2258, 238],
+      structNo: [1269, 1708, 281], grade: [1971, 2258, 281], ambient: [1269, 1708, 325], reqSlump: [1971, 2258, 325] };
+    const box = (x0, y0, x1, y1, txt, cls = "") => txt === "" || txt == null ? "" : `<span class="${cls}" style="left:${(x0 * K).toFixed(1)}px;top:${(y0 * K).toFixed(1)}px;width:${((x1 - x0) * K).toFixed(1)}px;height:${((y1 - y0) * K).toFixed(1)}px"><i>${esc(txt)}</i></span>`;
+    function ckSheet(rows, off, last, total) {
+      const h = { ...cur.header, date: dmyCE(cur.header.date), ambient: cur.header.ambient ? cur.header.ambient + " °C" : "" };
+      let out = `<div class="ck"><img src="forms/ck-concrete-control-on-site.png" alt="">`;
+      Object.entries(HEAD).forEach(([k, [x0, x1, y]]) => { out += box(x0, y - 36, x1, y, h[k], "h"); });
+      rows.forEach((r, i) => {
+        const v = [off + i + 1, r.truck, r.doNo, r.plant, r.qty, r.batch, r.arrive, r.start, r.end, r.temp, r.slump, r.spType, r.spNo, r.spCode, r.remark];
+        v.forEach((t, c) => { out += box(COLS[c] + 1, ROWS[i] + 1, COLS[c + 1] - 1, ROWS[i + 1] - 1, String(t ?? ""), c === 14 ? "l" : ""); });
+      });
+      if (last) out += box(657.5, 1181, 779.5, 1219, fmt(total));
+      return out + "</div>";
     }
     const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
     $("rrPdf").onclick = async () => {
@@ -556,8 +548,10 @@
         if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
         if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
         const rows = cur.rows, n = Math.max(1, Math.ceil(rows.length / PER)), total = sumQty(rows), host = $("ckHost");
-        host.innerHTML = Array.from({ length: n }, (_, k) => ckSheet(rows.slice(k * PER, (k + 1) * PER), k * PER, k, n, total)).join("");
-        await document.fonts.ready;
+        host.innerHTML = Array.from({ length: n }, (_, k) => ckSheet(rows.slice(k * PER, (k + 1) * PER), k * PER, k === n - 1, total)).join("");
+        await document.fonts.ready; await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
+        // a value longer than its box gets a smaller font instead of being cut
+        host.querySelectorAll(".ck > span").forEach((x) => { const t = x.firstElementChild, room = x.clientWidth - 4; let f = parseFloat(getComputedStyle(x).fontSize); while (t.offsetWidth > room && f > 6.5) { f -= 0.5; x.style.fontSize = f + "px"; } });
         const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" }), els = host.querySelectorAll(".ck");
         for (let i = 0; i < els.length; i++) { const c = await html2canvas(els[i], { scale: 2, backgroundColor: "#ffffff" }); if (i) pdf.addPage("a4", "landscape"); pdf.addImage(c.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 297, 210); }
         host.innerHTML = "";
