@@ -186,7 +186,7 @@
           <input id="rhSup" type="hidden" value="M Concrete">
           <label class="f">Mix-Design No.<input id="rhMix"><span id="rhGradeTxt" class="note"></span></label>
           <input id="rhGrade" type="hidden">
-          <label class="f">Required Slump (cm.)<input id="rhReq" placeholder="เช่น 10±2.5"></label>
+          <label class="f">Required Slump<select id="rhReq"><option value="">— เลือกช่วง —</option><option>5.0 - 10.0 Cm</option><option>7.5 - 12.5 Cm</option><option>10.0 - 15.0 Cm</option><option>12.5 - 17.5 Cm</option><option>15.0 - 20.0 Cm</option><option>Flow 55-65 Cm</option></select></label>
         </div>
         <div class="row" style="margin-top:8px"><button class="btn b" id="rhSave" type="button">บันทึกหัวกระดาษ</button><span class="note" id="rhMsg"></span></div>
       </section>
@@ -472,7 +472,10 @@
     $("rhAreaSel").addEventListener("change", () => { const o = $("rhAreaSel").value === OTHER; $("rhArea").hidden = !o; $("rhArea").value = o ? "" : $("rhAreaSel").value; if (o) $("rhArea").focus(); });
     function renderEdit() {
       $("rrList").hidden = true; $("rrEdit").hidden = false;
-      const fh = fixed(cur.header); fillArea(fh.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; }); showGrade();
+      const fh = fixed(cur.header); fillArea(fh.area);
+      // a slump typed before the list existed still shows, so it is not lost by accident
+      [...$("rhReq").options].forEach((o) => { if (o.dataset.old) o.remove(); });
+      if (fh.reqSlump && ![...$("rhReq").options].some((o) => o.value === fh.reqSlump)) $("rhReq").insertAdjacentHTML("beforeend", `<option data-old="1">${esc(fh.reqSlump)}</option>`); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; }); showGrade();
       const rows = cur.rows;
       $("rrRows").innerHTML = rows.length ? rows.map((r, i) => `<div class="rr-row" data-row="${esc(r.id)}"><span class="no">${i + 1}</span>
         <div><b>${esc(r.truck || "-")}</b> · DO ${esc(r.doNo || "-")} · ${esc(r.plant || "")}<div class="m">ผสม ${esc(r.batch || "-")} · ถึง ${esc(r.arrive || "-")} · เท ${esc(r.start || "-")}–${esc(r.end || "-")} · ${r.temp ? esc(r.temp) + "°C" : "-"} · สลัมป์ ${esc(r.slump || "-")}${r.spNo ? ` · ตัวอย่าง ${esc(r.spType)} ${esc(r.spNo)} ${esc(r.spCode)}` : ""}</div></div>
