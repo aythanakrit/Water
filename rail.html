@@ -487,8 +487,8 @@
       catch (e) { if (msgEl) msgEl.textContent = e.message === "bad_date" ? "ใส่วันที่ก่อน" : navigator.onLine ? "บันทึกไม่ได้ — ลองใหม่" : "ออฟไลน์ — ต้องต่ออินเทอร์เน็ต"; return null; }
       finally { busy = false; }
     }
-    // always the same: ambient 32 °C, supplier M Concrete, grade = first two digits of the mix design number + " Mpa(Cube)"
-    const gradeOf = (mix) => { const d = String(mix || "").replace(/\D/g, "").slice(0, 2); return d.length === 2 ? `${d} Mpa(Cube)` : ""; };
+    // always the same: ambient 32 °C, supplier M Concrete, grade = first two digits of the mix design number + " MPa(Cube)"
+    const gradeOf = (mix) => { const d = String(mix || "").replace(/\D/g, "").slice(0, 2); return d.length === 2 ? `${d} MPa(Cube)` : ""; };
     const fixed = (h) => ({ ...h, ambient: "32", supplier: "M Concrete", grade: gradeOf(h.mixNo) });
     $("rhMix").addEventListener("input", () => { $("rhGrade").value = gradeOf($("rhMix").value); });
     const header = () => fixed(Object.fromEntries(Object.entries(H).map(([k, id]) => [k, $(id).value.trim()])));
