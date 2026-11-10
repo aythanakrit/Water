@@ -209,6 +209,7 @@
   <div class="bar">
     <select id="rPlant"><option value="">ทุกแพล้น</option></select>
     <button class="btn b" id="rPdf" type="button">⬇ บันทึก PDF</button>
+    <button class="btn" id="rXlsx" type="button">⬇ Excel</button>
     <button class="btn" id="rPrint" type="button">🖨 พิมพ์</button>
     <button class="btn" id="rClose" type="button">ปิด</button>
   </div>
@@ -606,6 +607,33 @@
     finally { b.disabled = false; b.textContent = was; }
   }
   $("rPdf").onclick = savePdf;
+  // Excel of what the report shows (pending jobs of this group, or every group; plant filter applies), one sheet per group
+  $("rXlsx").onclick = async () => {
+    const b = $("rXlsx"), was = b.textContent; b.disabled = true; b.textContent = "กำลังสร้าง…";
+    try {
+      if (!window.XLSX) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+      const P = $("rPlant").value, groups = cat ? [catOf(cat)] : CATS, wb = XLSX.utils.book_new();
+      const lastLog = (j) => j.log.length > 1 ? j.log[j.log.length - 1][1] : "";
+      const all = [];
+      groups.forEach(([t, name]) => {
+        const open = jobs.filter((j) => j.type === t && (!P || j.plant === P) && !isClosed(j)).sort((a, b) => a.plant.localeCompare(b.plant) || RANK[a.urg] - RANK[b.urg] || days(b) - days(a));
+        const head = ["ลำดับ", "เลขที่เอกสาร", "แพล้นท์", ...(t === "รถตัก" ? ["รถ"] : []), t === "ก่อสร้าง" ? "รายละเอียดงาน" : "อาการ", "ความเร่งด่วน", "สถานะ", "แจ้งเมื่อ", "ค้าง (วัน)", "ความคืบหน้าล่าสุด"];
+        const rows = open.map((j, i) => [i + 1, j.docNo || "", j.plant, ...(t === "รถตัก" ? [j.machine] : []), j.symptom, URG[j.urg][0], STATUS[j.status][0], new Date(j.at), days(j), lastLog(j)]);
+        const ws = XLSX.utils.aoa_to_sheet([head, ...rows], { cellDates: true });
+        ws["!cols"] = head.map((h) => ({ wch: /อาการ|รายละเอียด|ความคืบหน้า/.test(h) ? 50 : /แพล้นท์/.test(h) ? 28 : /เลขที่/.test(h) ? 18 : 12 }));
+        rows.forEach((_, r) => { const c = ws[XLSX.utils.encode_cell({ r: r + 1, c: head.indexOf("แจ้งเมื่อ") })]; if (c) c.z = "dd/mm/yyyy hh:mm"; });
+        XLSX.utils.book_append_sheet(wb, ws, name);
+        open.forEach((j) => all.push(j));
+      });
+      const name = repName.replace(/\.pdf$/, ".xlsx");
+      const blob = new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array", cellDates: true })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const file = new File([blob], name, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(navigator.userAgent)) {
+        try { await navigator.share({ files: [file], title: name }); } catch (e) { if (e && e.name !== "AbortError") throw e; }
+      } else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+    } catch (e) { uiAlert(navigator.onLine ? "สร้าง Excel ไม่สำเร็จ — ลองใหม่" : "ออฟไลน์ — ครั้งแรกต้องต่ออินเทอร์เน็ตเพื่อโหลดตัวสร้าง Excel"); }
+    finally { b.disabled = false; b.textContent = was; }
+  };
   $("homeRep").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("repBtn").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("rClose").onclick = () => { $("rep").hidden = true; };
