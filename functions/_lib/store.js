@@ -347,7 +347,7 @@ async function railPlaces(db) {
 // ---------- rail project: site report on the contractor's form (Concrete Control on Site), one sheet per pour ----------
 // data = { header: {...}, rows: [{ id, truck, doNo, plant, qty, batch, arrive, start, end, temp, slump, spType, spNo, spCode, remark }] }
 const RR_ID = /^[\w-]{6,60}$/;
-const RR_HEAD = ["date", "area", "structType", "structNo", "ambient", "supplier", "mixNo", "grade", "reqSlump"];
+const RR_HEAD = ["date", "area", "structType", "structNo", "ambient", "supplier", "mixNo", "grade", "reqSlump", "ordered", "produced"];
 const RR_ROW = ["truck", "doNo", "plant", "qty", "batch", "arrive", "start", "end", "temp", "slump", "spType", "spNo", "spCode", "remark"];
 const rrClean = (o, keys) => Object.fromEntries(keys.map((k) => [k, String((o || {})[k] ?? "").slice(0, 120)]));
 async function rrGet(db, id) { const r = await db.prepare("SELECT data FROM rail_reports WHERE id = ? AND removed IS NULL").bind(String(id || "")).first(); return r ? parse(r.data, null) : null; }

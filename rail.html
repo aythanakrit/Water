@@ -50,6 +50,14 @@
   .rr-it { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; } .rr-it:last-child { border-bottom: 0; }
   .rr-it .t { flex: 1; min-width: 0; } .rr-it .t b { display: block; } .rr-it .q { text-align: right; } .rr-it .q b { font-size: 1.2rem; display: block; }
   .rr-scroll { overflow-x: auto; }
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; } @media (max-width: 700px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--card); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .kpi b { font-size: 1.25rem; color: var(--accent); font-variant-numeric: tabular-nums; } .kpi span { font-size: .75rem; color: var(--muted); }
+  .kpi.ed { border-color: var(--accent); } .kpi.ed input { border: 0; border-bottom: 1px dashed var(--accent); border-radius: 0; background: none; padding: 2px 0; font-size: 1.15rem; font-weight: 700; width: 100%; min-height: 0; }
+  .scan { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: end; } .scan > * { min-width: 0; } .scan input { width: 100%; }
+  @media (max-width: 700px) { .scan { grid-template-columns: repeat(3, minmax(0, 1fr)); } .scan .do, .scan > button { grid-column: 1 / -1; } }
+  .doin { display: flex; gap: 6px; } .doin input { flex: 1; min-width: 0; font-size: 1.05rem; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+  #nWarn .bad { color: var(--bad); font-weight: 600; }
   table.rr-list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   table.rr-list th, table.rr-list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
   table.rr-list th { font-size: .78rem; color: var(--muted); font-weight: 600; }
@@ -65,7 +73,9 @@
   #ckHost { position: fixed; left: -20000px; top: 0; }
   .ck { width: 1123px; height: 794px; position: relative; background: #fff; color: #000; font: 10.5px/1 "Sarabun", "Noto Sans Thai", system-ui, sans-serif; overflow: hidden; }
   .ck > img { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .ck > span { position: absolute; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; font-weight: 700; font-size: 12.5px; color: #000; }
+  @font-face { font-family: "CaramelDemo"; src: url("forms/caramel-demo.ttf") format("truetype"); font-display: block; }
+  .ck > span { position: absolute; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; font-weight: 700; font-size: 13.5px; color: #1035b8;
+    font-family: "CaramelDemo", "Sarabun", "Noto Sans Thai", system-ui, sans-serif; }
   .ck > span > i { font-style: normal; white-space: nowrap; flex: none; }
   .ck > span.l { justify-content: flex-start; padding-left: 3px; } .ck > span.h { align-items: flex-end; padding-bottom: 1px; font-size: 13.5px; }
   .plc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
@@ -197,7 +207,30 @@
         <div class="row" style="margin-top:8px"><button class="btn b" id="rhSave" type="button">บันทึกหัวกระดาษ</button><span class="note" id="rhMsg"></span></div>
       </section>
       <section>
-        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">รายการรถ</h2><button class="btn o" id="rrAdd" type="button">+ เพิ่มรถ</button></div>
+        <div class="kpis">
+          <label class="kpi ed"><input id="rhOrd" inputmode="decimal" autocomplete="off" placeholder="กรอก"><span>ยอดสั่ง (คิว) ✎</span></label>
+          <label class="kpi ed"><input id="rhProd" inputmode="decimal" autocomplete="off" placeholder="กรอก"><span>ยอดผลิต (คิว) ✎</span></label>
+          <div class="kpi"><b id="kRecv"></b><span>ยอดรับ (คิว)</span></div>
+          <div class="kpi"><b id="kTransit"></b><span>ระหว่างทาง (คิว)</span></div>
+          <div class="kpi"><b id="kLeft"></b><span>อีก…คิวครบ</span></div>
+          <div class="kpi"><b id="kPct"></b><span>ผลิตแล้ว</span></div>
+        </div>
+      </section>
+      <section>
+        <h2>รับรถ</h2>
+        <div class="scan">
+          <label class="f do">D/O No. (ใบส่งสินค้า) — สแกนหรือพิมพ์
+            <span class="doin"><input id="nDo" inputmode="numeric" autocomplete="off" maxlength="13" placeholder="0372610040130"><button class="btn" id="nScan" type="button">📷 สแกน</button></span></label>
+          <label class="f">Truck No.<input id="nTruck" inputmode="numeric" autocomplete="off"></label>
+          <label class="f">เวลาผสม<input id="nBatch" inputmode="numeric" maxlength="5" placeholder="ชช:นน" autocomplete="off"></label>
+          <label class="f">Volume (m³)<input id="nVol" inputmode="decimal" autocomplete="off"></label>
+          <button class="btn b" id="nAdd" type="button">บันทึกรถ</button>
+        </div>
+        <div id="nWarn" class="note" style="margin-top:6px"></div>
+        <p class="note" style="margin:8px 0 0">เวลาผสมกรอกตามใบ D/O · เวลารถถึงบันทึกเป็นเวลาที่กด "บันทึกรถ" (แก้ได้ทั้งคู่) · 📷 สแกน = เปิดกล้องเล็งบาร์โค้ด อ่านเองอัตโนมัติ (อ่านไม่ได้กด "ถ่ายรูปแทน") · เครื่องสแกนบาร์โค้ดแบบต่อ USB/Bluetooth ใช้ยิงลงช่อง D/O ได้เลย</p>
+      </section>
+      <section>
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">รายการรถ</h2><button class="btn" id="rrAdd" type="button">+ เพิ่มรถเอง</button></div>
         <p class="note" style="margin:0 0 6px">แตะแถวเพื่อแก้ไข / กรอกเวลาเท, slump, ก้อนตัวอย่าง</p>
         <div class="rr-scroll"><table class="rr-list" id="rrRows"></table></div>
         <div class="rr-sum" id="rrSum"></div>
@@ -454,7 +487,7 @@
     const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
     const dmyCE = (iso) => iso ? iso.split("-").reverse().join("/") : "";
     let list = [], cur = null, editRow = null, busy = false;
-    const H = { date: "rhDate", area: "rhArea", structType: "rhType", structNo: "rhNo", ambient: "rhAmb", supplier: "rhSup", mixNo: "rhMix", grade: "rhGrade", reqSlump: "rhReq" };
+    const H = { date: "rhDate", area: "rhArea", structType: "rhType", structNo: "rhNo", ambient: "rhAmb", supplier: "rhSup", mixNo: "rhMix", grade: "rhGrade", reqSlump: "rhReq", ordered: "rhOrd", produced: "rhProd" };
     const R = { truck: "rTruck", doNo: "rDo", plant: "rPlant", qty: "rQty", batch: "rBatch", arrive: "rArrive", start: "rStart", end: "rEnd", temp: "rTemp", slump: "rSlump", spType: "rSpType", spNo: "rSpNo", spCode: "rSpCode", remark: "rRemark" };
     const sumQty = (rows) => rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
     const fmt = (n) => (Math.round(n * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -491,6 +524,8 @@
           k === "remark" ? `<td class="rm">${esc(r.remark)}</td>` : `<td>${k === "no" ? i + 1 : k === "sp" ? (r.spNo ? esc(`${r.spType} ${r.spNo}`.trim()) : "") : esc(r[k] || "")}</td>`).join("")}</tr>`).join("")
         : `<tr><td colspan="${COLS.length}" class="note">ยังไม่มีรถ — กด "+ เพิ่มรถ" เมื่อรถคันแรกถึง</td></tr>`) + "</tbody>";
       $("rrSum").textContent = `รวม ${fmt(sumQty(rows))} m³ · ${rows.length} คัน`;
+      renderKpi();
+      if (!$("nVol").value) $("nVol").value = rows.length ? rows[rows.length - 1].qty : 7;
     }
     function openRow(r) {
       editRow = r || null; const last = cur.rows[cur.rows.length - 1] || {};
@@ -522,6 +557,47 @@
     $("rrBack").onclick = () => { cur = null; $("rrEdit").hidden = true; $("rrList").hidden = false; renderList(); };
     $("rhSave").onclick = async () => { $("rhMsg").textContent = "กำลังบันทึก…"; const r = await call("railRepHead", { id: cur.id, header: header() }, $("rhMsg")); if (!r) return; cur = r.report; $("rhMsg").textContent = "✓ บันทึกแล้ว"; load(true); };
     $("rrAdd").onclick = () => openRow(null);
+    // ---------- totals (same as the field report): ordered / produced typed, the rest follow ----------
+    const num = (v) => parseFloat(String(v || "").replace(/,/g, "")) || 0;
+    function renderKpi() {
+      const o = num($("rhOrd").value), p = num($("rhProd").value), r = sumQty(cur.rows);
+      $("kRecv").textContent = fmt(r); $("kTransit").textContent = fmt(p - r); $("kLeft").textContent = fmt(o - p);
+      $("kPct").textContent = o > 0 ? Math.round(p / o * 100) + "%" : "–";
+    }
+    let kpiTimer = 0;
+    ["rhOrd", "rhProd"].forEach((id) => $(id).addEventListener("input", () => { renderKpi(); clearTimeout(kpiTimer); kpiTimer = setTimeout(async () => {
+      const r = await call("railRepHead", { id: cur.id, header: header() }); if (r) { cur = r.report; load(true); } }, 900); }));
+    // ---------- receive a truck: scan or type the D/O, arrival time = when "บันทึกรถ" is pressed ----------
+    const hhmm = (v) => { const d = String(v || "").replace(/\D/g, ""); if (d.length < 3) return String(v || "").trim(); const h = d.slice(0, d.length - 2), m = d.slice(-2); return `${h.padStart(2, "0")}:${m}`; };
+    const plantOf = (d) => { try { const p = window.FieldReport && FieldReport.plantFromDO(d); return p && p.name ? p.name : ""; } catch (e) { return ""; } };
+    function doWarn() {
+      const d = $("nDo").value.replace(/\s+/g, ""); let t = "";
+      if (d) {
+        const here = cur.rows.findIndex((r) => r.doNo === d);
+        const other = list.find((x) => x.id !== cur.id && x.rows.some((r) => r.doNo === d));
+        if (here >= 0) t = `<span class="bad">D/O นี้ซ้ำกับลำดับที่ ${here + 1} ในใบนี้</span>`;
+        else if (other) t = `<span class="bad">D/O นี้อยู่ในใบวันที่ ${esc(dmyCE(other.header.date))} แล้ว</span>`;
+        else if (d.length >= 3 && plantOf(d)) t = `หน่วยผลิต: ${esc(plantOf(d))}`;
+      }
+      $("nWarn").innerHTML = t;
+    }
+    $("nDo").addEventListener("input", doWarn);
+    $("nDo").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("nTruck").focus(); } });
+    $("nBatch").addEventListener("blur", () => { $("nBatch").value = hhmm($("nBatch").value); });
+    $("nScan").onclick = () => window.DOScanner && DOScanner.start((t) => { if (!t) return; $("nDo").value = t; doWarn(); $("nTruck").focus(); });
+    $("nAdd").onclick = async () => {
+      const d = $("nDo").value.replace(/\s+/g, "");
+      if (!d && !$("nTruck").value.trim()) { $("nWarn").innerHTML = `<span class="bad">ใส่เลข D/O หรือเลขรถ</span>`; return $("nDo").focus(); }
+      if (d && cur.rows.some((r) => r.doNo === d)) { $("nWarn").innerHTML = `<span class="bad">D/O นี้มีในใบนี้แล้ว — ไม่บันทึกซ้ำ</span>`; return; }
+      const now = new Date(), last = cur.rows[cur.rows.length - 1] || {};
+      const row = { id: uid(), truck: $("nTruck").value.trim(), doNo: d, plant: plantOf(d) || last.plant || "", qty: $("nVol").value.trim(), batch: hhmm($("nBatch").value),
+        arrive: `${pad(now.getHours())}:${pad(now.getMinutes())}`, start: "", end: "", temp: "", slump: "", spType: last.spType || "", spNo: "", spCode: "", remark: "" };
+      $("nAdd").disabled = true;
+      const r = await call("railRepRow", { id: cur.id, row }, $("nWarn"));
+      $("nAdd").disabled = false; if (!r) return;
+      cur = r.report; ["nDo", "nTruck", "nBatch"].forEach((id) => ($(id).value = "")); $("nWarn").textContent = `✓ บันทึกรถลำดับที่ ${cur.rows.length} แล้ว`;
+      renderEdit(); load(true); $("nDo").focus();
+    };
     $("rrRows").onclick = (e) => { const it = e.target.closest("[data-row]"); if (it) openRow(cur.rows.find((x) => x.id === it.dataset.row)); };
     document.addEventListener("click", (e) => {
       const n = e.target.closest("[data-now]"); if (n) { const d = new Date(); $(n.dataset.now).value = `${pad(d.getHours())}:${pad(d.getMinutes())}`; return; }
@@ -574,6 +650,7 @@
         if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
         const rows = cur.rows, n = Math.max(1, Math.ceil(rows.length / PER)), total = sumQty(rows), host = $("ckHost");
         host.innerHTML = Array.from({ length: n }, (_, k) => ckSheet(rows.slice(k * PER, (k + 1) * PER), k * PER, k === n - 1, total)).join("");
+        try { await document.fonts.load('16px "CaramelDemo"'); } catch (e) {}
         await document.fonts.ready; await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
         // a value longer than its box gets a smaller font instead of being cut
         host.querySelectorAll(".ck > span").forEach((x) => { const t = x.firstElementChild, room = x.clientWidth - 4; let f = parseFloat(getComputedStyle(x).fontSize); while (t.offsetWidth > room && f > 6.5) { f -= 0.5; x.style.fontSize = f + "px"; } });
@@ -593,6 +670,8 @@
     return { load };
   })();
 </script>
+<script src="fieldreport.js"></script>
+<script src="scanner.js"></script>
 <script src="topbar.js"></script>
 </body>
 </html>
