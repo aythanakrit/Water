@@ -59,9 +59,9 @@
   #ckHost { position: fixed; left: -20000px; top: 0; }
   .ck { width: 1123px; height: 794px; position: relative; background: #fff; color: #000; font: 10.5px/1 "Sarabun", "Noto Sans Thai", system-ui, sans-serif; overflow: hidden; }
   .ck > img { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .ck > span { position: absolute; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+  .ck > span { position: absolute; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; font-weight: 700; font-size: 12.5px; color: #000; }
   .ck > span > i { font-style: normal; white-space: nowrap; flex: none; }
-  .ck > span.l { justify-content: flex-start; padding-left: 3px; } .ck > span.h { justify-content: flex-start; align-items: flex-end; padding: 0 0 2px 4px; font-size: 11px; }
+  .ck > span.l { justify-content: flex-start; padding-left: 3px; } .ck > span.h { align-items: flex-end; padding-bottom: 1px; font-size: 13.5px; }
   .plc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .plc span { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 12px; background: var(--card); }
   .plc button { border: 0; background: none; color: var(--bad, #b42318); font-size: 1.1rem; cursor: pointer; padding: 0 8px; min-height: 36px; min-width: 36px; border-radius: 999px; }
@@ -182,10 +182,10 @@
           <label class="f">Area (สถานี)<select id="rhArea"></select></label>
           <label class="f">Structure Type<input id="rhType" placeholder="เช่น Column, Slab"></label>
           <label class="f">Structure No.<input id="rhNo"></label>
-          <label class="f">Ambient Temp. (°C)<input id="rhAmb" inputmode="decimal"></label>
-          <label class="f">Supplier<input id="rhSup"></label>
+          <label class="f">Ambient Temp. (°C)<input id="rhAmb" readonly value="32"></label>
+          <label class="f">Supplier<input id="rhSup" readonly value="M Concrete"></label>
           <label class="f">Mix-Design No.<input id="rhMix"></label>
-          <label class="f">Mix-Design Grade<input id="rhGrade" placeholder="เช่น 350 ksc Cube"></label>
+          <label class="f">Mix-Design Grade (จาก Mix-Design No.)<input id="rhGrade" readonly></label>
           <label class="f">Required Slump (cm.)<input id="rhReq" placeholder="เช่น 10±2.5"></label>
         </div>
         <div class="row" style="margin-top:8px"><button class="btn b" id="rhSave" type="button">บันทึกหัวกระดาษ</button><span class="note" id="rhMsg"></span></div>
@@ -465,7 +465,7 @@
     function fillArea(v) { const st = stations(); const opts = st.includes(v) || !v ? st : [v, ...st]; $("rhArea").innerHTML = `<option value="">— เลือกสถานี —</option>` + opts.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join(""); $("rhArea").value = v || ""; }
     function renderEdit() {
       $("rrList").hidden = true; $("rrEdit").hidden = false;
-      fillArea(cur.header.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = cur.header[k] || ""; });
+      const fh = fixed(cur.header); fillArea(fh.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; });
       const rows = cur.rows;
       $("rrRows").innerHTML = rows.length ? rows.map((r, i) => `<div class="rr-row" data-row="${esc(r.id)}"><span class="no">${i + 1}</span>
         <div><b>${esc(r.truck || "-")}</b> · DO ${esc(r.doNo || "-")} · ${esc(r.plant || "")}<div class="m">ผสม ${esc(r.batch || "-")} · ถึง ${esc(r.arrive || "-")} · เท ${esc(r.start || "-")}–${esc(r.end || "-")} · ${r.temp ? esc(r.temp) + "°C" : "-"} · สลัมป์ ${esc(r.slump || "-")}${r.spNo ? ` · ตัวอย่าง ${esc(r.spType)} ${esc(r.spNo)} ${esc(r.spCode)}` : ""}</div></div>
@@ -487,9 +487,13 @@
       catch (e) { if (msgEl) msgEl.textContent = e.message === "bad_date" ? "ใส่วันที่ก่อน" : navigator.onLine ? "บันทึกไม่ได้ — ลองใหม่" : "ออฟไลน์ — ต้องต่ออินเทอร์เน็ต"; return null; }
       finally { busy = false; }
     }
-    const header = () => Object.fromEntries(Object.entries(H).map(([k, id]) => [k, $(id).value.trim()]));
+    // always the same: ambient 32 °C, supplier M Concrete, grade = first two digits of the mix design number + " Mpa(Cube)"
+    const gradeOf = (mix) => { const d = String(mix || "").replace(/\D/g, "").slice(0, 2); return d.length === 2 ? `${d} Mpa(Cube)` : ""; };
+    const fixed = (h) => ({ ...h, ambient: "32", supplier: "M Concrete", grade: gradeOf(h.mixNo) });
+    $("rhMix").addEventListener("input", () => { $("rhGrade").value = gradeOf($("rhMix").value); });
+    const header = () => fixed(Object.fromEntries(Object.entries(H).map(([k, id]) => [k, $(id).value.trim()])));
     $("rrNew").onclick = async () => {
-      const last = list[0], h = { date: today(), area: last ? last.header.area : "", supplier: last ? last.header.supplier : "" };
+      const last = list[0], h = fixed({ date: today(), area: last ? last.header.area : "" });
       const r = await call("railRepHead", { id: uid(), header: h }, $("rrItems")); if (!r) return;
       cur = r.report; list.unshift(cur); renderEdit();
     };
@@ -531,7 +535,7 @@
       structNo: [1269, 1708, 281], grade: [1971, 2258, 281], ambient: [1269, 1708, 325], reqSlump: [1971, 2258, 325] };
     const box = (x0, y0, x1, y1, txt, cls = "") => txt === "" || txt == null ? "" : `<span class="${cls}" style="left:${(x0 * K).toFixed(1)}px;top:${(y0 * K).toFixed(1)}px;width:${((x1 - x0) * K).toFixed(1)}px;height:${((y1 - y0) * K).toFixed(1)}px"><i>${esc(txt)}</i></span>`;
     function ckSheet(rows, off, last, total) {
-      const h = { ...cur.header, date: dmyCE(cur.header.date), ambient: cur.header.ambient ? cur.header.ambient + " °C" : "" };
+      const fh = fixed(cur.header), h = { ...fh, date: dmyCE(fh.date), ambient: fh.ambient + " °C" };
       let out = `<div class="ck"><img src="forms/ck-concrete-control-on-site.png" alt="">`;
       Object.entries(HEAD).forEach(([k, [x0, x1, y]]) => { out += box(x0, y - 36, x1, y, h[k], "h"); });
       rows.forEach((r, i) => {
