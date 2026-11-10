@@ -170,7 +170,7 @@
   <div id="tab-rep" hidden>
     <section id="rrList">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">ใบรายงานสนาม · Concrete Control on Site</h2><button class="btn o" id="rrNew" type="button">+ ใบใหม่</button></div>
-      <p class="note" style="margin:4px 0 8px">แบบฟอร์ม CM/GEN-OLW-CI-F03 · QC กรอกทีละคันที่หน้างาน · เห็นตรงกันทุกเครื่อง</p>
+      <p class="note" style="margin:4px 0 8px">แบบฟอร์ม CM/GEN-OLW-CI-F03 · QC กรอกทีละคันที่หน้างาน · เห็นตรงกันทุกเครื่อง · ใส่ให้เอง: Ambient Temp. 32 °C, Supplier M Concrete, Grade จาก Mix-Design No.</p>
       <div id="rrItems"></div>
     </section>
     <div id="rrEdit" hidden>
@@ -182,10 +182,10 @@
           <label class="f">Area<select id="rhAreaSel"></select><input id="rhArea" placeholder="พิมพ์ชื่อ Area" hidden></label>
           <label class="f">Structure Type<input id="rhType" placeholder="เช่น Column, Slab"></label>
           <label class="f">Structure No.<input id="rhNo"></label>
-          <label class="f">Ambient Temp. (°C)<input id="rhAmb" readonly value="32"></label>
-          <label class="f">Supplier<input id="rhSup" readonly value="M Concrete"></label>
-          <label class="f">Mix-Design No.<input id="rhMix"></label>
-          <label class="f">Mix-Design Grade (จาก Mix-Design No.)<input id="rhGrade" readonly></label>
+          <input id="rhAmb" type="hidden" value="32">
+          <input id="rhSup" type="hidden" value="M Concrete">
+          <label class="f">Mix-Design No.<input id="rhMix"><span id="rhGradeTxt" class="note"></span></label>
+          <input id="rhGrade" type="hidden">
           <label class="f">Required Slump (cm.)<input id="rhReq" placeholder="เช่น 10±2.5"></label>
         </div>
         <div class="row" style="margin-top:8px"><button class="btn b" id="rhSave" type="button">บันทึกหัวกระดาษ</button><span class="note" id="rhMsg"></span></div>
@@ -472,7 +472,7 @@
     $("rhAreaSel").addEventListener("change", () => { const o = $("rhAreaSel").value === OTHER; $("rhArea").hidden = !o; $("rhArea").value = o ? "" : $("rhAreaSel").value; if (o) $("rhArea").focus(); });
     function renderEdit() {
       $("rrList").hidden = true; $("rrEdit").hidden = false;
-      const fh = fixed(cur.header); fillArea(fh.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; });
+      const fh = fixed(cur.header); fillArea(fh.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; }); showGrade();
       const rows = cur.rows;
       $("rrRows").innerHTML = rows.length ? rows.map((r, i) => `<div class="rr-row" data-row="${esc(r.id)}"><span class="no">${i + 1}</span>
         <div><b>${esc(r.truck || "-")}</b> · DO ${esc(r.doNo || "-")} · ${esc(r.plant || "")}<div class="m">ผสม ${esc(r.batch || "-")} · ถึง ${esc(r.arrive || "-")} · เท ${esc(r.start || "-")}–${esc(r.end || "-")} · ${r.temp ? esc(r.temp) + "°C" : "-"} · สลัมป์ ${esc(r.slump || "-")}${r.spNo ? ` · ตัวอย่าง ${esc(r.spType)} ${esc(r.spNo)} ${esc(r.spCode)}` : ""}</div></div>
@@ -497,7 +497,8 @@
     // always the same: ambient 32 °C, supplier M Concrete, grade = first two digits of the mix design number + " MPa(Cube)"
     const gradeOf = (mix) => { const d = String(mix || "").replace(/\D/g, "").slice(0, 2); return d.length === 2 ? `${d} MPa(Cube)` : ""; };
     const fixed = (h) => ({ ...h, ambient: "32", supplier: "M Concrete", grade: gradeOf(h.mixNo) });
-    $("rhMix").addEventListener("input", () => { $("rhGrade").value = gradeOf($("rhMix").value); });
+    const showGrade = () => { $("rhGrade").value = gradeOf($("rhMix").value); $("rhGradeTxt").textContent = $("rhGrade").value ? "Grade: " + $("rhGrade").value : ""; };
+    $("rhMix").addEventListener("input", showGrade);
     const header = () => fixed(Object.fromEntries(Object.entries(H).map(([k, id]) => [k, $(id).value.trim()])));
     $("rrNew").onclick = async () => {
       const last = list[0], h = fixed({ date: today(), area: last ? last.header.area : "" });
