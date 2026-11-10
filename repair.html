@@ -481,7 +481,7 @@
       const c = {}; impJobs.forEach((j) => (c[j.status] = (c[j.status] || 0) + 1));
       const have = new Set(jobs.map((j) => j.docNo).filter(Boolean)), dup = impJobs.filter((j) => j.docNo && have.has(j.docNo)).length;
       $("impPrev").textContent = `${d.source ? d.source + " · " : ""}${impJobs.length} รายการ — ` + ["new", "fix", "part", "done", "rejected"].filter((k) => c[k]).map((k) => `${STATUS[k][0]} ${c[k]}`).join(" · ")
-        + ` · มีรูป ${impJobs.filter((j) => (j.photos || []).length).length} รายการ` + (dup ? ` · อยู่ในระบบแล้ว ${dup} (จะข้าม)` : "");
+        + ` · มีรูป ${impJobs.filter((j) => (j.photos || []).length).length} รายการ · มี PDF ${impJobs.filter((j) => (j.files || []).length).length} รายการ` + (dup ? ` · อยู่ในระบบแล้ว ${dup} (จะข้าม)` : "");
       $("impGo").disabled = false; $("impAdm").value = $("impAdm").value || admGet();
     } catch (x) { $("impPrev").textContent = "อ่านไฟล์ไม่ได้ — ต้องเป็นไฟล์ .json ที่เตรียมไว้"; }
   });
@@ -518,11 +518,13 @@
     for (let i = 0; i < impJobs.length; i++) {
       const j = impJobs[i]; $("impMsg").textContent = `กำลังนำเข้า ${i + 1}/${impJobs.length} …`;
       try {
-        const { photos, ...job } = j;
+        const { photos, files, ...job } = j;
         const x = await api("repairImport", { job, adminKey: adm });
         if (x.skipped) { skipped++; continue; }
         added++;
         if ((photos || []).length) photoBad += await upload(x.id, photos.map(b64Blob));
+        // PDF memos: [{ name, data: base64 }]
+        if ((files || []).length) photoBad += await upload(x.id, files.map((f) => { const b = b64Blob(f.data); return new File([b], f.name || "เมมโม่.pdf", { type: "application/pdf" }); }));
       } catch (e) { failed.push(`${j.docNo || "(ไม่มีเลขที่)"}: ${e.message}`); }
     }
     busy = false; $("impGo").disabled = false; await load();
