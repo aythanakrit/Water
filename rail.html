@@ -69,6 +69,7 @@
   .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
   .sheet .panel { background: var(--card); width: 100%; max-width: 640px; max-height: 92vh; overflow: auto; border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
   @media (min-width: 700px) { .sheet { align-items: center; } .sheet .panel { border-radius: 16px; } }
+  .spk > span { display: flex; align-items: center; gap: 8px; font-size: 1rem; color: var(--text); font-weight: 600; min-height: 44px; } .spk b { color: var(--orange); font-size: .9rem; }
   .tnow { display: flex; gap: 4px; } .tnow input { flex: 1; } .tnow button { flex: 0 0 auto; padding: 4px 8px; font-size: .8rem; }
   #ckHost { position: fixed; left: -20000px; top: 0; }
   .ck { width: 1123px; height: 794px; position: relative; background: #fff; color: #000; font: 10.5px/1 "Sarabun", "Noto Sans Thai", system-ui, sans-serif; overflow: hidden; }
@@ -257,9 +258,8 @@
     <label class="f">End เทเสร็จ<span class="tnow"><input id="rEnd" type="time"><button class="btn" type="button" data-now="rEnd">ตอนนี้</button></span></label>
     <label class="f">Concrete Temp. (°C)<input id="rTemp" inputmode="decimal"></label>
     <label class="f">Slump (cm.)<input id="rSlump" inputmode="decimal"></label>
-    <label class="f">Specimen Type<select id="rSpType"><option value="">—</option><option value="□">□ Cube</option><option value="∅">∅ Cylinder</option></select></label>
-    <label class="f">Specimen No. จำนวน<input id="rSpNo" inputmode="numeric"></label>
-    <label class="f">Specimen Code หมายเลข<input id="rSpCode"></label>
+    <label class="f spk"><span><input type="checkbox" id="rSp"> เก็บลูกปูน</span><b id="rSpInfo"></b>
+      <input type="hidden" id="rSpType"><input type="hidden" id="rSpNo"><input type="hidden" id="rSpCode"></label>
     <label class="f">Remarks หมายเหตุ<input id="rRemark"></label>
   </div>
   <datalist id="rrPlants"></datalist>
@@ -529,13 +529,27 @@
     }
     function openRow(r) {
       editRow = r || null; const last = cur.rows[cur.rows.length - 1] || {};
-      const v = r || { plant: last.plant || "", qty: last.qty || "", spType: last.spType || "" };
+      const v = r || { plant: last.plant || "", qty: last.qty || "" };
       Object.entries(R).forEach(([k, id]) => { $(id).value = v[k] || ""; });
+      $("rSp").checked = !!v.spNo; spShow();
       $("rrSheetT").textContent = r ? `รถคันที่ ${cur.rows.indexOf(r) + 1}` : `เพิ่มรถคันที่ ${cur.rows.length + 1}`;
       $("rrRowDel").hidden = !r; $("rrRowMsg").textContent = "";
       $("rrPlants").innerHTML = [...new Set([...(typeof S !== "undefined" && S ? S.places.filter((p) => p.startsWith("P-")).map((p) => p.slice(2)) : []), ...cur.rows.map((x) => x.plant).filter(Boolean)])].map((p) => `<option value="${esc(p)}">`).join("");
       $("rrSheet").hidden = false; if (!r) $("rTruck").focus();
     }
+    // samples: ticked = cube □, 6 pieces, code A1-A6 for the first sampled truck of the sheet, B1-B6 for the next …
+    const letters = (n) => { let t = ""; n++; while (n > 0) { n--; t = String.fromCharCode(65 + (n % 26)) + t; n = Math.floor(n / 26); } return t; };
+    function nextCode() {
+      const used = new Set(cur.rows.filter((x) => x !== editRow && x.spCode).map((x) => (x.spCode.match(/^[A-Z]+/) || [""])[0]));
+      let i = 0; while (used.has(letters(i))) i++; const L = letters(i); return `${L}1-${L}6`;
+    }
+    function spShow() {
+      const on = $("rSp").checked;
+      if (on && !$("rSpCode").value) { $("rSpType").value = "□"; $("rSpNo").value = "6"; $("rSpCode").value = nextCode(); }
+      if (!on) { $("rSpType").value = ""; $("rSpNo").value = ""; $("rSpCode").value = ""; }
+      $("rSpInfo").textContent = on ? `Type ${$("rSpType").value} · จำนวน ${$("rSpNo").value} · Code ${$("rSpCode").value}` : "";
+    }
+    $("rSp").addEventListener("change", spShow);
     async function call(action, body, msgEl) {
       if (busy) return null; busy = true;
       try { const r = await api(action, body); if (!r.ok) throw new Error(r.error); return r; }
@@ -591,7 +605,7 @@
       if (d && cur.rows.some((r) => r.doNo === d)) { $("nWarn").innerHTML = `<span class="bad">D/O นี้มีในใบนี้แล้ว — ไม่บันทึกซ้ำ</span>`; return; }
       const now = new Date(), last = cur.rows[cur.rows.length - 1] || {};
       const row = { id: uid(), truck: $("nTruck").value.trim(), doNo: d, plant: plantOf(d) || last.plant || "", qty: $("nVol").value.trim(), batch: hhmm($("nBatch").value),
-        arrive: `${pad(now.getHours())}:${pad(now.getMinutes())}`, start: "", end: "", temp: "", slump: "", spType: last.spType || "", spNo: "", spCode: "", remark: "" };
+        arrive: `${pad(now.getHours())}:${pad(now.getMinutes())}`, start: "", end: "", temp: "", slump: "", spType: "", spNo: "", spCode: "", remark: "" };
       $("nAdd").disabled = true;
       const r = await call("railRepRow", { id: cur.id, row }, $("nWarn"));
       $("nAdd").disabled = false; if (!r) return;
