@@ -122,6 +122,7 @@
   #pdfHost { position: fixed; left: -10000px; top: 0; width: 794px; }
   #pdfHost .a4 { width: 794px; max-width: none; min-height: 1123px; padding: 14mm 12mm; font-size: 12px; box-shadow: none; margin: 0; }
   #pdfHost .a4 .sum { grid-template-columns: repeat(2, 1fr); }
+  #pdfHost.measure { visibility: hidden; } #pdfHost.measure .a4 { min-height: 0; }
   .a4 .phd { display: flex; justify-content: space-between; font-size: 10.5px; color: #555; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-bottom: 6px; }
   .a4 h3 small { font-weight: 400; color: #555; }
   .a4 tr { break-inside: avoid; page-break-inside: avoid; }
@@ -542,21 +543,37 @@
           <td>${esc(j.symptom)}</td><td class="c"><span class="ru ru-${j.urg}">${URG[j.urg][0]}</span></td><td class="c">${STATUS[j.status][0]}</td><td class="c">${dmy(j.at)}</td>
           <td class="n ${days(j) > 7 ? "old" : ""}">${days(j)}</td><td>${esc(last(j))}</td></tr>`).join("")}</tbody></table>` : `<p>ไม่มีงานค้าง</p>`; };
     const per = groups.map(([t, name]) => [t, name, openOf(t)]);
-    // printed pages: at most 10 rows a page, and every group starts on a new page
-    const PER_PAGE = 10, title = `รายงานงานค้าง — ${cat ? groups[0][1] : "สรุปทุกหมวด"}`, pages = [];
-    per.forEach(([t, name, o], gi) => { const n = Math.max(1, Math.ceil(o.length / PER_PAGE));
-      for (let c = 0; c < n; c++) pages.push({ t, rows: o.slice(c * PER_PAGE, (c + 1) * PER_PAGE), off: c * PER_PAGE, part: c + 1, n,
-        head: `${cat ? "" : gi + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)` }); });
-    const sheet = (k, body) => `<div class="a4">${k ? `<div class="phd"><span>${esc(title)} · ${esc(P || "ทุกแพล้น")}</span><span>หน้า ${k + 1}/${pages.length}</span></div>` : ""}${body}${k === pages.length - 1 ? sign : ""}</div>`;
+    // printed pages: rows fill each A4 sheet (measured at full A4 width), and every group starts on a new sheet
+    const title = `รายงานงานค้าง — ${cat ? groups[0][1] : "สรุปทุกหมวด"}`, plantTxt = esc(P || "ทุกแพล้น");
     const sign = `<div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
       <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
-    const part = (pg) => `<h3>${pg.head}${pg.n > 1 ? ` <small>(${pg.part}/${pg.n})</small>` : ""}</h3>${table(pg.t, pg.rows, pg.off)}`;
-    $("rPage").innerHTML = sheet(0, `<div class="hd"><div><b>${esc(title)}</b>${esc(P || "ทุกแพล้น")}${pages.length > 1 ? ` · หน้า 1/${pages.length}` : ""}</div>
+    const first = `<div class="hd"><div><b>${esc(title)}</b>${plantTxt}<span class="pgno"></span></div>
         <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
       <div class="sum"><div><b>${all.length}</b>ค้างทั้งหมด</div><div class="red"><b>${all.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div></div>
       ${cat ? "" : `<table class="bycat"><thead><tr><th>หมวด</th><th>ค้าง</th><th>หยุดผลิต</th><th>เร่งด่วน</th><th>ประคอง</th></tr></thead><tbody>
-        ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td></tr>`).join("")}</tbody></table>`}
-      ${part(pages[0])}`) + pages.slice(1).map((pg, i) => sheet(i + 1, part(pg))).join("");
+        ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td></tr>`).join("")}</tbody></table>`}`;
+    const host = document.createElement("div"); host.id = "pdfHost"; host.className = "measure"; document.body.appendChild(host);
+    const newSheet = (head) => { const d = document.createElement("div"); d.className = "a4"; d.innerHTML = head; host.appendChild(d); return d; };
+    const over = (d) => d.offsetHeight > d.offsetWidth * 297 / 210;
+    let sh = newSheet(first);
+    per.forEach(([t, name, o], gi) => {
+      const head = `${cat ? "" : gi + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)`;
+      if (gi) sh = newSheet(`<div class="phd"><span>${esc(title)} · ${plantTxt}</span><span class="pgno"></span></div>`);
+      const start = (d) => { d.insertAdjacentHTML("beforeend", `<h3 data-g="${gi}">${head}<small class="part"></small></h3>${table(t, o.length ? [o[0]] : [], 0)}`); const tbs = d.querySelectorAll("table:not(.bycat) tbody"), tb = tbs[tbs.length - 1]; if (tb) tb.innerHTML = ""; return tb; };
+      let tb = start(sh); if (!tb) return;
+      const rowsHTML = table(t, o, 0).match(/<tr class="[^"]*">[\s\S]*?<\/tr>/g) || [];
+      rowsHTML.forEach((r) => {
+        tb.insertAdjacentHTML("beforeend", r);
+        if (over(sh) && tb.rows.length > 1) { tb.lastElementChild.remove(); sh = newSheet(`<div class="phd"><span>${esc(title)} · ${plantTxt}</span><span class="pgno"></span></div>`); tb = start(sh); tb.insertAdjacentHTML("beforeend", r); }
+      });
+    });
+    sh.insertAdjacentHTML("beforeend", sign);
+    if (over(sh)) { sh.lastElementChild.remove(); sh.lastElementChild.remove(); newSheet(`<div class="phd"><span>${esc(title)} · ${plantTxt}</span><span class="pgno"></span></div>` + sign); }
+    // page numbers and "(part / parts)" of a group spread over several sheets
+    const sheets = [...host.children], N = sheets.length;
+    sheets.forEach((d, k) => d.querySelectorAll(".pgno").forEach((x) => (x.textContent = N > 1 ? (k ? `หน้า ${k + 1}/${N}` : ` · หน้า 1/${N}`) : "")));
+    per.forEach((_, gi) => { const hs = host.querySelectorAll(`h3[data-g="${gi}"]`); if (hs.length > 1) hs.forEach((h, k) => (h.querySelector(".part").textContent = ` (${k + 1}/${hs.length})`)); });
+    $("rPage").innerHTML = host.innerHTML; host.remove();
     repName = `${title}_${P || "ทุกแพล้น"}_${new Date().toISOString().slice(0, 10)}`.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ") + ".pdf";
   }
   let repName = "รายงาน.pdf";
@@ -575,7 +592,7 @@
         const c = await html2canvas(els[i], { scale: 2, backgroundColor: "#ffffff", windowWidth: 900 });
         if (i) pdf.addPage("a4", "portrait");
         let w = 210, h = c.height * 210 / c.width; if (h > 297) { w = 297 * c.width / c.height; h = 297; }
-        pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", (210 - w) / 2, 0, w, h);
+        pdf.addImage(c.toDataURL("image/jpeg", 0.85), "JPEG", (210 - w) / 2, 0, w, h);
       }
       host.remove();
       const blob = pdf.output("blob"), file = new File([blob], repName, { type: "application/pdf" });
