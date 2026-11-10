@@ -78,6 +78,8 @@
   .ck > span { position: absolute; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; font-weight: 700; font-size: 13.5px; color: #1035b8;
     font-family: "CaramelDemo", "Sarabun", "Noto Sans Thai", system-ui, sans-serif; }
   .ck > span > i { font-style: normal; white-space: nowrap; flex: none; }
+  /* 5 and 9 are not in the supplied font: they come from the next font, scaled to the same height as the other digits */
+  .ck u { text-decoration: none; font-size: var(--fb, 80%); }
   .ck > span.l { justify-content: flex-start; padding-left: 3px; } .ck > span.h { align-items: flex-end; padding-bottom: 1px; font-size: 13.5px; }
   .plc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .plc span { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 12px; background: var(--card); }
@@ -644,7 +646,7 @@
     const ROWS = [517, 556, 595, 634, 673, 712, 751, 790, 829, 869, 908, 947, 986, 1025, 1064, 1103, 1142, 1180];
     const HEAD = { date: [780, 1102, 195], area: [1269, 1708, 195], supplier: [1971, 2258, 195], structType: [1269, 1708, 238], mixNo: [1971, 2258, 238],
       structNo: [1269, 1708, 281], grade: [1971, 2258, 281], ambient: [1269, 1708, 325], reqSlump: [1971, 2258, 325] };
-    const box = (x0, y0, x1, y1, txt, cls = "") => txt === "" || txt == null ? "" : `<span class="${cls}" style="left:${(x0 * K).toFixed(1)}px;top:${(y0 * K).toFixed(1)}px;width:${((x1 - x0) * K).toFixed(1)}px;height:${((y1 - y0) * K).toFixed(1)}px"><i>${esc(txt)}</i></span>`;
+    const box = (x0, y0, x1, y1, txt, cls = "") => txt === "" || txt == null ? "" : `<span class="${cls}" style="left:${(x0 * K).toFixed(1)}px;top:${(y0 * K).toFixed(1)}px;width:${((x1 - x0) * K).toFixed(1)}px;height:${((y1 - y0) * K).toFixed(1)}px"><i>${esc(txt).replace(/[59]/g, "<u>$&</u>")}</i></span>`;
     function ckSheet(rows, off, last, total) {
       const fh = fixed(cur.header), h = { ...fh, date: dmyCE(fh.date), ambient: fh.ambient + " °C" };
       let out = `<div class="ck"><img src="forms/ck-concrete-control-on-site.png" alt="">`;
@@ -665,6 +667,11 @@
         const rows = cur.rows, n = Math.max(1, Math.ceil(rows.length / PER)), total = sumQty(rows), host = $("ckHost");
         host.innerHTML = Array.from({ length: n }, (_, k) => ckSheet(rows.slice(k * PER, (k + 1) * PER), k * PER, k === n - 1, total)).join("");
         try { await document.fonts.load('16px "CaramelDemo"'); } catch (e) {}
+        try { // height of "4" (in the supplied font) ÷ height of "5" (from the fallback) → scale for 5 and 9
+          const cx = document.createElement("canvas").getContext("2d"); cx.font = '700 100px "CaramelDemo", "Sarabun", "Noto Sans Thai", system-ui, sans-serif';
+          const a = cx.measureText("4").actualBoundingBoxAscent, b = cx.measureText("5").actualBoundingBoxAscent;
+          if (a > 0 && b > 0) host.style.setProperty("--fb", Math.min(1, a / b).toFixed(3) + "em");
+        } catch (e) {}
         await document.fonts.ready; await Promise.all([...host.querySelectorAll("img")].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
         // a value longer than its box gets a smaller font instead of being cut
         host.querySelectorAll(".ck > span").forEach((x) => { const t = x.firstElementChild, room = x.clientWidth - 4; let f = parseFloat(getComputedStyle(x).fontSize); while (t.offsetWidth > room && f > 6.5) { f -= 0.5; x.style.fontSize = f + "px"; } });
