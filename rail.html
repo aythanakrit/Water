@@ -46,6 +46,28 @@
   .doc { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .doc .t { flex: 1; min-width: 180px; } .doc .t b { display: block; } [hidden] { display: none !important; }
   .log td { font-size: .85rem; }
+  .tabs { flex-wrap: wrap; } .tabs button { min-width: 40%; }
+  .rr-it { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; } .rr-it:last-child { border-bottom: 0; }
+  .rr-it .t { flex: 1; min-width: 0; } .rr-it .t b { display: block; } .rr-it .q { text-align: right; } .rr-it .q b { font-size: 1.2rem; display: block; }
+  .rr-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .rr-row .no { width: 30px; height: 30px; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .85rem; }
+  .rr-row .m { font-size: .82rem; color: var(--muted); } .rr-sum { font-weight: 700; padding-top: 8px; text-align: right; }
+  .sheet { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet .panel { background: var(--card); width: 100%; max-width: 640px; max-height: 92vh; overflow: auto; border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  @media (min-width: 700px) { .sheet { align-items: center; } .sheet .panel { border-radius: 16px; } }
+  .tnow { display: flex; gap: 4px; } .tnow input { flex: 1; } .tnow button { flex: 0 0 auto; padding: 4px 8px; font-size: .8rem; }
+  #ckHost { position: fixed; left: -20000px; top: 0; }
+  .ck { width: 1123px; height: 794px; background: #fff; color: #000; padding: 26px 30px 18px; box-sizing: border-box; font: 11px/1.25 "Sarabun", "Noto Sans Thai", system-ui, sans-serif; position: relative; }
+  .ck .top { display: grid; grid-template-columns: 250px 1fr; } .ck .co { font-size: 10px; padding-top: 40px; }
+  .ck .ttl { text-align: right; } .ck .ttl b { display: block; font-size: 15px; } .ck .ttl span { font-size: 13px; }
+  .ck .hdr { display: grid; grid-template-columns: 250px 1fr 1fr 1fr; column-gap: 14px; row-gap: 3px; margin: 8px 0 8px; font-weight: 700; font-size: 10.5px; }
+  .ck .hdr div { display: flex; gap: 6px; align-items: flex-end; justify-content: flex-end; } .ck .hdr i { font-style: normal; font-weight: 400; flex: 1; border-bottom: 1px solid #000; min-height: 15px; padding: 0 4px; text-align: left; }
+  .ck table { width: 100%; border-collapse: collapse; table-layout: fixed; } .ck th, .ck td { border: 1px solid #000; padding: 1px 3px; text-align: center; font-size: 10.5px; height: 20px; overflow: hidden; white-space: nowrap; }
+  .ck thead th { background: #fbe4d5; font-weight: 700; height: auto; white-space: normal; line-height: 1.15; } .ck thead small { display: block; font-weight: 400; font-size: 9.5px; }
+  .ck .sumt { width: 130px; margin-left: 206px; margin-top: -1px; } .ck .sumt td { height: 20px; }
+  .ck .sig { display: grid; grid-template-columns: 300px 300px 130px; column-gap: 60px; row-gap: 1px; margin: 12px 0 0 120px; font-size: 9.5px; font-weight: 700; text-align: center; }
+  .ck .sig div { border: 1px solid #000; height: 19px; } .ck .sig span { display: block; margin-bottom: 3px; }
+  .ck .foot { position: absolute; left: 30px; bottom: 12px; font-size: 10px; } .ck .pg { position: absolute; right: 30px; bottom: 12px; font-size: 10px; }
   .plc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .plc span { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 12px; background: var(--card); }
   .plc button { border: 0; background: none; color: var(--bad, #b42318); font-size: 1.1rem; cursor: pointer; padding: 0 8px; min-height: 36px; min-width: 36px; border-radius: 999px; }
@@ -63,7 +85,7 @@
   <p class="sub">สถานี OR07–OR12 · เอกสาร PDF ให้ทุกคนดาวน์โหลด/พิมพ์ · อุปกรณ์เก็บลูกปูนแต่ละที่ และการย้ายของ</p>
   <p class="note" id="offline" hidden style="color:var(--bad)">⚠️ หน้านี้ใช้ได้เมื่อต่อระบบกลางเท่านั้น (เว็บนี้ยังไม่ได้ต่อ หรือกำลังออฟไลน์)</p>
 
-  <div class="tabs"><button data-tab="stock" class="on" type="button">🧰 อุปกรณ์</button><button data-tab="hist" type="button">📜 ประวัติ</button><button data-tab="docs" type="button">📄 เอกสาร PDF</button></div>
+  <div class="tabs"><button data-tab="stock" class="on" type="button">🧰 อุปกรณ์</button><button data-tab="hist" type="button">📜 ประวัติ</button><button data-tab="docs" type="button">📄 เอกสาร PDF</button><button data-tab="rep" type="button">📋 ใบรายงานสนาม</button></div>
 
   <!-- equipment -->
   <div id="tab-stock">
@@ -150,7 +172,67 @@
       <p class="note" id="upMsg" style="margin:6px 0 0">ไฟล์ PDF ไม่เกิน 25 MB · จะเปลี่ยนฉบับใหม่ ให้อัปโหลดฉบับใหม่แล้วลบฉบับเก่า</p>
     </section>
   </div>
+  <!-- site report on the contractor's form -->
+  <div id="tab-rep" hidden>
+    <section id="rrList">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">ใบรายงานสนาม · Concrete Control on Site</h2><button class="btn o" id="rrNew" type="button">+ ใบใหม่</button></div>
+      <p class="note" style="margin:4px 0 8px">แบบฟอร์ม CM/GEN-OLW-CI-F03 · QC กรอกทีละคันที่หน้างาน · เห็นตรงกันทุกเครื่อง</p>
+      <div id="rrItems"></div>
+    </section>
+    <div id="rrEdit" hidden>
+      <button class="btn" id="rrBack" type="button" style="margin-bottom:10px">‹ ใบทั้งหมด</button>
+      <section>
+        <h2>หัวกระดาษ</h2>
+        <div class="grid">
+          <label class="f">Date<input id="rhDate" type="date"></label>
+          <label class="f">Area (สถานี)<select id="rhArea"></select></label>
+          <label class="f">Structure Type<input id="rhType" placeholder="เช่น Column, Slab"></label>
+          <label class="f">Structure No.<input id="rhNo"></label>
+          <label class="f">Ambient Temp. (°C)<input id="rhAmb" inputmode="decimal"></label>
+          <label class="f">Supplier<input id="rhSup"></label>
+          <label class="f">Mix-Design No.<input id="rhMix"></label>
+          <label class="f">Mix-Design Grade<input id="rhGrade" placeholder="เช่น 350 ksc Cube"></label>
+          <label class="f">Required Slump (cm.)<input id="rhReq" placeholder="เช่น 10±2.5"></label>
+        </div>
+        <div class="row" style="margin-top:8px"><button class="btn b" id="rhSave" type="button">บันทึกหัวกระดาษ</button><span class="note" id="rhMsg"></span></div>
+      </section>
+      <section>
+        <div class="row" style="justify-content:space-between"><h2 style="margin:0">รายการรถ</h2><button class="btn o" id="rrAdd" type="button">+ เพิ่มรถ</button></div>
+        <div id="rrRows"></div>
+        <div class="rr-sum" id="rrSum"></div>
+      </section>
+      <section>
+        <div class="row"><button class="btn b" id="rrPdf" type="button">⬇ บันทึก PDF (แบบฟอร์ม CK)</button><span class="note" id="rrPdfMsg"></span></div>
+        <details style="margin-top:12px"><summary class="note" style="cursor:pointer">ลบใบนี้</summary>
+          <div class="row" style="margin-top:6px"><input type="password" id="rrDelCode" placeholder="รหัสลบ" autocomplete="off"><button class="btn d" id="rrDel" type="button">ลบ</button></div></details>
+      </section>
+    </div>
+  </div>
 </main>
+
+<div class="sheet" id="rrSheet" hidden><div class="panel">
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0" id="rrSheetT">เพิ่มรถ</h2><button class="btn" type="button" data-rrclose>✕</button></div>
+  <div class="grid" style="margin-top:8px">
+    <label class="f">Truck No. เลขรถ<input id="rTruck" autocomplete="off"></label>
+    <label class="f">Delivery Note No. ใบส่งสินค้า<input id="rDo" inputmode="numeric" autocomplete="off"></label>
+    <label class="f">Plant หน่วยผลิต<input id="rPlant" list="rrPlants" autocomplete="off"></label>
+    <label class="f">Quantity (m³)<input id="rQty" inputmode="decimal"></label>
+    <label class="f">Batching Time เวลาผสม<span class="tnow"><input id="rBatch" type="time"><button class="btn" type="button" data-now="rBatch">ตอนนี้</button></span></label>
+    <label class="f">Truck at Site รถถึง<span class="tnow"><input id="rArrive" type="time"><button class="btn" type="button" data-now="rArrive">ตอนนี้</button></span></label>
+    <label class="f">Start เริ่มเท<span class="tnow"><input id="rStart" type="time"><button class="btn" type="button" data-now="rStart">ตอนนี้</button></span></label>
+    <label class="f">End เทเสร็จ<span class="tnow"><input id="rEnd" type="time"><button class="btn" type="button" data-now="rEnd">ตอนนี้</button></span></label>
+    <label class="f">Concrete Temp. (°C)<input id="rTemp" inputmode="decimal"></label>
+    <label class="f">Slump (cm.)<input id="rSlump" inputmode="decimal"></label>
+    <label class="f">Specimen Type<select id="rSpType"><option value="">—</option><option value="□">□ Cube</option><option value="∅">∅ Cylinder</option></select></label>
+    <label class="f">Specimen No. จำนวน<input id="rSpNo" inputmode="numeric"></label>
+    <label class="f">Specimen Code หมายเลข<input id="rSpCode"></label>
+    <label class="f">Remarks หมายเหตุ<input id="rRemark"></label>
+  </div>
+  <datalist id="rrPlants"></datalist>
+  <div class="note" id="rrRowMsg" style="margin-top:6px"></div>
+  <div class="row" style="margin-top:10px;justify-content:space-between"><button class="btn d" id="rrRowDel" type="button">ลบรถคันนี้</button><button class="btn b" id="rrRowSave" type="button">บันทึก</button></div>
+</div></div>
+<div id="ckHost"></div>
 
 <script src="config.js"></script>
 <script>
@@ -173,7 +255,8 @@
 
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-    ["stock", "hist", "docs"].forEach((t) => { $("tab-" + t).hidden = b.dataset.tab !== t; });
+    ["stock", "hist", "docs", "rep"].forEach((t) => { $("tab-" + t).hidden = b.dataset.tab !== t; });
+    if (b.dataset.tab === "rep") RR.load();
     if (b.dataset.tab === "docs") loadDocs();
     if (b.dataset.tab === "hist") loadHist();
   }));
@@ -362,6 +445,134 @@
 
   if (!CLOUD) { $("offline").hidden = false; document.querySelectorAll("main button, main input, main select").forEach((x) => { if (!x.closest(".tabs")) x.disabled = true; }); }
   else { loadStock(); setInterval(() => { if (!document.hidden && !$("tab-stock").hidden) loadStock(); }, 15000); }
+</script>
+<script>
+  // ---------- site report on the contractor's form (Concrete Control on Site), saved online, one row per truck ----------
+  const RR = (() => {
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+    const dmyCE = (iso) => iso ? iso.split("-").reverse().join("/") : "";
+    let list = [], cur = null, editRow = null, busy = false;
+    const H = { date: "rhDate", area: "rhArea", structType: "rhType", structNo: "rhNo", ambient: "rhAmb", supplier: "rhSup", mixNo: "rhMix", grade: "rhGrade", reqSlump: "rhReq" };
+    const R = { truck: "rTruck", doNo: "rDo", plant: "rPlant", qty: "rQty", batch: "rBatch", arrive: "rArrive", start: "rStart", end: "rEnd", temp: "rTemp", slump: "rSlump", spType: "rSpType", spNo: "rSpNo", spCode: "rSpCode", remark: "rRemark" };
+    const sumQty = (rows) => rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
+    const fmt = (n) => (Math.round(n * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    function stations() { return (typeof S !== "undefined" && S ? S.places : []).filter((p) => !/^[PLX]-/.test(p)); }
+    async function load(quiet) {
+      if (!CLOUD) return;
+      try { const r = await api("railRepList"); if (!r.ok) throw 0; list = r.reports; renderList(); if (cur) { const n = list.find((x) => x.id === cur.id); if (n && $("rrSheet").hidden && document.activeElement.closest && !document.activeElement.closest("#rrEdit input, #rrEdit select")) { cur = n; renderEdit(); } } }
+      catch (e) { if (!quiet) $("rrItems").innerHTML = `<p class="note">ออฟไลน์ — โหลดใบรายงานไม่ได้</p>`; }
+    }
+    function renderList() {
+      $("rrItems").innerHTML = list.length ? list.map((x) => `<div class="rr-it" data-id="${esc(x.id)}"><div class="t"><b>${esc(dmyCE(x.header.date))} · ${esc(x.header.area || "-")}</b>
+        <span class="note">${esc([x.header.structType, x.header.structNo].filter(Boolean).join(" ") || "ยังไม่ใส่ Structure")}${x.header.grade ? " · " + esc(x.header.grade) : ""}</span></div>
+        <div class="q"><b>${fmt(sumQty(x.rows))}</b><span class="note">m³ · ${x.rows.length} คัน</span></div></div>`).join("") : `<p class="note">ยังไม่มีใบ — กด "+ ใบใหม่"</p>`;
+    }
+    function fillArea(v) { const st = stations(); const opts = st.includes(v) || !v ? st : [v, ...st]; $("rhArea").innerHTML = `<option value="">— เลือกสถานี —</option>` + opts.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join(""); $("rhArea").value = v || ""; }
+    function renderEdit() {
+      $("rrList").hidden = true; $("rrEdit").hidden = false;
+      fillArea(cur.header.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = cur.header[k] || ""; });
+      const rows = cur.rows;
+      $("rrRows").innerHTML = rows.length ? rows.map((r, i) => `<div class="rr-row" data-row="${esc(r.id)}"><span class="no">${i + 1}</span>
+        <div><b>${esc(r.truck || "-")}</b> · DO ${esc(r.doNo || "-")} · ${esc(r.plant || "")}<div class="m">ผสม ${esc(r.batch || "-")} · ถึง ${esc(r.arrive || "-")} · เท ${esc(r.start || "-")}–${esc(r.end || "-")} · ${r.temp ? esc(r.temp) + "°C" : "-"} · สลัมป์ ${esc(r.slump || "-")}${r.spNo ? ` · ตัวอย่าง ${esc(r.spType)} ${esc(r.spNo)} ${esc(r.spCode)}` : ""}</div></div>
+        <b>${esc(r.qty || "-")}</b></div>`).join("") : `<p class="note">ยังไม่มีรถ — กด "+ เพิ่มรถ" เมื่อรถคันแรกถึง</p>`;
+      $("rrSum").textContent = `รวม ${fmt(sumQty(rows))} m³ · ${rows.length} คัน`;
+    }
+    function openRow(r) {
+      editRow = r || null; const last = cur.rows[cur.rows.length - 1] || {};
+      const v = r || { plant: last.plant || "", qty: last.qty || "", spType: last.spType || "" };
+      Object.entries(R).forEach(([k, id]) => { $(id).value = v[k] || ""; });
+      $("rrSheetT").textContent = r ? `รถคันที่ ${cur.rows.indexOf(r) + 1}` : `เพิ่มรถคันที่ ${cur.rows.length + 1}`;
+      $("rrRowDel").hidden = !r; $("rrRowMsg").textContent = "";
+      $("rrPlants").innerHTML = [...new Set([...(typeof S !== "undefined" && S ? S.places.filter((p) => p.startsWith("P-")).map((p) => p.slice(2)) : []), ...cur.rows.map((x) => x.plant).filter(Boolean)])].map((p) => `<option value="${esc(p)}">`).join("");
+      $("rrSheet").hidden = false; if (!r) $("rTruck").focus();
+    }
+    async function call(action, body, msgEl) {
+      if (busy) return null; busy = true;
+      try { const r = await api(action, body); if (!r.ok) throw new Error(r.error); return r; }
+      catch (e) { if (msgEl) msgEl.textContent = e.message === "bad_date" ? "ใส่วันที่ก่อน" : navigator.onLine ? "บันทึกไม่ได้ — ลองใหม่" : "ออฟไลน์ — ต้องต่ออินเทอร์เน็ต"; return null; }
+      finally { busy = false; }
+    }
+    const header = () => Object.fromEntries(Object.entries(H).map(([k, id]) => [k, $(id).value.trim()]));
+    $("rrNew").onclick = async () => {
+      const last = list[0], h = { date: today(), area: last ? last.header.area : "", supplier: last ? last.header.supplier : "" };
+      const r = await call("railRepHead", { id: uid(), header: h }, $("rrItems")); if (!r) return;
+      cur = r.report; list.unshift(cur); renderEdit();
+    };
+    $("rrItems").onclick = (e) => { const it = e.target.closest("[data-id]"); if (!it) return; cur = list.find((x) => x.id === it.dataset.id); renderEdit(); scrollTo(0, 0); };
+    $("rrBack").onclick = () => { cur = null; $("rrEdit").hidden = true; $("rrList").hidden = false; renderList(); };
+    $("rhSave").onclick = async () => { $("rhMsg").textContent = "กำลังบันทึก…"; const r = await call("railRepHead", { id: cur.id, header: header() }, $("rhMsg")); if (!r) return; cur = r.report; $("rhMsg").textContent = "✓ บันทึกแล้ว"; load(true); };
+    $("rrAdd").onclick = () => openRow(null);
+    $("rrRows").onclick = (e) => { const it = e.target.closest("[data-row]"); if (it) openRow(cur.rows.find((x) => x.id === it.dataset.row)); };
+    document.addEventListener("click", (e) => {
+      const n = e.target.closest("[data-now]"); if (n) { const d = new Date(); $(n.dataset.now).value = `${pad(d.getHours())}:${pad(d.getMinutes())}`; return; }
+      if (e.target.closest("[data-rrclose]") || e.target.id === "rrSheet") $("rrSheet").hidden = true;
+    });
+    $("rrRowSave").onclick = async () => {
+      const row = { id: editRow ? editRow.id : uid(), ...Object.fromEntries(Object.entries(R).map(([k, id]) => [k, $(id).value.trim()])) };
+      if (!row.truck && !row.doNo) { $("rrRowMsg").textContent = "ใส่เลขรถ หรือเลขใบส่งสินค้า"; return; }
+      $("rrRowMsg").textContent = "กำลังบันทึก…";
+      const r = await call("railRepRow", { id: cur.id, row }, $("rrRowMsg")); if (!r) return;
+      cur = r.report; $("rrSheet").hidden = true; renderEdit(); load(true);
+    };
+    $("rrRowDel").onclick = async () => {
+      if (!editRow || !(await uiConfirm(`ลบรถคันนี้ (${editRow.truck || editRow.doNo}) ออกจากใบ?`))) return;
+      const r = await call("railRepRowDel", { id: cur.id, rowId: editRow.id }, $("rrRowMsg")); if (!r) return;
+      cur = r.report; $("rrSheet").hidden = true; renderEdit(); load(true);
+    };
+    $("rrDel").onclick = async () => {
+      if ((await sha256($("rrDelCode").value.trim())) !== DEL_HASH) return uiAlert("รหัสไม่ถูกต้อง");
+      if (!(await uiConfirm(`ลบใบวันที่ ${dmyCE(cur.header.date)} (${cur.rows.length} คัน)?`))) return;
+      if (await call("railRepDelete", { id: cur.id })) { list = list.filter((x) => x.id !== cur.id); $("rrDelCode").value = ""; $("rrBack").click(); }
+    };
+
+    // ---------- PDF on the contractor's form: 17 trucks a sheet, landscape A4 ----------
+    const PER = 17;
+    function ckSheet(rows, off, k, n, total) {
+      const h = cur.header, c = (v) => esc(v || ""), blank = Math.max(0, PER - rows.length);
+      return `<div class="ck"><div class="top"><div class="co">CH.KARNCHANG PUBLIC COMPANY LIMITED</div><div class="ttl"><b>Concrete Control on Site</b><span>การควบคุมคุณภาพของคอนกรีตที่หน้างาน</span></div></div>
+        <div class="hdr"><div>Date <i>${c(dmyCE(h.date))}</i></div><div>Area <i>${c(h.area)}</i></div><div style="grid-column:4">Supplier <i>${c(h.supplier)}</i></div>
+          <div style="grid-column:2">Structure Type <i>${c(h.structType)}</i></div><div style="grid-column:4">Mix-Design No. <i>${c(h.mixNo)}</i></div>
+          <div style="grid-column:2">Structure No. <i>${c(h.structNo)}</i></div><div style="grid-column:4">Mix-Design Grade <i>${c(h.grade)}</i></div>
+          <div style="grid-column:2">Ambient Temp. <i>${c(h.ambient)}${h.ambient ? " °C" : ""}</i></div><div style="grid-column:4">Required Slump <i>${c(h.reqSlump)}</i></div></div>
+        <table><colgroup><col style="width:34px"><col style="width:76px"><col style="width:96px"><col style="width:76px"><col style="width:54px"><col style="width:66px"><col style="width:66px"><col style="width:64px"><col style="width:64px"><col style="width:58px"><col style="width:52px"><col style="width:54px"><col style="width:46px"><col style="width:80px"><col></colgroup>
+        <thead><tr><th colspan="6">Concrete Delivery<small>รายละเอียดการจัดส่งคอนกรีต</small></th><th colspan="5">Casting<small>รายละเอียดการเทคอนกรีต</small></th><th colspan="3">Specimen<small>การเก็บตัวอย่าง</small></th><th rowspan="3">Remarks<small>หมายเหตุ</small></th></tr>
+        <tr><th rowspan="2">No.<small>ลำดับที่</small></th><th rowspan="2">Truck No.<small>เลขรถ</small></th><th rowspan="2">Delivery Note No.<small>ใบส่งสินค้า</small></th><th rowspan="2">Plant<small>หน่วยผลิต</small></th><th rowspan="2">Quantity<small>ปริมาณ (m³)</small></th><th rowspan="2">Batching Time<small>เวลาผสม</small></th>
+          <th rowspan="2">Truck at Site<small>เวลาที่ รถถึง</small></th><th colspan="2">Unloading</th><th rowspan="2">Concrete Temp.<small>อุณหภูมิ (°C)</small></th><th rowspan="2">Slump<small>ค่ายุบตัว (cm.)</small></th><th colspan="3">Mold</th></tr>
+        <tr><th>Start<small>เวลาที่ เริ่มเท</small></th><th>End<small>เวลาที่ เทเสร็จ</small></th><th>Type<small>ชนิด (□ / ∅)</small></th><th>No.<small>จำนวน</small></th><th>Code<small>หมายเลข</small></th></tr></thead>
+        <tbody>${rows.map((r, i) => `<tr><td>${off + i + 1}</td><td>${c(r.truck)}</td><td>${c(r.doNo)}</td><td>${c(r.plant)}</td><td>${c(r.qty)}</td><td>${c(r.batch)}</td><td>${c(r.arrive)}</td><td>${c(r.start)}</td><td>${c(r.end)}</td><td>${c(r.temp)}</td><td>${c(r.slump)}</td><td>${c(r.spType)}</td><td>${c(r.spNo)}</td><td>${c(r.spCode)}</td><td style="text-align:left">${c(r.remark)}</td></tr>`).join("")}
+          ${("<tr>" + "<td></td>".repeat(15) + "</tr>").repeat(blank)}</tbody></table>
+        <table class="sumt"><tr><td style="width:76px;font-weight:700">Sum</td><td style="width:54px">${k === n - 1 ? fmt(total) : ""}</td></tr></table>
+        <div class="sig"><div></div><div></div><div></div><span>SUPPLIER</span><span>SIGNATURE</span><span>DATE</span>
+          <div></div><div></div><div></div><span>CK SITE ENGINEER</span><span>SIGNATURE</span><span>DATE</span>
+          <div></div><div></div><div></div><span>CK STATION MANAGER</span><span>SIGNATURE</span><span>DATE</span>
+          <div></div><div></div><div></div><span>CONSULTANT</span><span>SIGNATURE</span><span>DATE</span></div>
+        <div class="foot">CM/GEN-OLW-CI-F03 Rev.A 16/09/24</div>${n > 1 ? `<div class="pg">${k + 1}/${n}</div>` : ""}</div>`;
+    }
+    const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    $("rrPdf").onclick = async () => {
+      const b = $("rrPdf"), msg = $("rrPdfMsg"); b.disabled = true; msg.textContent = "กำลังสร้าง PDF…";
+      try {
+        if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+        if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+        const rows = cur.rows, n = Math.max(1, Math.ceil(rows.length / PER)), total = sumQty(rows), host = $("ckHost");
+        host.innerHTML = Array.from({ length: n }, (_, k) => ckSheet(rows.slice(k * PER, (k + 1) * PER), k * PER, k, n, total)).join("");
+        await document.fonts.ready;
+        const pdf = new jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a4" }), els = host.querySelectorAll(".ck");
+        for (let i = 0; i < els.length; i++) { const c = await html2canvas(els[i], { scale: 2, backgroundColor: "#ffffff" }); if (i) pdf.addPage("a4", "landscape"); pdf.addImage(c.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 297, 210); }
+        host.innerHTML = "";
+        const name = `Concrete Control on Site_${cur.header.date}_${cur.header.area || ""}_${cur.header.structNo || ""}`.replace(/[\\/:*?"<>|]+/g, "-").replace(/_+$/, "") + ".pdf";
+        const blob = pdf.output("blob"), file = new File([blob], name, { type: "application/pdf" });
+        if (navigator.canShare && navigator.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(navigator.userAgent)) {
+          try { await navigator.share({ files: [file], title: name }); } catch (e) { if (e && e.name !== "AbortError") throw e; }
+        } else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+        msg.textContent = `✓ ${name}`;
+      } catch (e) { msg.textContent = navigator.onLine ? "สร้าง PDF ไม่สำเร็จ — ลองใหม่" : "ออฟไลน์ — ครั้งแรกต้องต่ออินเทอร์เน็ตเพื่อโหลดตัวสร้าง PDF"; $("ckHost").innerHTML = ""; }
+      finally { b.disabled = false; }
+    };
+    setInterval(() => { if (!document.hidden && !$("tab-rep").hidden) load(true); }, 15000);
+    return { load };
+  })();
 </script>
 <script src="topbar.js"></script>
 </body>

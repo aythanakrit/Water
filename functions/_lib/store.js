@@ -34,6 +34,7 @@ const SCHEMA = [
     to_loc TEXT NOT NULL DEFAULT '', qty INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'move', note TEXT, dev TEXT)`,
   `CREATE TABLE IF NOT EXISTS rail_photos (id TEXT PRIMARY KEY, move_id TEXT NOT NULL, rkey TEXT NOT NULL, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS rail_photos_move ON rail_photos(move_id)`,
+  `CREATE TABLE IF NOT EXISTS rail_reports (id TEXT PRIMARY KEY, date TEXT, data TEXT NOT NULL, updated INTEGER, removed INTEGER)`,
   `CREATE TABLE IF NOT EXISTS rail_docs (id TEXT PRIMARY KEY, title TEXT NOT NULL, cat TEXT, size INTEGER, rkey TEXT NOT NULL, created INTEGER, removed INTEGER)`,
   `CREATE TABLE IF NOT EXISTS repairs (id TEXT PRIMARY KEY, plant TEXT NOT NULL, type TEXT NOT NULL, machine TEXT, symptom TEXT NOT NULL, urg TEXT NOT NULL,
     status TEXT NOT NULL, at INTEGER NOT NULL, done_at INTEGER, log TEXT NOT NULL DEFAULT '[]', updated INTEGER NOT NULL, removed INTEGER)`,
@@ -343,6 +344,43 @@ async function railPlaces(db) {
   const byName = (a, b) => a.code.localeCompare(b.code, "th", { numeric: true });
   return [...rows.filter((r) => r.kind === "P"), ...rows.filter((r) => r.kind === "S").sort(byName), ...rows.filter((r) => r.kind === "L").sort(byName)].map((r) => r.code).concat(RAIL_OUT);
 }
+// ---------- rail project: site report on the contractor's form (Concrete Control on Site), one sheet per pour ----------
+// data = { header: {...}, rows: [{ id, truck, doNo, plant, qty, batch, arrive, start, end, temp, slump, spType, spNo, spCode, remark }] }
+const RR_ID = /^[\w-]{6,60}$/;
+const RR_HEAD = ["date", "area", "structType", "structNo", "ambient", "supplier", "mixNo", "grade", "reqSlump"];
+const RR_ROW = ["truck", "doNo", "plant", "qty", "batch", "arrive", "start", "end", "temp", "slump", "spType", "spNo", "spCode", "remark"];
+const rrClean = (o, keys) => Object.fromEntries(keys.map((k) => [k, String((o || {})[k] ?? "").slice(0, 120)]));
+async function rrGet(db, id) { const r = await db.prepare("SELECT data FROM rail_reports WHERE id = ? AND removed IS NULL").bind(String(id || "")).first(); return r ? parse(r.data, null) : null; }
+async function rrPut(db, id, d, now) { await db.prepare("INSERT INTO rail_reports (id, date, data, updated) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET date = excluded.date, data = excluded.data, updated = excluded.updated")
+  .bind(id, d.header.date || "", JSON.stringify(d), now).run(); return { ok: true, report: { id, ...d, updated: now } }; }
+export async function railRepList(db) {
+  const { results } = await db.prepare("SELECT id, data, updated FROM rail_reports WHERE removed IS NULL ORDER BY date DESC, updated DESC LIMIT 200").all();
+  return { ok: true, reports: results.map((r) => ({ id: r.id, ...parse(r.data, { header: {}, rows: [] }), updated: Number(r.updated) })) };
+}
+/** Create a sheet or change its header (the rows are kept). */
+export async function railRepHead(db, req, now = Date.now()) {
+  const id = String(req.id || ""); if (!RR_ID.test(id)) return { ok: false, error: "bad_request" };
+  const header = rrClean(req.header, RR_HEAD); if (!/^\d{4}-\d{2}-\d{2}$/.test(header.date)) return { ok: false, error: "bad_date" };
+  const cur = await rrGet(db, id);
+  return rrPut(db, id, { header, rows: cur ? cur.rows : [] }, now);
+}
+/** Add or change one truck row; rows saved from several phones at once do not overwrite each other. */
+export async function railRepRow(db, req, now = Date.now()) {
+  const cur = await rrGet(db, req.id), rid = String((req.row || {}).id || "");
+  if (!cur) return { ok: false, error: "not_found" }; if (!RR_ID.test(rid)) return { ok: false, error: "bad_request" };
+  const row = { id: rid, ...rrClean(req.row, RR_ROW) }, i = cur.rows.findIndex((r) => r.id === rid);
+  if (i < 0) cur.rows.push(row); else cur.rows[i] = row;
+  return rrPut(db, req.id, cur, now);
+}
+export async function railRepRowDel(db, req, now = Date.now()) {
+  const cur = await rrGet(db, req.id); if (!cur) return { ok: false, error: "not_found" };
+  cur.rows = cur.rows.filter((r) => r.id !== String(req.rowId || ""));
+  return rrPut(db, req.id, cur, now);
+}
+export async function railRepDelete(db, req, now = Date.now()) {
+  await db.prepare("UPDATE rail_reports SET removed = ? WHERE id = ?").bind(now, String(req.id || "")).run(); return { ok: true };
+}
+
 const RAIL_NAME = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 40);
 export const RAIL_ITEMS = ["โมลคิว", "รถเข็น"];
 async function railBalances(db, places) {

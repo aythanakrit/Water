@@ -86,6 +86,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
       case "railPlaceAdd": return json(await S.railPlaceAdd(db, req));
       case "railPlaceRemove": return json(await S.railPlaceRemove(db, req));
       case "railHistory": return json(await S.railHistory(db, req));
+      case "railRepList": return json(await S.railRepList(db));
+      case "railRepHead": return json(await S.railRepHead(db, req));
+      case "railRepRow": return json(await S.railRepRow(db, req));
+      case "railRepRowDel": return json(await S.railRepRowDel(db, req));
+      case "railRepDelete": return json(await S.railRepDelete(db, req));
       case "railDocs": return json(await S.railDocs(db));
       case "railDocDelete": return json(await S.railDocDelete(db, bucket, req.id));
       // ---- repair backlog (photos go up / down through /api/repairphoto) ----
