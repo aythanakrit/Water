@@ -179,7 +179,7 @@
         <h2>หัวกระดาษ</h2>
         <div class="grid">
           <label class="f">Date<input id="rhDate" type="date"></label>
-          <label class="f">Area (สถานี)<select id="rhArea"></select></label>
+          <label class="f">Area<select id="rhAreaSel"></select><input id="rhArea" placeholder="พิมพ์ชื่อ Area" hidden></label>
           <label class="f">Structure Type<input id="rhType" placeholder="เช่น Column, Slab"></label>
           <label class="f">Structure No.<input id="rhNo"></label>
           <label class="f">Ambient Temp. (°C)<input id="rhAmb" readonly value="32"></label>
@@ -451,7 +451,10 @@
     const R = { truck: "rTruck", doNo: "rDo", plant: "rPlant", qty: "rQty", batch: "rBatch", arrive: "rArrive", start: "rStart", end: "rEnd", temp: "rTemp", slump: "rSlump", spType: "rSpType", spNo: "rSpNo", spCode: "rSpCode", remark: "rRemark" };
     const sumQty = (rows) => rows.reduce((a, r) => a + (parseFloat(r.qty) || 0), 0);
     const fmt = (n) => (Math.round(n * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
-    function stations() { return (typeof S !== "undefined" && S ? S.places : []).filter((p) => !/^[PLX]-/.test(p)); }
+    // Area names as the contractor writes them on the form; anything else can be typed
+    const AREAS = ["MRT Orange Line (OR08)", "MRT Orange Line (OR09)", "MRT Orange Line (OR10)", "MRT Orange Line (OR12)", "MRT Orange Line (IVS03)",
+      "MRT Orange Line (IVS04)", "MRT Orange Line (IVS05)", "MRT Orange Line (IVS07A)", "MRT - Retrivel Shaft", "MRT Orange Line (DEPO)"];
+    const OTHER = "__other";
     async function load(quiet) {
       if (!CLOUD) return;
       try { const r = await api("railRepList"); if (!r.ok) throw 0; list = r.reports; renderList(); if (cur) { const n = list.find((x) => x.id === cur.id); if (n && $("rrSheet").hidden && document.activeElement.closest && !document.activeElement.closest("#rrEdit input, #rrEdit select")) { cur = n; renderEdit(); } } }
@@ -462,7 +465,11 @@
         <span class="note">${esc([x.header.structType, x.header.structNo].filter(Boolean).join(" ") || "ยังไม่ใส่ Structure")}${x.header.grade ? " · " + esc(x.header.grade) : ""}</span></div>
         <div class="q"><b>${fmt(sumQty(x.rows))}</b><span class="note">m³ · ${x.rows.length} คัน</span></div></div>`).join("") : `<p class="note">ยังไม่มีใบ — กด "+ ใบใหม่"</p>`;
     }
-    function fillArea(v) { const st = stations(); const opts = st.includes(v) || !v ? st : [v, ...st]; $("rhArea").innerHTML = `<option value="">— เลือกสถานี —</option>` + opts.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join(""); $("rhArea").value = v || ""; }
+    function fillArea(v) {
+      $("rhAreaSel").innerHTML = `<option value="">— เลือก Area —</option>` + AREAS.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("") + `<option value="${OTHER}">อื่น ๆ (พิมพ์เอง)</option>`;
+      const own = !!v && !AREAS.includes(v); $("rhAreaSel").value = own ? OTHER : v || ""; $("rhArea").value = v || ""; $("rhArea").hidden = !own;
+    }
+    $("rhAreaSel").addEventListener("change", () => { const o = $("rhAreaSel").value === OTHER; $("rhArea").hidden = !o; $("rhArea").value = o ? "" : $("rhAreaSel").value; if (o) $("rhArea").focus(); });
     function renderEdit() {
       $("rrList").hidden = true; $("rrEdit").hidden = false;
       const fh = fixed(cur.header); fillArea(fh.area); Object.entries(H).forEach(([k, id]) => { if (k !== "area") $(id).value = fh[k] || ""; });
