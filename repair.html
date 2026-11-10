@@ -117,20 +117,24 @@
   .a4 .ru { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .a4 .ru-stop { background: #b42318; color: #fff; } .a4 .ru-soon { background: #f5b301; color: #1d2330; } .a4 .ru-wait { border: 1px solid #c5cad3; color: #1d2330; } .a4 .old { color: #b42318; font-weight: 700; }
   .a4 .tot td { font-weight: 700; background: #f3f4f6; }
-  .a4 .pb { break-before: page; page-break-before: always; height: 0; margin: 18px -12mm; border-top: 2px dashed #9aa3af; }
+  #rPage .a4 + .a4 { margin-top: 12px; }
+  @media screen { #rPage .a4 { overflow-x: auto; } }
+  #pdfHost { position: fixed; left: -10000px; top: 0; width: 794px; }
+  #pdfHost .a4 { width: 794px; max-width: none; min-height: 1123px; padding: 14mm 12mm; font-size: 12px; box-shadow: none; margin: 0; }
+  #pdfHost .a4 .sum { grid-template-columns: repeat(2, 1fr); }
   .a4 .phd { display: flex; justify-content: space-between; font-size: 10.5px; color: #555; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-bottom: 6px; }
   .a4 h3 small { font-weight: 400; color: #555; }
   .a4 tr { break-inside: avoid; page-break-inside: avoid; }
   .a4 .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 28px; text-align: center; font-size: 11px; }
   .a4 .sign div { border-top: 1px dotted #555; padding-top: 4px; margin-top: 30px; }
   .a4 .ft { margin-top: 16px; font-size: 10px; color: #666; }
-  @media (max-width: 560px) { .a4 { padding: 8mm 5mm; font-size: 10.5px; } .a4 .sum { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 560px) { .a4 { padding: 8mm 5mm; font-size: 10.5px; } .a4 .sum { grid-template-columns: repeat(2, 1fr); } }
   @media print {
     @page { size: A4; margin: 10mm; }
     body > *:not(#rep) { display: none !important; }
     #rep { position: static; background: none; padding: 0; overflow: visible; } #rep .bar { display: none; }
     .a4 { box-shadow: none; padding: 0; min-height: 0; max-width: none; }
-    .a4 .pb { margin: 0; border: 0; }
+    #rPage .a4 + .a4 { margin-top: 0; } .a4 { break-after: page; page-break-after: always; } .a4:last-child { break-after: auto; page-break-after: auto; }
     html, body { background: #fff !important; }
   }
 </style>
@@ -203,10 +207,11 @@
 <div id="rep" hidden>
   <div class="bar">
     <select id="rPlant"><option value="">ทุกแพล้น</option></select>
-    <button class="btn b" id="rPrint" type="button">🖨 พิมพ์ / บันทึก PDF</button>
+    <button class="btn b" id="rPdf" type="button">⬇ บันทึก PDF</button>
+    <button class="btn" id="rPrint" type="button">🖨 พิมพ์</button>
     <button class="btn" id="rClose" type="button">ปิด</button>
   </div>
-  <div class="a4" id="rPage"></div>
+  <div id="rPage"></div>
 </div>
 
 <!-- detail -->
@@ -542,16 +547,48 @@
     per.forEach(([t, name, o], gi) => { const n = Math.max(1, Math.ceil(o.length / PER_PAGE));
       for (let c = 0; c < n; c++) pages.push({ t, rows: o.slice(c * PER_PAGE, (c + 1) * PER_PAGE), off: c * PER_PAGE, part: c + 1, n,
         head: `${cat ? "" : gi + 1 + ". "}${cat ? "งานค้าง" : esc(name)} (${o.length} รายการ)` }); });
-    $("rPage").innerHTML = `<div class="hd"><div><b>${esc(title)}</b>${esc(P || "ทุกแพล้น")}${pages.length > 1 ? ` · หน้า 1/${pages.length}` : ""}</div>
+    const sheet = (k, body) => `<div class="a4">${k ? `<div class="phd"><span>${esc(title)} · ${esc(P || "ทุกแพล้น")}</span><span>หน้า ${k + 1}/${pages.length}</span></div>` : ""}${body}${k === pages.length - 1 ? sign : ""}</div>`;
+    const sign = `<div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
+      <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
+    const part = (pg) => `<h3>${pg.head}${pg.n > 1 ? ` <small>(${pg.part}/${pg.n})</small>` : ""}</h3>${table(pg.t, pg.rows, pg.off)}`;
+    $("rPage").innerHTML = sheet(0, `<div class="hd"><div><b>${esc(title)}</b>${esc(P || "ทุกแพล้น")}${pages.length > 1 ? ` · หน้า 1/${pages.length}` : ""}</div>
         <div class="r">บริษัท เอ็มคอนกรีต จำกัด · ฝ่ายผลิต<br>ข้อมูล ณ ${new Date().toLocaleString("th-TH", { dateStyle: "long", timeStyle: "short" })}</div></div>
       <div class="sum"><div><b>${all.length}</b>ค้างทั้งหมด</div><div class="red"><b>${all.filter((j) => j.urg === "stop").length}</b>หยุดผลิต</div></div>
       ${cat ? "" : `<table class="bycat"><thead><tr><th>หมวด</th><th>ค้าง</th><th>หยุดผลิต</th><th>เร่งด่วน</th><th>ประคอง</th></tr></thead><tbody>
         ${per.map(([, name, o]) => `<tr><td>${esc(name)}</td><td class="n"><b>${o.length}</b></td><td class="n">${o.filter((j) => j.urg === "stop").length}</td><td class="n">${o.filter((j) => j.urg === "soon").length}</td><td class="n">${o.filter((j) => j.urg === "wait").length}</td></tr>`).join("")}</tbody></table>`}
-      ${pages.map((pg, k) => `${k ? `<div class="pb"></div><div class="phd"><span>${esc(title)} · ${esc(P || "ทุกแพล้น")}</span><span>หน้า ${k + 1}/${pages.length}</span></div>` : ""}
-        <h3>${pg.head}${pg.n > 1 ? ` <small>(${pg.part}/${pg.n})</small>` : ""}</h3>${table(pg.t, pg.rows, pg.off)}`).join("")}
-      <div class="sign"><div>ผู้จัดทำ</div><div>ผู้จัดการเขตผลิต</div></div>
-      <div class="ft">แถวสีแดง = เครื่องหยุดผลิต · ตัวเลขสีแดง = ค้างเกิน 7 วัน · จำนวนวันนับจากวันที่แจ้งซ่อม</div>`;
+      ${part(pages[0])}`) + pages.slice(1).map((pg, i) => sheet(i + 1, part(pg))).join("");
+    repName = `${title}_${P || "ทุกแพล้น"}_${new Date().toISOString().slice(0, 10)}`.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ") + ".pdf";
   }
+  let repName = "รายงาน.pdf";
+  // PDF made on this device, one picture per A4 sheet — works on iPhone / iPad / Android where printing from the browser is unreliable
+  const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  async function savePdf() {
+    const b = $("rPdf"), was = b.textContent; b.disabled = true; b.textContent = "กำลังสร้าง PDF…";
+    try {
+      if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+      if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      // the sheets are drawn at full A4 width whatever the screen size
+      const host = document.createElement("div"); host.id = "pdfHost"; host.innerHTML = $("rPage").innerHTML; document.body.appendChild(host);
+      await document.fonts.ready;
+      const pdf = new jspdf.jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }), els = host.querySelectorAll(".a4");
+      for (let i = 0; i < els.length; i++) {
+        const c = await html2canvas(els[i], { scale: 2, backgroundColor: "#ffffff", windowWidth: 900 });
+        if (i) pdf.addPage("a4", "portrait");
+        let w = 210, h = c.height * 210 / c.width; if (h > 297) { w = 297 * c.width / c.height; h = 297; }
+        pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", (210 - w) / 2, 0, w, h);
+      }
+      host.remove();
+      const blob = pdf.output("blob"), file = new File([blob], repName, { type: "application/pdf" });
+      // phones: the share sheet (save to Files, LINE, mail …); computers: a normal download
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(navigator.userAgent)) {
+        try { await navigator.share({ files: [file], title: repName }); } catch (e) { if (e && e.name !== "AbortError") throw e; }
+      } else {
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = repName; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+    } catch (e) { uiAlert(navigator.onLine ? "สร้าง PDF ไม่สำเร็จ — ลองใหม่อีกครั้ง" : "ออฟไลน์ — ครั้งแรกต้องต่ออินเทอร์เน็ตเพื่อโหลดตัวสร้าง PDF"); const h = $("pdfHost"); if (h) h.remove(); }
+    finally { b.disabled = false; b.textContent = was; }
+  }
+  $("rPdf").onclick = savePdf;
   $("homeRep").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("repBtn").onclick = () => { renderReport(); $("rep").hidden = false; };
   $("rClose").onclick = () => { $("rep").hidden = true; };
