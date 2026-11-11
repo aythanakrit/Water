@@ -128,3 +128,17 @@ test("night pour from the site (1 Nov 2026): a plant still printing 31 Oct after
   ];
   assert.deepEqual(S.sortTrucks(trucks).map((x) => x.id), ["x", "7169", "7112", "751", "7227", "771"]);
 });
+
+test("a ticket typed in a day later is placed by its ticket date", () => {
+  const at = (iso) => Date.parse(iso + "+07:00");
+  const tk = (id, d, arr, bat, created) => ({ id, do: d, arrival: arr, batching: bat, created });
+  const trucks = [
+    tk("a", "0372611020021", "06:47", "06:10", at("2026-11-02T06:48")),
+    tk("b", "0362611020001", "08:32", "08:00", at("2026-11-02T08:33")),
+    tk("late", "0672611010015", "11:24", "10:50", at("2026-11-02T15:00")), // 1 Nov ticket, typed on 2 Nov
+  ];
+  assert.deepEqual(S.sortTrucks(trucks).map((x) => x.id), ["late", "a", "b"]);
+  // after midnight the ticket stays on the previous day but the truck is recorded at once: not moved back
+  const night = [tk("n1", "0372611010040", "23:50", "23:20", at("2026-11-01T23:51")), tk("n2", "0372611010041", "00:20", "23:45", at("2026-11-02T00:21"))];
+  assert.deepEqual(S.sortTrucks(night).map((x) => x.id), ["n1", "n2"]);
+});

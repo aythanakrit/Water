@@ -34,6 +34,25 @@
   }
   const doSeq = (d) => { const s = cleanDO(d).replace(/\D/g, ""); return s.length === 13 ? Number(s.slice(-4)) : null; };
   const thaiDay = (ms) => Math.floor((ms + TH) / DAY);
+  /**
+   * Arrival (minutes since 1970, Thai clock) of a truck recorded on a device: the clock time nearest to when it was recorded.
+   * A ticket typed in later (e.g. the next day) would land on the wrong day, so when the job's other trucks show
+   * that ticket dates match their recording days, a truck whose ticket date is a day or more earlier is placed by
+   * its ticket date instead. Between 00:00 and 06:00 a plant may still print the previous day: that counts as the same day.
+   */
+  function nearRecorded(t, m) { const now = (t.created + TH) / 60000, cd = thaiDay(t.created);
+    return [cd - 1, cd, cd + 1].map((d) => d * 1440 + m).reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a)); }
+  function byTicketAt(t, m) { const day = doDay(t.do); if (day == null) return null; const bat = toMin(t.batching);
+    return (day + (bat != null && m < bat ? 1 : 0) + (m < 360 && !(bat != null && m < bat) ? 1 : 0)) * 1440 + m; }
+  function recordedPlacer(trucks) {
+    // how far each recorded truck is from its ticket date: about 0 when tickets and recording days agree
+    const gaps = trucks.map((t) => { const m = toMin(t.arrival); if (m == null || !(t.created > 1e12)) return null;
+      const tk = byTicketAt(t, m); return tk == null ? null : nearRecorded(t, m) - tk; }).filter((g) => g != null);
+    const trust = gaps.length >= 3 && gaps.filter((g) => Math.abs(g) < 360).length / gaps.length >= 0.6;
+    return (t, m) => { const near = nearRecorded(t, m); if (!trust) return near;
+      const tk = byTicketAt(t, m); return tk != null && near - tk >= 1080 ? tk : near; };
+  }
+
 
   /**
    * Trucks in order of arrival at site, by date and time.
@@ -44,6 +63,7 @@
    * Trucks without an arrival time go last, in the order they were entered. Same minute: ticket date, running number, entry.
    */
   function sortTrucks(trucks) {
+    const recordedAt = recordedPlacer(trucks);
     const byEntry = trucks.slice().sort((a, b) => (a.created || 0) - (b.created || 0));
     const dayOf = (t) => { const d = doDay(t.do); return d != null ? d : t.created > 1e12 ? thaiDay(t.created) : null; };
     const dated = byEntry.find((t) => dayOf(t) != null && toMin(t.arrival) != null);
@@ -54,10 +74,7 @@
       if (m == null) return Infinity;
       // recorded on a device: the arrival is the clock time nearest to when the truck was recorded
       // (a plant's ticket date can stay on the previous day after midnight, so it cannot place the day)
-      if (t.created > 1e12) {
-        const now = (t.created + TH) / 60000, cd = thaiDay(t.created);
-        return [cd - 1, cd, cd + 1].map((d) => d * 1440 + m).reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a));
-      }
+      if (t.created > 1e12) return recordedAt(t, m);
       const day = dayOf(t);
       if (day == null) { let d = (m - base + 1440) % 1440; if (d > 720) d -= 1440; return baseDay * 1440 + base + d; }
       const bat = toMin(t.batching);
@@ -79,13 +96,11 @@
    * time or no date can be found (no recording time, no valid D/O). Aligned with the input array.
    */
   function arrivalMinutes(trucks) {
+    const recordedAt = recordedPlacer(trucks);
     return trucks.map((t) => {
       const m = toMin(t.arrival);
       if (m == null) return null;
-      if (t.created > 1e12) {
-        const now = (t.created + TH) / 60000, cd = thaiDay(t.created);
-        return [cd - 1, cd, cd + 1].map((d) => d * 1440 + m).reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a));
-      }
+      if (t.created > 1e12) return recordedAt(t, m);
       const day = doDay(t.do);
       if (day == null) return null;
       const bat = toMin(t.batching);
