@@ -622,7 +622,7 @@
       $("listDateMsg").textContent = `ลบแล้ว ${ids.length} ใบ`;
     };
   }
-  $("selDel").addEventListener("click", () => { if (!sel.size) return; if (phAdminOn()) return selDelete(); adminPrompt($("selAdm"), `ลบหลายใบพร้อมกัน ต้องใช้รหัสผู้ดูแล`, selDelete); $("selAdm").querySelector("[data-amno]").onclick = () => { $("selAdm").innerHTML = ""; }; });
+  $("selDel").addEventListener("click", () => { if (!sel.size) return; adminPrompt($("selAdm"), `ลบหลายใบพร้อมกัน ต้องใช้รหัสผู้ดูแล`, selDelete); $("selAdm").querySelector("[data-amno]").onclick = () => { $("selAdm").innerHTML = ""; }; });
   // ---------- look at one day: reports of that date, also older ones the normal list no longer carries ----------
   const viewKeep = new Set(); // reports fetched for a chosen day: kept in this tab although the job list (last 7 days) has no row for them
   async function showDay() {
