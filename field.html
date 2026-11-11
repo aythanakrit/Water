@@ -136,6 +136,7 @@
   table.list tbody tr.t-bad td { background: var(--warn-bg); color: var(--bad); }
   table.list td.rm { white-space: normal; min-width: 14em; font-size: .85rem; }
   .scroll { overflow-x: auto; }
+  .job .selbox { display: flex; align-items: center; padding-right: 4px; } .job .selbox input { width: 24px; height: 24px; }
   table.list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   table.list th, table.list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
   table.list th { font-size: .78rem; color: var(--muted); font-weight: 600; }
@@ -203,7 +204,13 @@
       <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ดูวันที่<input id="listDate" class="dth" style="max-width:150px"></label>
       <button class="g" id="listToday" type="button">วันนี้</button>
       <button class="g" id="listAll" type="button">ทั้งหมด</button>
+      <button class="g" id="selMode" type="button">☑ เลือกหลายใบ</button>
       <span class="note" id="listDateMsg"></span>
+    </div>
+    <div class="row" id="selBar" hidden style="margin:0 0 12px;gap:8px;padding:8px 10px;border:1px solid var(--bad);border-radius:10px">
+      <b id="selCount">เลือก 0 ใบ</b><button class="g" id="selAll" type="button">เลือกทั้งหมดที่เห็น</button>
+      <button class="g d" id="selDel" type="button">🗑 ลบที่เลือก (ผู้ดูแล)</button><button class="g" id="selCancel" type="button">ยกเลิก</button>
+      <div id="selAdm" style="width:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
     </div>
     <div class="jobs" id="jobs"></div>
 
@@ -586,6 +593,7 @@
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
       return `<section class="job">
+        ${selOn ? `<label class="selbox"><input type="checkbox" data-sel="${j.id}"${sel.has(j.id) ? " checked" : ""}></label>` : ""}
         <div><b>${esc(j.header.project || "(ยังไม่ใส่ชื่อโครงการ)")}</b>
           <span class="chip ${j.status}">${j.status === "done" ? "จบงานแล้ว" : "กำลังบันทึก"}</span>
           ${j.syncError ? `<span class="chip" style="background:var(--bad);color:var(--card)">ส่งไม่ได้</span>` : ""}
@@ -596,6 +604,25 @@
       </section>`;
     }).join("") : day ? `<section><p class="note" style="margin:0">ไม่มีใบรายงานวันที่ ${esc(thaiDate(day))}</p></section>` : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
   }
+  // ---------- several reports at once (e.g. made for testing): tick, then delete with the administrator code ----------
+  let selOn = false; const sel = new Set();
+  function selShow() { $("selBar").hidden = !selOn; $("selMode").hidden = selOn; $("selCount").textContent = `เลือก ${sel.size} ใบ`; $("selDel").disabled = !sel.size; }
+  $("selMode").addEventListener("click", () => { selOn = true; sel.clear(); $("selAdm").innerHTML = ""; selShow(); showList(); });
+  $("selCancel").addEventListener("click", () => { selOn = false; sel.clear(); $("selAdm").innerHTML = ""; selShow(); showList(); });
+  $("selAll").addEventListener("click", () => { document.querySelectorAll("#jobs [data-sel]").forEach((c) => { c.checked = true; sel.add(c.dataset.sel); }); selShow(); });
+  $("jobs").addEventListener("change", (e) => { const c = e.target.dataset && e.target.dataset.sel; if (!c) return; e.target.checked ? sel.add(c) : sel.delete(c); selShow(); });
+  function selDelete() {
+    const ids = [...sel], names = ids.map((id) => { const j = db.jobs.find((x) => x.id === id); return j ? `• ${j.header.project || "(ไม่มีชื่อ)"} ${thaiDate(j.header.date)}` : ""; }).filter(Boolean);
+    $("selAdm").innerHTML = `<div class="note" style="width:100%;white-space:pre-line">ลบ ${ids.length} ใบนี้ถาวร:\n${esc(names.slice(0, 15).join("\n"))}${names.length > 15 ? `\n… อีก ${names.length - 15} ใบ` : ""}</div>
+      <button class="g d" id="selDelOk" type="button">ยืนยันลบ ${ids.length} ใบ</button>`;
+    $("selDelOk").onclick = () => {
+      ids.forEach((id) => { dropped.add(id); db.jobs = db.jobs.filter((j) => j.id !== id); db.dirty = db.dirty.filter((x) => x !== id); if (SYNC) db.deleted.push(id); });
+      if (SYNC) syncNow(); persist();
+      selOn = false; sel.clear(); $("selAdm").innerHTML = ""; selShow(); showList();
+      $("listDateMsg").textContent = `ลบแล้ว ${ids.length} ใบ`;
+    };
+  }
+  $("selDel").addEventListener("click", () => { if (!sel.size) return; if (phAdminOn()) return selDelete(); adminPrompt($("selAdm"), `ลบหลายใบพร้อมกัน ต้องใช้รหัสผู้ดูแล`, selDelete); $("selAdm").querySelector("[data-amno]").onclick = () => { $("selAdm").innerHTML = ""; }; });
   // ---------- look at one day: reports of that date, also older ones the normal list no longer carries ----------
   const viewKeep = new Set(); // reports fetched for a chosen day: kept in this tab although the job list (last 7 days) has no row for them
   async function showDay() {
