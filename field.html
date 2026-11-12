@@ -505,7 +505,7 @@
       syncErr = String((e && e.message) || e);
     }
     persist(); showSync();
-    if (job) refreshOpenJob(); else if (!$("vList").hidden) showList();
+    if (job) refreshOpenJob(); else if (!$("vList").hidden) showListIfIdle();
   }
   // Pull jobs saved from other devices
   async function pull() {
@@ -522,7 +522,7 @@
       // back online; a server-side refusal of a waiting report stays on screen until it is sent
       if (syncState === "offline" && (!syncErr || /fetch|network|load failed|timeout/i.test(syncErr))) syncState = "idle";
       lastSync = FieldReport.nowHHMM(); persist(); showSync();
-      if (!job && !$("vList").hidden) showList();
+      if (!job && !$("vList").hidden) showListIfIdle();
     } catch (e) { syncState = e.message === "unauthorized" ? "auth" : "offline"; showSync(); }
   }
   if (SYNC) {
@@ -542,7 +542,7 @@
     if (!mergeStored(other)) return;
     if (job && !db.jobs.some((j) => j.id === job.id)) { job = null; editIdx = -1; }
     if (job && editId) editIdx = job.trucks.findIndex((t) => t.id === editId);
-    if (job) refreshOpenJob(); else if (!$("vList").hidden) showList();
+    if (job) refreshOpenJob(); else if (!$("vList").hidden) showListIfIdle();
     showSync();
   });
 
@@ -581,6 +581,9 @@
   }
 
   // ---------- job list ----------
+  // a sync redraw would wipe a delete / administrator code being typed in the list: wait until it is done
+  const typingInList = () => { const a = document.activeElement; return !!(a && a.closest && a.closest("#jobs, #selAdm") && a.matches("input")) || !!document.querySelector("#jobs [data-delcode], #jobs [data-amcode], #jobs [data-delok]"); };
+  function showListIfIdle() { if (!typingInList()) showList(); }
   function showList() {
     job = null; editIdx = -1;
     $("vJob").hidden = true; $("vList").hidden = false; $("dayChoice").hidden = true;
@@ -1336,7 +1339,7 @@
   }
   $("pdf").addEventListener("click", () => runPdf(false));
 
-  // Excel of the trucks (normal field report only): ลำดับ · เลข D/O · เบอร์รถ · จำนวนคิว · เวลาผสม; rejected trucks are left out
+  // Excel of the trucks (normal field report only): ลำดับ · เลข D/O · เบอร์รถ · จำนวนคิว · เวลาผสม · เวลารถถึง; rejected trucks are left out
   if (!SP) $("xlsx").hidden = false;
   $("xlsx").addEventListener("click", async () => {
     const msg = $("pdfMsg");
@@ -1345,13 +1348,13 @@
       const rows = job.trucks.filter((t) => FieldReport.cleanDO(t.do) && !FieldReport.isReject(t));
       const num = (v) => (v === "" || v == null || !isFinite(Number(v)) ? v || "" : Number(v));
       const h = job.header;
-      const aoa = [["ลำดับ", "เลข D/O", "เบอร์รถ", "จำนวนคิว", "เวลาผสม"],
-        ...rows.map((t, i) => [i + 1, FieldReport.cleanDO(t.do), String(t.truck || ""), num(t.volume), t.batching || ""]),
-        ["", "", "รวม", rows.reduce((a, t) => a + (Number(t.volume) || 0), 0), ""]];
+      const aoa = [["ลำดับ", "เลข D/O", "เบอร์รถ", "จำนวนคิว", "เวลาผสม", "เวลารถถึง"],
+        ...rows.map((t, i) => [i + 1, FieldReport.cleanDO(t.do), String(t.truck || ""), num(t.volume), t.batching || "", t.arrival || ""]),
+        ["", "", "รวม", rows.reduce((a, t) => a + (Number(t.volume) || 0), 0), "", ""]];
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       // D/O and truck number stay text (leading zeros), times stay "08:30"
-      rows.forEach((_, i) => [1, 2, 4].forEach((c) => { const x = ws[XLSX.utils.encode_cell({ r: i + 1, c })]; if (x) { x.t = "s"; x.z = "@"; } }));
-      ws["!cols"] = [{ wch: 7 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      rows.forEach((_, i) => [1, 2, 4, 5].forEach((c) => { const x = ws[XLSX.utils.encode_cell({ r: i + 1, c })]; if (x) { x.t = "s"; x.z = "@"; } }));
+      ws["!cols"] = [{ wch: 7 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "รถ");
       const name = ["ใบรายงานสนาม", h.project, h.structure, h.structureNo, h.date].filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "-") + ".xlsx";
       await saveFile(name, new Blob([XLSX.write(wb, { type: "array", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), msg);
