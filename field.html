@@ -1811,6 +1811,8 @@
   }
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
+  // the list opens on today's reports (every card, หลังสวน included); older ones: pick a date, or "ทั้งหมด"
+  $("listDate").value = isoToday();
   showList();
   if (SYNC) syncNow().then(pull);
   const open = db.jobs.filter((j) => j.status === "open" && inProj(j));
