@@ -136,6 +136,7 @@
   table.list tbody tr.t-bad td { background: var(--warn-bg); color: var(--bad); }
   table.list td.rm { white-space: normal; min-width: 14em; font-size: .85rem; }
   .scroll { overflow-x: auto; }
+  #selBar[hidden], #selMode[hidden] { display: none; }
   .job .selbox { display: flex; align-items: center; padding-right: 4px; } .job .selbox input { width: 24px; height: 24px; }
   table.list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   table.list th, table.list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
@@ -201,7 +202,8 @@
     </div>
     <p class="sync" id="syncList"></p>
     <div class="row" style="margin:0 0 12px;gap:8px">
-      <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ดูวันที่<input id="listDate" class="dth" style="max-width:150px"></label>
+      <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ตั้งแต่<input id="listFrom" type="date" style="max-width:160px"></label>
+      <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ถึง<input id="listTo" type="date" style="max-width:160px"></label>
       <button class="g" id="listToday" type="button">วันนี้</button>
       <button class="g" id="listAll" type="button">ทั้งหมด</button>
       <button class="g" id="selMode" type="button">☑ เลือกหลายใบ</button>
@@ -588,10 +590,10 @@
     job = null; editIdx = -1;
     $("vJob").hidden = true; $("vList").hidden = false; $("dayChoice").hidden = true;
     showSync();
-    const day = $("listDate").value;
+    const [f, t] = range(), inRange = (j) => (!f || (j.header.date || "") >= f) && (!t || (j.header.date || "") <= t);
     const jobs = PROJ
-      ? db.jobs.filter(inProj).filter((j) => !day || j.header.date === day).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
-      : db.jobs.filter(inProj).filter((j) => !day || j.header.date === day).sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
+      ? db.jobs.filter(inProj).filter(inRange).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
+      : db.jobs.filter(inProj).filter(inRange).sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     if (SP && typeof phRefresh === "function" && ph) phRefresh();
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
@@ -605,7 +607,7 @@
         <div class="row"><button class="b" data-open="${j.id}" type="button">${j.status === "done" ? "เปิดดู" : "บันทึกต่อ"}</button>
           <button class="g d" data-del="${j.id}" type="button">ลบ</button></div>
       </section>`;
-    }).join("") : day ? `<section><p class="note" style="margin:0">ไม่มีใบรายงานวันที่ ${esc(thaiDate(day))}</p></section>` : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
+    }).join("") : (f || t) ? `<section><p class="note" style="margin:0">ไม่มีใบรายงาน${f === t ? `วันที่ ${esc(thaiDate(f))}` : `ระหว่าง ${esc(thaiDate(f) || "…")} – ${esc(thaiDate(t) || "…")}`}</p></section>` : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
   }
   // ---------- several reports at once (e.g. made for testing): tick, then delete with the administrator code ----------
   let selOn = false; const sel = new Set();
@@ -626,27 +628,34 @@
     };
   }
   $("selDel").addEventListener("click", () => { if (!sel.size) return; adminPrompt($("selAdm"), `ลบหลายใบพร้อมกัน ต้องใช้รหัสผู้ดูแล`, selDelete); $("selAdm").querySelector("[data-amno]").onclick = () => { $("selAdm").innerHTML = ""; }; });
-  // ---------- look at one day: reports of that date, also older ones the normal list no longer carries ----------
-  const viewKeep = new Set(); // reports fetched for a chosen day: kept in this tab although the job list (last 7 days) has no row for them
+  // ---------- look at a date range (calendar): reports of those days, also older ones the normal list no longer carries ----------
+  const viewKeep = new Set(); // reports fetched for the chosen days: kept in this tab although the job list (last 7 days) has no row for them
+  function range() { let f = $("listFrom").value, t = $("listTo").value; if (f && t && f > t) [f, t] = [t, f]; return [f, t]; }
   async function showDay() {
-    const day = $("listDate").value;
+    const [f, t] = range();
     $("listDateMsg").textContent = "";
     showList();
-    if (!day || !SYNC) return;
-    $("listDateMsg").textContent = "กำลังดึงใบรายงานวันนั้น…";
+    if ((!f && !t) || !SYNC) return;
+    $("listDateMsg").textContent = "กำลังดึงใบรายงานช่วงวันนั้น…";
     try {
-      const r = await api("report", { from: day, to: day });
+      const r = await api("report", { from: f || t, to: t || f });
       if (!r.ok) throw new Error(r.error || "x");
-      const ids = r.jobs.map((j) => j.id).filter((id) => { const l = db.jobs.find((x) => x.id === id); return !l || l.stub; }).slice(0, 30);
-      for (const id of ids) { const g = await api("get", { id }); if (g.ok && g.job && g.job.status !== "deleted") { viewKeep.add(id); applyServer(g.job); } }
-      persist(); $("listDateMsg").textContent = ""; if (!job) showList();
+      // only this card's reports (a day can hold many reports of other projects)
+      const ids = r.jobs.filter((j) => inProj({ header: j.header || {} })).map((j) => j.id).filter((id) => { const l = db.jobs.find((x) => x.id === id); return !l || l.stub; });
+      const MAX = 150, todo = ids.slice(0, MAX);
+      for (let k = 0; k < todo.length; k++) {
+        if (todo.length > 5) $("listDateMsg").textContent = `กำลังดึงใบรายงาน ${k + 1}/${todo.length}…`;
+        const g = await api("get", { id: todo[k] }); if (g.ok && g.job && g.job.status !== "deleted") { viewKeep.add(todo[k]); applyServer(g.job); }
+      }
+      persist(); $("listDateMsg").textContent = ids.length > MAX ? `ช่วงนี้มี ${ids.length} ใบ แสดง ${MAX} ใบ — เลือกช่วงให้สั้นลง` : ""; if (!job) showList();
     } catch (e) { $("listDateMsg").textContent = "ดึงจากระบบกลางไม่ได้ — แสดงเฉพาะที่อยู่ในเครื่อง"; }
   }
   const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  $("listDate").addEventListener("change", showDay);
-  $("listDate").addEventListener("input", () => { if (/^\d{4}-\d{2}-\d{2}$/.test($("listDate").value)) showDay(); });
-  $("listToday").addEventListener("click", () => { $("listDate").value = isoToday(); showDay(); });
-  $("listAll").addEventListener("click", () => { $("listDate").value = ""; showDay(); });
+  // choosing "from" alone also sets "to" to the same day when "to" is empty or earlier
+  $("listFrom").addEventListener("change", () => { if (!$("listTo").value || $("listTo").value < $("listFrom").value) $("listTo").value = $("listFrom").value; showDay(); });
+  $("listTo").addEventListener("change", () => { if (!$("listFrom").value) $("listFrom").value = $("listTo").value; showDay(); });
+  $("listToday").addEventListener("click", () => { $("listFrom").value = $("listTo").value = isoToday(); showDay(); });
+  $("listAll").addEventListener("click", () => { $("listFrom").value = $("listTo").value = ""; showDay(); });
 
   // Deleting a report needs the code (SHA-256 checked in this browser; keeps reports from being deleted by mistake)
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
@@ -1812,7 +1821,7 @@
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
   // the list opens on today's reports (every card, หลังสวน included); older ones: pick a date, or "ทั้งหมด"
-  $("listDate").value = isoToday();
+  $("listFrom").value = $("listTo").value = isoToday();
   showList();
   if (SYNC) syncNow().then(pull);
   const open = db.jobs.filter((j) => j.status === "open" && inProj(j));
