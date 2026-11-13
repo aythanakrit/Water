@@ -136,7 +136,29 @@
   table.list tbody tr.t-bad td { background: var(--warn-bg); color: var(--bad); }
   table.list td.rm { white-space: normal; min-width: 14em; font-size: .85rem; }
   .scroll { overflow-x: auto; }
-  #selBar[hidden], #selMode[hidden] { display: none; }
+  #selBar[hidden], #selMode[hidden], #dayChoice[hidden], #rangeBox[hidden], #resume[hidden], #moreMenu[hidden], #listDateMsg:empty, #listMsg:empty { display: none; }
+  #selBar { margin-top: 12px !important; }
+  .lhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .lhead .sub { margin: 0; font-size: .85rem; }
+  .lhead-r { position: relative; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  #syncList { display: inline-block; margin: 8px 0 0; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: .78rem; color: var(--ok); }
+  #syncList.off { color: var(--warn); } #syncList.bad { color: var(--bad); border-radius: 10px; }
+  #syncList:empty { display: none; }
+  .more { width: 42px; height: 42px; padding: 0 !important; font-size: 1.2rem !important; border-radius: 10px !important; color: var(--text) !important; }
+  .menu { position: absolute; right: 0; top: 48px; z-index: 30; width: 250px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.3); overflow: hidden; }
+  .menu > * { display: block; width: 100%; text-align: left; font: inherit; color: var(--text); background: none; border: 0; border-bottom: 1px solid var(--line); padding: 12px 14px; cursor: pointer; margin: 0; }
+  .menu > *:last-child { border-bottom: 0; } .menu small { display: block; color: var(--muted); font-size: .75rem; }
+  button.big { width: 100%; margin-top: 16px; padding: 13px; font-weight: 700; font-size: 1.05rem; border-radius: 12px; }
+  #listMsg { display: block; margin-top: 8px; }
+  .resume { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; background: var(--warn-bg); color: var(--warn); border-radius: 12px; padding: 8px 12px; font-size: .9rem; }
+  .resume b { color: var(--text); } .resume button { margin-left: auto; background: var(--card); }
+  .lbl { font-size: .75rem; letter-spacing: .05em; color: var(--muted); font-weight: 700; margin: 20px 0 8px; }
+  .filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .seg button { font: inherit; border: 0; background: transparent; color: var(--muted); padding: 7px 14px; font-weight: 600; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .count { margin-left: auto; color: var(--muted); font-size: .85rem; }
+  .job .kebab { padding: 7px 10px; color: var(--muted); }
   .job .selbox { display: flex; align-items: center; padding-right: 4px; } .job .selbox input { width: 24px; height: 24px; }
   table.list { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .9rem; }
   table.list th, table.list td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
@@ -186,29 +208,33 @@
 
   <!-- Job list -->
   <div id="vList">
-    <h1>ใบรายงานสนาม</h1>
-    <p class="sub">ใบรายงานสนามและเก็บก้อนตัวอย่าง (FM-PQ-10) · บันทึกอัตโนมัติในเครื่องนี้ · ปิดหน้าแล้วกลับมาบันทึกต่อได้</p>
-    <div class="row" style="margin-bottom:14px">
-      <button class="b" id="newJob" type="button">+ สร้างงานใหม่</button>
-      <button class="g" id="backupBtn" type="button">ส่งออกไฟล์สำรอง</button>
-      <label class="g" style="display:inline-flex;flex-direction:row;align-items:center;border:1px solid var(--line);border-radius:6px;padding:7px 14px;color:var(--accent);font-size:15px;cursor:pointer">
-        นำเข้าไฟล์สำรอง<input id="restore" type="file" accept=".json,application/json" hidden></label>
-      <span class="saved" id="listMsg"></span>
+    <div class="lhead">
+      <div><h1>ใบรายงานสนาม</h1><p class="sub">FM-PQ-10 · บันทึกในเครื่อง ซิงก์ขึ้นระบบกลางเอง</p><span class="sync" id="syncList"></span></div>
+      <div class="lhead-r"><button class="g more" id="moreBtn" type="button" aria-label="เมนู">⋯</button>
+        <div class="menu" id="moreMenu" hidden>
+          <button id="selMode" type="button">☑ เลือกหลายใบเพื่อลบ<small>ใช้รหัสผู้ดูแล</small></button>
+          <button id="backupBtn" type="button">⬇ ส่งออกไฟล์สำรอง</button>
+          <label>⬆ นำเข้าไฟล์สำรอง<input id="restore" type="file" accept=".json,application/json" hidden></label>
+        </div></div>
     </div>
-    <div class="row" id="dayChoice" hidden style="margin:-6px 0 14px;align-items:center;gap:8px">
+    <button class="b big" id="newJob" type="button">+ สร้างใบรายงานใหม่</button>
+    <div class="row" id="dayChoice" hidden style="margin:10px 0 0;align-items:center;gap:8px">
       <span>วันนี้มีรายงานแล้ว</span>
       <button class="g" id="openToday" type="button">เปิดใบเดิม</button>
       <button class="b" id="addToday" type="button">+ สร้างใบใหม่อีกใบ</button>
     </div>
-    <p class="sync" id="syncList"></p>
-    <div class="row" style="margin:0 0 12px;gap:8px">
+    <span class="saved" id="listMsg"></span>
+    <div class="resume" id="resume" hidden>⏳ มีใบที่ยังบันทึกไม่จบ <b id="resumeN"></b><button class="g" id="resumeOpen" type="button">เปิดใบล่าสุด</button></div>
+    <div class="lbl">รายการ</div>
+    <div class="filter">
+      <div class="seg" id="seg"><button data-r="today" class="on" type="button">วันนี้</button><button data-r="7" type="button">7 วัน</button><button data-r="pick" type="button">เลือกช่วง…</button></div>
+      <span class="count" id="listCount"></span>
+    </div>
+    <div class="row" id="rangeBox" hidden style="margin:8px 0 0;gap:8px;align-items:center">
       <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ตั้งแต่<input id="listFrom" type="date" style="max-width:160px"></label>
       <label style="flex-direction:row;align-items:center;gap:6px;margin:0">ถึง<input id="listTo" type="date" style="max-width:160px"></label>
-      <button class="g" id="listToday" type="button">วันนี้</button>
-      <button class="g" id="listAll" type="button">ทั้งหมด</button>
-      <button class="g" id="selMode" type="button">☑ เลือกหลายใบ</button>
-      <span class="note" id="listDateMsg"></span>
     </div>
+    <p class="note" id="listDateMsg" style="margin:6px 0 0"></p>
     <div class="row" id="selBar" hidden style="margin:0 0 12px;gap:8px;padding:8px 10px;border:1px solid var(--bad);border-radius:10px">
       <b id="selCount">เลือก 0 ใบ</b><button class="g" id="selAll" type="button">เลือกทั้งหมดที่เห็น</button>
       <button class="g d" id="selDel" type="button">🗑 ลบที่เลือก (ผู้ดูแล)</button><button class="g" id="selCancel" type="button">ยกเลิก</button>
@@ -577,14 +603,14 @@
   if (SP) {
     document.title = `รายงาน โครงการ${SP.name}`;
     document.querySelector("#vList h1").textContent = document.title;
-    document.querySelector("#vList .sub").textContent = "รายงานประจำวัน (แบบเดียวกับใบรายงานสนาม FM-PQ-10) · บันทึกอัตโนมัติในเครื่องนี้";
+    document.querySelector("#vList .sub").textContent = "รายงานประจำวัน (แบบ FM-PQ-10) · ซิงก์ขึ้นระบบกลางเอง";
     $("newJob").textContent = "+ รายงานวันนี้";
     document.querySelector('[data-h="project"]').readOnly = true;
   }
 
   // ---------- job list ----------
   // a sync redraw would wipe a delete / administrator code being typed in the list: wait until it is done
-  const typingInList = () => { const a = document.activeElement; return !!(a && a.closest && a.closest("#jobs, #selAdm") && a.matches("input")) || !!document.querySelector("#jobs [data-delcode], #jobs [data-amcode], #jobs [data-delok]"); };
+  const typingInList = () => { const a = document.activeElement; return !!(a && a.closest && a.closest("#jobs, #selAdm") && a.matches("input")) || !!document.querySelector("#jobs [data-delcode], #jobs [data-amcode], #jobs [data-delok], #jobs [data-del]:not([hidden])"); };
   function showListIfIdle() { if (!typingInList()) showList(); }
   function showList() {
     job = null; editIdx = -1;
@@ -595,6 +621,12 @@
       ? db.jobs.filter(inProj).filter(inRange).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated)
       : db.jobs.filter(inProj).filter(inRange).sort((a, b) => (a.status === b.status ? b.updated - a.updated : a.status === "open" ? -1 : 1));
     if (SP && typeof phRefresh === "function" && ph) phRefresh();
+    // count of the shown list, and the reports of this card not finished yet (any day)
+    const rec = jobs.reduce((a, j) => a + (Number(j.stub ? j.received : FieldReport.summary(j).received) || 0), 0);
+    $("listCount").textContent = jobs.length ? `${jobs.length} ใบ · รับรวม ${fmt(rec)} คิว` : "";
+    const open = db.jobs.filter((j) => j.status === "open" && inProj(j)).sort((a, b) => (b.header.date || "").localeCompare(a.header.date || "") || b.updated - a.updated);
+    $("resume").hidden = !open.length; $("resumeN").textContent = `${open.length} ใบ`;
+    $("resumeOpen").onclick = () => open[0] && openJob(open[0].id);
     $("jobs").innerHTML = jobs.length ? jobs.map((j) => {
       const s = j.stub ? { trucks: j.truckCount, received: j.received, ordered: Number(j.header.ordered) || 0 } : FieldReport.summary(j);
       return `<section class="job">
@@ -605,14 +637,14 @@
           <div class="meta">${esc([j.header.structure, j.header.structureNo].filter(Boolean).join(" · "))} ${esc(thaiDate(j.header.date))}
             · ${s.trucks} เที่ยว · รับ ${fmt(s.received)}${s.ordered ? ` / ${fmt(s.ordered)}` : ""} คิว</div></div>
         <div class="row"><button class="b" data-open="${j.id}" type="button">${j.status === "done" ? "เปิดดู" : "บันทึกต่อ"}</button>
-          <button class="g d" data-del="${j.id}" type="button">ลบ</button></div>
+          <button class="g kebab" data-kebab="1" type="button" aria-label="อื่น ๆ">⋮</button><button class="g d" data-del="${j.id}" type="button" hidden>ลบ</button></div>
       </section>`;
     }).join("") : (f || t) ? `<section><p class="note" style="margin:0">ไม่มีใบรายงาน${f === t ? `วันที่ ${esc(thaiDate(f))}` : `ระหว่าง ${esc(thaiDate(f) || "…")} – ${esc(thaiDate(t) || "…")}`}</p></section>` : `<section><p class="note" style="margin:0">${PROJ ? `ยังไม่มีรายงาน — กด "รายงานวันนี้" เพื่อเริ่ม` : `ยังไม่มีงาน — กด "สร้างงานใหม่" เพื่อเริ่มบันทึกใบรายงานสนาม`}</p></section>`;
   }
   // ---------- several reports at once (e.g. made for testing): tick, then delete with the administrator code ----------
   let selOn = false; const sel = new Set();
   function selShow() { $("selBar").hidden = !selOn; $("selMode").hidden = selOn; $("selCount").textContent = `เลือก ${sel.size} ใบ`; $("selDel").disabled = !sel.size; }
-  $("selMode").addEventListener("click", () => { selOn = true; sel.clear(); $("selAdm").innerHTML = ""; selShow(); showList(); });
+  $("selMode").addEventListener("click", () => { $("moreMenu").hidden = true; selOn = true; sel.clear(); $("selAdm").innerHTML = ""; selShow(); showList(); });
   $("selCancel").addEventListener("click", () => { selOn = false; sel.clear(); $("selAdm").innerHTML = ""; selShow(); showList(); });
   $("selAll").addEventListener("click", () => { document.querySelectorAll("#jobs [data-sel]").forEach((c) => { c.checked = true; sel.add(c.dataset.sel); }); selShow(); });
   $("jobs").addEventListener("change", (e) => { const c = e.target.dataset && e.target.dataset.sel; if (!c) return; e.target.checked ? sel.add(c) : sel.delete(c); selShow(); });
@@ -654,8 +686,21 @@
   // choosing "from" alone also sets "to" to the same day when "to" is empty or earlier
   $("listFrom").addEventListener("change", () => { if (!$("listTo").value || $("listTo").value < $("listFrom").value) $("listTo").value = $("listFrom").value; showDay(); });
   $("listTo").addEventListener("change", () => { if (!$("listFrom").value) $("listFrom").value = $("listTo").value; showDay(); });
-  $("listToday").addEventListener("click", () => { $("listFrom").value = $("listTo").value = isoToday(); showDay(); });
-  $("listAll").addEventListener("click", () => { $("listFrom").value = $("listTo").value = ""; showDay(); });
+  // วันนี้ | 7 วัน | เลือกช่วง… (the calendar boxes show only for เลือกช่วง)
+  $("seg").addEventListener("click", (e) => {
+    const r = e.target.dataset && e.target.dataset.r; if (!r) return;
+    document.querySelectorAll("#seg button").forEach((b) => b.classList.toggle("on", b === e.target));
+    $("rangeBox").hidden = r !== "pick";
+    if (r === "pick") return;
+    const d = new Date(); if (r === "7") d.setDate(d.getDate() - 6);
+    $("listFrom").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    $("listTo").value = isoToday(); showDay();
+  });
+  // ⋯ menu: select several to delete, backup out / in
+  $("moreBtn").addEventListener("click", (e) => { e.stopPropagation(); $("moreMenu").hidden = !$("moreMenu").hidden; });
+  document.addEventListener("click", (e) => { if (!e.target.closest("#moreMenu")) $("moreMenu").hidden = true; });
+  $("restore").addEventListener("change", () => { $("moreMenu").hidden = true; });
+  $("moreMenu").addEventListener("click", (e) => { if (e.target.closest("button")) $("moreMenu").hidden = true; });
 
   // Deleting a report needs the code (SHA-256 checked in this browser; keeps reports from being deleted by mistake)
   const DEL_HASH = "c6f9017f4820b334c5b7a4b271f1c0429e3147839f3c56422045cd4fd407476a";
@@ -688,6 +733,7 @@
   $("jobs").addEventListener("click", async (e) => {
     const o = e.target.dataset.open, d = e.target.dataset.del, ok = e.target.dataset.delok, no = e.target.dataset.delno;
     if (o) openJob(o);
+    if (e.target.dataset.kebab) { const x = e.target.nextElementSibling; x.hidden = !x.hidden; return; }
     if (d) {
       const row = e.target.parentNode, jd = db.jobs.find((j) => j.id === d);
       // a finished report: administrator only
@@ -1820,12 +1866,10 @@
   }
 
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && job) persist(); });
-  // the list opens on today's reports (every card, หลังสวน included); older ones: pick a date, or "ทั้งหมด"
+  // the list opens on today's reports (every card, หลังสวน included); older ones: 7 วัน, or เลือกช่วง… (calendar)
   $("listFrom").value = $("listTo").value = isoToday();
   showList();
   if (SYNC) syncNow().then(pull);
-  const open = db.jobs.filter((j) => j.status === "open" && inProj(j));
-  if (open.length === 1) $("listMsg").textContent = `มีงานที่ยังบันทึกไม่จบ: ${open[0].header.project || "(ไม่มีชื่อ)"}`;
 </script>
 <script src="topbar.js"></script>
 </body>
